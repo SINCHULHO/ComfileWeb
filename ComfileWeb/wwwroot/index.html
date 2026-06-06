@@ -34,13 +34,6 @@
             </button>
             <button id="deployWebServerButton" class="toolbar-button deploy-webserver-button" type="button" style="display:none">웹서버 배포</button>
             <div class="division-tools" aria-label="Grid division tools">
-                <label class="division-control division-control-back">
-                    <span data-i18n="color">Color</span>
-                    <button id="pageBackColorButton" class="toolbar-color-button" type="button" aria-label="Page background color">
-                        <span id="pageBackColorSwatch" class="toolbar-color-swatch"></span>
-                    </button>
-                </label>
-                <span class="division-separator" aria-hidden="true"></span>
                 <label class="division-control division-control-grid">
                     <span data-i18n="grid">Grid</span>
                     <input id="gridVisibleCheckbox" type="checkbox" checked />
@@ -55,7 +48,7 @@
                 </label>
                 <span class="division-separator" aria-hidden="true"></span>
                 <label class="division-control division-control-language">
-                    <span data-i18n="language">Language</span>
+                    <span>Language</span>
                     <select id="languageModeSelect" class="toolbar-select" aria-label="Language mode">
                         <option value="en">English</option>
                         <option value="ko" selected>Korean</option>
@@ -123,7 +116,7 @@
                             <div class="link-panel-title" data-i18n="link">링크</div>
                             <div class="link-content link-wizard">
                                 <section id="linkStep1" class="link-step" data-step="1">
-                                    <div class="link-step-title" data-i18n="linkStep1">1. 연결할 디바이스 선택</div>
+                                    <div class="link-step-title" data-i18n="linkStep1">1. 대상 장치 선택</div>
                                     <select id="linkModelSelect" class="property-select" aria-label="Link model">
                                         <option value="" selected data-i18n="choose">선택</option>
                                         <option value="CUBLOC2">CUBLOC2</option>
@@ -131,7 +124,7 @@
                                 </section>
 
                                 <section id="linkStep2" class="link-step" data-step="2">
-                                    <div class="link-step-title" data-i18n="linkStep2">2. 어디에 연결</div>
+                                    <div class="link-step-title" data-i18n="linkStep2">2. 연결 방식 선택</div>
                                     <select id="linkTransportSelect" class="property-select" aria-label="Link transport">
                                         <option value="" selected data-i18n="choose">선택</option>
                                         <option value="USB">USB</option>
@@ -141,7 +134,7 @@
                                 </section>
 
                                 <section id="linkStep3" class="link-step" data-step="3">
-                                    <div class="link-step-title" data-i18n="linkStep3">3. 구체적 포트 선택</div>
+                                    <div class="link-step-title" data-i18n="linkStep3">3. 포트/주소 설정</div>
                                     <div id="linkComPortRow" class="link-step-content">
                                         <select id="linkComPortSelect" class="property-select" aria-label="COM port">
                                             <option value="" selected data-i18n="choose">선택</option>

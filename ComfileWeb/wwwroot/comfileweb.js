@@ -30,15 +30,22 @@
 			return;
 		}
 
-		const name = await showSaveProjectDialog(currentProjectName || 'Untitled');
-		if (name === null) {
+		const saveInfo = await showSaveProjectDialog(currentProjectName || 'Untitled');
+		if (saveInfo === null) {
 			return;
 		}
 
-		const trimmed = String(name).trim();
+		const trimmed = String(saveInfo.name || '').trim();
 		if (!trimmed) {
 			window.alert('프로젝트 이름을 입력하세요.');
 			return;
+		}
+
+		if (saveInfo.projectsDirectory) {
+			const applied = await applyProjectSaveDirectory(saveInfo.projectsDirectory);
+			if (!applied) {
+				return;
+			}
 		}
 
 		const canOverwrite = await confirmOverwriteIfProjectExists(trimmed);
@@ -71,6 +78,47 @@
 			currentProjectName = result.name || trimmed;
 		} catch (error) {
 			window.alert('저장 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+		}
+	}
+
+	async function loadProjectSaveDirectory() {
+		try {
+			const response = await fetch('/api/project/settings', { method: 'GET', cache: 'no-store' });
+			if (!response.ok) {
+				return '';
+			}
+
+			const payload = await response.json();
+			return String(payload && payload.projectsDirectory ? payload.projectsDirectory : '');
+		} catch {
+			return '';
+		}
+	}
+
+	async function applyProjectSaveDirectory(projectsDirectory) {
+		const trimmed = String(projectsDirectory || '').trim();
+		if (!trimmed) {
+			window.alert('프로젝트 저장 위치를 입력하세요.');
+			return false;
+		}
+
+		try {
+			const response = await fetch('/api/project/settings', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ projectsDirectory: trimmed })
+			});
+
+			if (!response.ok) {
+				const detail = await readErrorDetail(response);
+				window.alert('프로젝트 저장 위치를 변경하지 못했습니다. ' + detail);
+				return false;
+			}
+
+			return true;
+		} catch (error) {
+			window.alert('프로젝트 저장 위치 변경 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+			return false;
 		}
 	}
 
@@ -369,7 +417,7 @@
 			overlay.style.zIndex = '3200';
 
 			const dialog = document.createElement('div');
-			dialog.style.width = 'min(480px, 92vw)';
+			dialog.style.width = 'min(640px, 92vw)';
 			dialog.style.display = 'flex';
 			dialog.style.flexDirection = 'column';
 			dialog.style.gap = '10px';
@@ -401,6 +449,43 @@
 			input.style.color = '#f4f4f5';
 			input.style.font = '13px "Segoe UI", "Malgun Gothic", sans-serif';
 
+			const directoryLabel = document.createElement('div');
+			directoryLabel.textContent = '프로젝트 저장 위치';
+			directoryLabel.style.fontSize = '12px';
+			directoryLabel.style.color = '#d4d4d8';
+
+			const directoryRow = document.createElement('div');
+			directoryRow.style.display = 'flex';
+			directoryRow.style.gap = '8px';
+
+			const directoryInput = document.createElement('input');
+			directoryInput.type = 'text';
+			directoryInput.placeholder = '예: D:\\ComfileWeb\\Projects';
+			directoryInput.style.height = '34px';
+			directoryInput.style.padding = '0 10px';
+			directoryInput.style.border = '1px solid #3f3f46';
+			directoryInput.style.borderRadius = '4px';
+			directoryInput.style.background = '#111114';
+			directoryInput.style.color = '#f4f4f5';
+			directoryInput.style.font = '13px "Segoe UI", "Malgun Gothic", sans-serif';
+			directoryInput.style.flex = '1 1 auto';
+			directoryInput.style.minWidth = '0';
+
+			const browseButton = document.createElement('button');
+			browseButton.type = 'button';
+			browseButton.textContent = '...';
+			browseButton.title = '폴더 선택';
+			applyButtonStyle(browseButton);
+			browseButton.style.flex = '0 0 auto';
+
+			const directoryHelp = document.createElement('div');
+			directoryHelp.textContent = '경로를 직접 입력하거나 ... 버튼으로 폴더를 선택한 뒤 저장을 누르세요.';
+			directoryHelp.style.fontSize = '12px';
+			directoryHelp.style.color = '#a1a1aa';
+
+			directoryRow.appendChild(directoryInput);
+			directoryRow.appendChild(browseButton);
+
 			const footer = document.createElement('div');
 			footer.style.display = 'flex';
 			footer.style.justifyContent = 'flex-end';
@@ -421,12 +506,19 @@
 				resolve(result);
 			}
 
-			saveButton.addEventListener('click', () => close(input.value));
+			function commit() {
+				close({
+					name: input.value,
+					projectsDirectory: directoryInput.value
+				});
+			}
+
+			saveButton.addEventListener('click', commit);
 			cancelButton.addEventListener('click', () => close(null));
 			input.addEventListener('keydown', event => {
 				if (event.key === 'Enter') {
 					event.preventDefault();
-					close(input.value);
+					commit();
 					return;
 				}
 				if (event.key === 'Escape') {
@@ -434,6 +526,18 @@
 					close(null);
 				}
 			});
+			directoryInput.addEventListener('keydown', event => {
+				if (event.key === 'Enter') {
+					event.preventDefault();
+					commit();
+					return;
+				}
+				if (event.key === 'Escape') {
+					event.preventDefault();
+					close(null);
+				}
+			});
+			browseButton.addEventListener('click', () => openProjectSaveDirectoryPicker(directoryInput));
 			overlay.addEventListener('pointerdown', event => {
 				if (event.target === overlay) {
 					close(null);
@@ -445,13 +549,57 @@
 			dialog.appendChild(title);
 			dialog.appendChild(label);
 			dialog.appendChild(input);
+			dialog.appendChild(directoryLabel);
+			dialog.appendChild(directoryRow);
+			dialog.appendChild(directoryHelp);
 			dialog.appendChild(footer);
 			overlay.appendChild(dialog);
 			document.body.appendChild(overlay);
 
+			loadProjectSaveDirectory().then(projectsDirectory => {
+				directoryInput.value = projectsDirectory;
+			});
+
 			input.focus();
 			input.select();
 		});
+	}
+
+	function openProjectSaveDirectoryPicker(directoryInput) {
+		const picker = document.createElement('input');
+		picker.type = 'file';
+		picker.setAttribute('webkitdirectory', '');
+		picker.setAttribute('directory', '');
+		picker.style.display = 'none';
+
+		picker.addEventListener('change', () => {
+			const files = picker.files;
+			if (!files || files.length === 0) {
+				picker.remove();
+				return;
+			}
+
+			const firstFile = files[0];
+			const relativePath = String(firstFile.webkitRelativePath || '');
+			const firstSlash = relativePath.indexOf('/');
+			const folderName = firstSlash > 0 ? relativePath.slice(0, firstSlash) : relativePath;
+			if (folderName && directoryInput) {
+				const currentText = String(directoryInput.value || '').trim();
+				const normalizedCurrent = currentText.replace(/\\/g, '/').replace(/\/+$/, '');
+				const segments = normalizedCurrent.split('/').filter(Boolean);
+				if (segments.length > 0) {
+					segments[segments.length - 1] = folderName;
+					directoryInput.value = segments.join(currentText.includes('\\') ? '\\' : '/');
+				} else {
+					directoryInput.value = folderName;
+				}
+			}
+
+			picker.remove();
+		}, { once: true });
+
+		document.body.appendChild(picker);
+		picker.click();
 	}
 
 	function applyButtonStyle(button) {

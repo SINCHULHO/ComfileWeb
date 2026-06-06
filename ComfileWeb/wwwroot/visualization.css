@@ -165,6 +165,8 @@
             cursor: pointer;
             padding: 0;
             flex: 0 0 auto;
+            order: 2;
+            margin-left: auto;
         }
 
         .logo-settings-button:hover {
@@ -194,6 +196,7 @@
         }
 
         .toolbar-logo {
+            order: 1;
             flex: 0 0 auto;
             display: inline-flex;
             align-items: center;

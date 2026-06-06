@@ -163,9 +163,9 @@ const designSurface = document.getElementById('designSurface');
                 settingsClose: '설정 닫기',
                 projectSaveLocation: '프로젝트 저장 위치',
                 projectSaveLocationHelp: '경로를 직접 입력하거나 [...] 버튼으로 폴더를 선택한 뒤 적용을 누르세요.',
-                linkStep1: '1. 연결할 디바이스 선택',
-                linkStep2: '2. 어디에 연결',
-                linkStep3: '3. 구체적 포트 선택',
+                linkStep1: '1. 대상 장치 선택',
+                linkStep2: '2. 연결 방식 선택',
+                linkStep3: '3. 포트/주소 설정',
                 linkStep4: '4. 연결',
                 choose: '선택',
                 link: '디바이스 연결',
@@ -214,9 +214,9 @@ const designSurface = document.getElementById('designSurface');
                 settingsClose: 'Close Settings',
                 projectSaveLocation: 'Project save location',
                 projectSaveLocationHelp: 'Enter a path directly or choose a folder with [...], then click Apply.',
-                linkStep1: '1. Select device',
-                linkStep2: '2. Select connection type',
-                linkStep3: '3. Select detailed port',
+                linkStep1: '1. Select Target Device',
+                linkStep2: '2. Select Connection Type',
+                linkStep3: '3. Set Port/Address',
                 linkStep4: '4. Connect',
                 choose: 'Choose',
                 link: 'Device Connection',
@@ -267,7 +267,11 @@ const designSurface = document.getElementById('designSurface');
             'Location': '세로 위치',
             'Minimum': '최소값',
             'Maximum': '최대값',
-            'Value': '값'
+            'Value': '값',
+            'Page Name': '페이지 이름',
+            'Page Back Color': '배경색',
+            'Grid X': '격자 X',
+            'Grid Y': '격자 Y'
         };
 
         function getPropertyDisplayName(propertyKey) {
@@ -770,6 +774,74 @@ const designSurface = document.getElementById('designSurface');
             });
 
             renderWidgets();
+        }
+
+        function updatePageProperty(propertyKey, value) {
+            const page = getCurrentPage();
+            if (!page) {
+                return;
+            }
+
+            if (propertyKey === 'Page Name') {
+                const nextName = String(value || '').trim();
+                if (!nextName || nextName === page.name) {
+                    renderProperties();
+                    return;
+                }
+
+                if (getPageByName(nextName)) {
+                    alert(useKoreanLanguage ? '같은 이름의 페이지가 이미 있습니다.' : 'A page with the same name already exists.');
+                    renderProperties();
+                    return;
+                }
+
+                pushUndoState();
+                const previousName = page.name;
+                page.name = nextName;
+                if (activePageName === previousName) {
+                    activePageName = nextName;
+                }
+                updateActivePageLabel();
+                renderProjectTree();
+                renderProperties();
+                return;
+            }
+
+            if (propertyKey === 'Page Back Color') {
+                const normalized = normalizeCssColor(value) || String(value || '').trim() || getThemeColorDefaults().pageBack;
+                if (String(page.properties.pageBackColorHtml || '') === normalized) {
+                    renderProperties();
+                    return;
+                }
+
+                pushUndoState();
+                page.properties.pageBackColorHtml = normalized;
+                updateGridControlsFromCurrentPage();
+                renderWidgets();
+                renderProperties();
+                return;
+            }
+
+            if (propertyKey === 'Grid X' || propertyKey === 'Grid Y') {
+                const min = 5;
+                const max = propertyKey === 'Grid X' ? 49 : 30;
+                const nextValue = Math.max(min, Math.min(max, Math.round(toNumber(value, propertyKey === 'Grid X' ? page.properties.gridDivisionsX : page.properties.gridDivisionsY))));
+                const propertyName = propertyKey === 'Grid X' ? 'gridDivisionsX' : 'gridDivisionsY';
+                if (Number(page.properties[propertyName]) === nextValue) {
+                    renderProperties();
+                    return;
+                }
+
+                pushUndoState();
+                page.properties[propertyName] = nextValue;
+                updateGridControlsFromCurrentPage();
+                selectedWidgetIds = selectedWidgetIds.filter(widgetId => page.widgets.some(widget => widget.id === widgetId));
+                if (selectedCell && (selectedCell.x >= Number(page.properties.gridDivisionsX) || selectedCell.y >= Number(page.properties.gridDivisionsY))) {
+                    selectedCell = null;
+                }
+                renderWidgets();
+                renderProperties();
+            }
         }
 
         function distributeSelectedWidgets(direction) {
@@ -3326,23 +3398,12 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (selectedCell) {
-                if (propertyPanelTitle) {
-                    propertyPanelTitle.textContent = resources.properties;
-                }
-                propertyGridBody.innerHTML = `
-                    <tr><th>${escapeHtml(resources.select)}</th><td>${escapeHtml(resources.emptyCell)}</td></tr>
-                    <tr><th>X</th><td>${selectedCell.x}</td></tr>
-                    <tr><th>Y</th><td>${selectedCell.y}</td></tr>`;
+                renderPageProperties();
                 return;
             }
 
             if (!widget) {
-                if (propertyPanelTitle) {
-                    propertyPanelTitle.textContent = resources.properties;
-                }
-                propertyGridBody.innerHTML = `
-                    <tr><th>${escapeHtml(getPropertyDisplayName('Name'))}</th><td>-</td></tr>
-                    <tr><th>${escapeHtml(getPropertyDisplayName('Address'))}</th><td>-</td></tr>`;
+                renderPageProperties();
                 return;
             }
 
@@ -3363,6 +3424,40 @@ const designSurface = document.getElementById('designSurface');
                     return `<tr${rowClass}><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${valueHtml}</td></tr>`;
                 })
                 .join('');
+        }
+
+        function renderPageProperties() {
+            if (propertyPanelTitle) {
+                propertyPanelTitle.textContent = useKoreanLanguage ? '페이지 속성' : 'Page Properties';
+            }
+
+            const page = getCurrentPage();
+            const pageRows = [
+                { key: 'Page Name', value: page.name || 'Page1' },
+                { key: 'Page Back Color', value: page.properties.pageBackColorHtml || getThemeColorDefaults().pageBack },
+                { key: 'Grid X', value: String(page.properties.gridDivisionsX || 49) },
+                { key: 'Grid Y', value: String(page.properties.gridDivisionsY || 30) }
+            ];
+
+            propertyGridBody.innerHTML = pageRows
+                .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPagePropertyEditor(row.key, row.value)}</td></tr>`)
+                .join('');
+        }
+
+        function renderPagePropertyEditor(key, value) {
+            if (key === 'Page Back Color') {
+                const color = normalizeCssColor(value) || getThemeColorDefaults().pageBack;
+                const swatchClass = color ? 'property-color-swatch is-valid' : 'property-color-swatch';
+                const swatchStyle = color ? ` style="background-color: ${escapeHtml(color)}"` : '';
+                return `<div class="property-color-editor">
+                    <input class="property-input" data-page-property-key="${escapeHtml(key)}" value="${escapeHtml(value)}" />
+                    <button class="property-color-button" type="button" data-page-color-property-key="${escapeHtml(key)}" title="${escapeHtml(value)}">
+                        <span class="${swatchClass}"${swatchStyle}></span>
+                    </button>
+                </div>`;
+            }
+
+            return `<input class="property-input" data-page-property-key="${escapeHtml(key)}" value="${escapeHtml(value)}" />`;
         }
 
         function getWidgetPropertyRows(widget) {
@@ -6443,7 +6538,16 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
+            if (editor.dataset.pagePropertyKey) {
+                updatePageProperty(editor.dataset.pagePropertyKey, editor.value);
+                return;
+            }
+
             updateSelectedWidgetProperty(editor.dataset.propertyKey, editor.value);
+        });
+
+        propertyGridBody.addEventListener('input', event => {
+            return;
         });
 
         propertyGridBody.addEventListener('click', event => {
@@ -6453,6 +6557,11 @@ const designSurface = document.getElementById('designSurface');
 
             const colorButton = event.target.closest('.property-color-button');
             if (colorButton) {
+                if (colorButton.dataset.pageColorPropertyKey) {
+                    openPagePropertyColorPicker(colorButton.dataset.pageColorPropertyKey, colorButton);
+                    return;
+                }
+
                 openPropertyColorPicker(colorButton.dataset.colorPropertyKey, colorButton);
                 return;
             }
@@ -6670,6 +6779,99 @@ const designSurface = document.getElementById('designSurface');
                 page.properties.pageBackColorHtml = normalized;
                 updateGridControlsFromCurrentPage();
                 renderWidgets();
+            });
+
+            popup.appendChild(header);
+            popup.appendChild(htmlValueInput);
+            popup.appendChild(picker);
+            popup.appendChild(palette);
+            document.body.appendChild(popup);
+
+            const anchorRect = anchorElement.getBoundingClientRect();
+            const popupRect = popup.getBoundingClientRect();
+            const left = Math.max(8, Math.min(window.innerWidth - popupRect.width - 8, anchorRect.right - popupRect.width));
+            const top = Math.max(8, Math.min(window.innerHeight - popupRect.height - 8, anchorRect.bottom + 6));
+            popup.style.left = `${left}px`;
+            popup.style.top = `${top}px`;
+
+            const closePopup = () => popup.remove();
+            closeButton.addEventListener('click', closePopup);
+        }
+
+        function openPagePropertyColorPicker(propertyKey, anchorElement) {
+            if (!propertyKey || runtimeRunning) {
+                return;
+            }
+
+            const page = getCurrentPage();
+            const currentColor = normalizeCssColor(page?.properties?.pageBackColorHtml) || getThemeColorDefaults().pageBack;
+            document.querySelectorAll('.property-color-popup').forEach(element => element.remove());
+
+            const popup = document.createElement('div');
+            popup.className = 'property-color-popup';
+
+            const header = document.createElement('div');
+            header.className = 'property-color-popup-header';
+
+            const title = document.createElement('span');
+            title.textContent = getPropertyDisplayName(propertyKey);
+            header.appendChild(title);
+
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'property-color-popup-close';
+            closeButton.textContent = '×';
+            closeButton.setAttribute('aria-label', 'Close');
+            header.appendChild(closeButton);
+
+            const picker = document.createElement('input');
+            picker.type = 'color';
+            picker.value = toHexColor(currentColor) || '#202124';
+            picker.className = 'property-color-popup-picker';
+
+            const htmlValueInput = document.createElement('input');
+            htmlValueInput.type = 'text';
+            htmlValueInput.className = 'property-input property-color-value-input';
+            htmlValueInput.value = (toHexColor(currentColor) || '#202124').toUpperCase();
+            htmlValueInput.maxLength = 7;
+
+            const palette = document.createElement('div');
+            palette.className = 'property-color-palette';
+            const selectedHex = picker.value.toUpperCase();
+            defaultColorPalette.forEach(color => {
+                const swatch = document.createElement('button');
+                swatch.type = 'button';
+                swatch.className = 'property-color-palette-item';
+                if (color.toUpperCase() === selectedHex) {
+                    swatch.classList.add('selected');
+                }
+                swatch.style.backgroundColor = color;
+                swatch.title = color;
+                swatch.addEventListener('click', () => {
+                    picker.value = color;
+                    htmlValueInput.value = color.toUpperCase();
+                    updatePageProperty(propertyKey, color);
+                    closePopup();
+                });
+                palette.appendChild(swatch);
+            });
+
+            picker.addEventListener('input', () => {
+                const hex = String(picker.value || '').toUpperCase();
+                htmlValueInput.value = hex;
+                updatePageProperty(propertyKey, hex);
+            });
+
+            htmlValueInput.addEventListener('change', () => {
+                const normalized = toHexColor(htmlValueInput.value);
+                if (!normalized) {
+                    htmlValueInput.value = (toHexColor(picker.value) || '#202124').toUpperCase();
+                    return;
+                }
+
+                picker.value = normalized;
+                htmlValueInput.value = normalized.toUpperCase();
+                updatePageProperty(propertyKey, normalized);
             });
 
             popup.appendChild(header);
