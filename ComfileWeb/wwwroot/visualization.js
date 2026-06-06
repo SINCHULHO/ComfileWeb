@@ -92,18 +92,6 @@ const designSurface = document.getElementById('designSurface');
         let visualizationAddressAliasRefreshRequested = false;
         let visualizationAddressAliasesLoaded = false;
         let visualizationAddressAliasSelectionKey = '';
-        const ldMonitor = createVisualizationLdMonitor({
-            getMainLayout: () => mainLayout,
-            getWorkArea: () => workArea,
-            getDesignSurface: () => designSurface,
-            renderWidgets: () => renderWidgets(),
-            getRuntimeRunning: () => runtimeRunning,
-            ensureRuntimeConnection: () => ensureRuntimeConnection(),
-            getUseKoreanLanguage: () => useKoreanLanguage,
-            toNumber: (value, fallback) => toNumber(value, fallback),
-            getCurrentThemeMode: () => currentThemeMode,
-            getRuntimeValues: () => runtimeValues
-        });
         const runtimeServerOrigin = window.location.protocol === 'file:' ? 'http://127.0.0.1:5129' : window.location.origin;
         const defaultColorPalette = [
             '#000000', '#404040', '#808080', '#C0C0C0', '#FFFFFF',
@@ -833,17 +821,8 @@ const designSurface = document.getElementById('designSurface');
             }
         }
 
-        function getDeployMonitorOptionFromDocument(model) {
-            const includeOption = model?.deployOptions?.includeLdMonitoring;
-            return typeof includeOption === 'boolean' ? includeOption : true;
-        }
-
-        function exportVisualizationDeployDocumentText(includeLdMonitoring) {
+        function exportVisualizationDeployDocumentText() {
             const deployModel = JSON.parse(JSON.stringify(documentModel || {}));
-            deployModel.deployOptions = deployModel.deployOptions && typeof deployModel.deployOptions === 'object'
-                ? deployModel.deployOptions
-                : {};
-            deployModel.deployOptions.includeLdMonitoring = !!includeLdMonitoring;
             return JSON.stringify(deployModel);
         }
 
@@ -859,7 +838,6 @@ const designSurface = document.getElementById('designSurface');
             const descriptionText = isKorean
                 ? '웹브라우저에서 접속할 수 있는 웹서버 실행파일을 생성하는 기능입니다.'
                 : 'This feature creates a web server executable that can be accessed from a web browser.';
-            const includeLabelText = isKorean ? 'LD 모니터링 포함' : 'Include LD monitoring';
             const deployText = isKorean ? '배포' : 'Deploy';
             const cancelText = isKorean ? '취소' : 'Cancel';
 
@@ -879,16 +857,6 @@ const designSurface = document.getElementById('designSurface');
             const description = document.createElement('p');
             description.className = 'deploy-options-dialog-description';
             description.textContent = descriptionText;
-
-            const checkboxRow = document.createElement('label');
-            checkboxRow.className = 'deploy-options-checkbox';
-            const includeCheckbox = document.createElement('input');
-            includeCheckbox.type = 'checkbox';
-            includeCheckbox.checked = true;
-            const checkboxText = document.createElement('span');
-            checkboxText.textContent = includeLabelText;
-            checkboxRow.appendChild(includeCheckbox);
-            checkboxRow.appendChild(checkboxText);
 
             const footer = document.createElement('div');
             footer.className = 'deploy-options-dialog-footer';
@@ -925,7 +893,7 @@ const designSurface = document.getElementById('designSurface');
 
                 window.chrome.webview.postMessage({
                     type: 'visualization-deploy-server-request',
-                    documentText: exportVisualizationDeployDocumentText(includeCheckbox.checked)
+                    documentText: exportVisualizationDeployDocumentText()
                 });
 
                 closeDialog();
@@ -936,7 +904,6 @@ const designSurface = document.getElementById('designSurface');
 
             dialog.appendChild(title);
             dialog.appendChild(description);
-            dialog.appendChild(checkboxRow);
             dialog.appendChild(footer);
             overlay.appendChild(dialog);
             document.body.appendChild(overlay);
@@ -1578,8 +1545,6 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
-            ldMonitor.syncLayout();
-
             const page = getCurrentPage();
             designSurface.classList.toggle('runtime-running', runtimeRunning);
             designSurface.querySelectorAll('.design-widget').forEach(widgetElement => widgetElement.remove());
@@ -1676,39 +1641,6 @@ const designSurface = document.getElementById('designSurface');
             }
 
             const resources = useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
-            if (!deployedRuntimeMode || ldMonitor.isFeatureEnabled()) {
-                const monitorButton = document.createElement('button');
-                monitorButton.type = 'button';
-                monitorButton.className = 'runtime-page-button runtime-monitor-button';
-                const monitorLabel = ldMonitor.isSplitMode()
-                    ? (useKoreanLanguage ? '모니터링 중지' : 'Stop monitoring')
-                    : (useKoreanLanguage ? '모니터링 시작' : 'Start monitoring');
-                monitorButton.setAttribute('aria-label', monitorLabel);
-                monitorButton.title = monitorLabel;
-                monitorButton.setAttribute('aria-pressed', ldMonitor.isSplitMode() ? 'true' : 'false');
-                if (ldMonitor.isSplitMode()) {
-                    monitorButton.classList.add('active');
-                }
-
-                const monitorIcon = document.createElement('span');
-                monitorIcon.className = 'runtime-monitor-icon';
-                monitorIcon.setAttribute('aria-hidden', 'true');
-                monitorButton.appendChild(monitorIcon);
-
-                monitorButton.addEventListener('pointerdown', event => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (runtimeRunning || runtimeStarting) {
-                        ldMonitor.setSplitMode(!ldMonitor.isSplitMode());
-                    }
-                });
-                monitorButton.addEventListener('click', event => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                });
-                navigation.appendChild(monitorButton);
-            }
-
             if (!deployedRuntimeMode) {
                 const exitButton = document.createElement('button');
                 exitButton.type = 'button';
@@ -1741,8 +1673,6 @@ const designSurface = document.getElementById('designSurface');
             }
             designSurface.querySelectorAll('.runtime-page-navigation').forEach(element => element.remove());
         }
-
-        window.onVisualizationLdJsonResult = ldMonitor.onLdJsonResult;
 
         function renderButtonWidget(widget) {
             const themeDefaults = getThemeColorDefaults();
@@ -5036,9 +4966,6 @@ const designSurface = document.getElementById('designSurface');
             });
             if (runtimeDraggingSliderIds.size === 0 && !activeNumberInputPopup) {
                 renderWidgets();
-                if (ldMonitor.isSplitMode()) {
-                    ldMonitor.renderDiagram();
-                }
             }
         }
 
@@ -5075,9 +5002,6 @@ const designSurface = document.getElementById('designSurface');
 
             updateGridControlsFromCurrentPage();
             renderWidgets();
-            if (!wasRuntimeRunning && runtimeRunning) {
-                ldMonitor.subscribeAddresses();
-            }
         }
 
         async function startRuntime() {
@@ -5168,7 +5092,6 @@ const designSurface = document.getElementById('designSurface');
             runtimeValues = new Map();
             runtimeLocalValueOverrides.clear();
             runtimePressedWidgetIds.clear();
-            ldMonitor.stop();
             document.body.classList.remove('runtime-running');
             designSurface.classList.remove('runtime-running');
             if (runtimeStartPageName && getPageByName(runtimeStartPageName)) {
@@ -5662,7 +5585,6 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
-            ldMonitor.setFeatureEnabled(getDeployMonitorOptionFromDocument(nextDocumentModel));
             documentModel.version = nextDocumentModel.version || 1;
             documentModel.pages = nextDocumentModel.pages;
             normalizeVisualizationDocumentPages();
