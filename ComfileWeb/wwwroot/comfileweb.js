@@ -92,7 +92,11 @@
 		}
 
 		const names = items.map(item => item.name);
-		const numbered = names.map((projectName, index) => (index + 1) + '. ' + projectName).join('\n');
+		const numbered = items.map((item, index) => {
+			const projectName = item && item.name ? String(item.name) : 'Untitled';
+			const fullPath = item && item.fullPath ? String(item.fullPath) : '';
+			return (index + 1) + '. ' + projectName + (fullPath ? (' | ' + fullPath) : '');
+		}).join('\n');
 		const answer = window.prompt('열 프로젝트 번호를 입력하세요.\n\n' + numbered, '1');
 		if (answer === null) {
 			return;

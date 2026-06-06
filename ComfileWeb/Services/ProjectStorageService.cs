@@ -91,7 +91,8 @@ public sealed class ProjectStorageService
                 Path.GetFileNameWithoutExtension(file.Name),
                 file.Name,
                 file.Length,
-                file.LastWriteTime))
+                file.LastWriteTime,
+                file.FullName))
             .ToList();
     }
 

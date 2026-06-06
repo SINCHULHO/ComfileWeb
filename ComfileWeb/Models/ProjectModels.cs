@@ -21,4 +21,4 @@ public sealed record ProjectSaveResult(string Name, string FileName, string Full
 /// <summary>
 /// 저장된 프로젝트 목록의 한 항목.
 /// </summary>
-public sealed record ProjectListItem(string Name, string FileName, long SizeBytes, DateTimeOffset ModifiedAt);
+public sealed record ProjectListItem(string Name, string FileName, long SizeBytes, DateTimeOffset ModifiedAt, string FullPath);

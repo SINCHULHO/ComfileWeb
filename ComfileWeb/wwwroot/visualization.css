@@ -55,6 +55,7 @@
         }
 
         html.deployed-runtime-preload .toolbar,
+        html.deployed-runtime-preload .logo-bar,
         html.deployed-runtime-preload .widget-palette,
         html.deployed-runtime-preload .right-panel,
         html.deployed-runtime-preload .property-panel,
@@ -98,8 +99,19 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            height: 46px;
-            padding: 8px 10px 7px;
+            height: 40px;
+            padding: 5px 10px 4px;
+            background: var(--toolbar-bg);
+            border-bottom: 1px solid var(--toolbar-border);
+            flex: 0 0 auto;
+        }
+
+        .logo-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            height: 40px;
+            padding: 6px 10px;
             background: var(--toolbar-bg);
             border-bottom: 1px solid var(--toolbar-border);
             flex: 0 0 auto;
@@ -123,6 +135,7 @@
         }
 
         body.runtime-running .toolbar,
+        body.runtime-running .logo-bar,
         body.runtime-running .widget-palette,
         body.runtime-running .right-panel,
         body.runtime-running .property-panel,
@@ -169,6 +182,19 @@
             font-size: 12px;
             cursor: pointer;
             white-space: nowrap;
+        }
+
+        .split-sliders {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 12px;
+            padding-left: 12px;
+            border-left: 1px solid var(--toolbar-border);
+            color: var(--text);
+            font-size: 12px;
+            white-space: nowrap;
+            flex: 0 0 auto;
         }
 
         .toolbar-button:hover {
