@@ -89,6 +89,7 @@ const designSurface = document.getElementById('designSurface');
         let runtimeStarting = false;
         let runtimeRunning = false;
         let runtimeStartPageName = '';
+        let lastRuntimeErrorMessage = '';
         let runtimeValues = new Map();
         let usbCdcConnectionState = { isConnected: false, portName: '' };
         const runtimeLocalValueOverrides = new Map();
@@ -379,8 +380,7 @@ const designSurface = document.getElementById('designSurface');
 
         function updateActivePageLabel() {
             if (activePageLabel) {
-                const resources = getVisualizationResources();
-                activePageLabel.textContent = `${resources.currentPagePrefix}: ${activePageName || 'Page1'}`;
+                activePageLabel.textContent = activePageName || 'Page1';
             }
         }
 
@@ -5104,8 +5104,14 @@ const designSurface = document.getElementById('designSurface');
             }
             updateRuntimeButtons();
             if (payload && payload.error) {
-                console.warn(payload.error);
-                alert(payload.error);
+                const nextError = String(payload.error || '');
+                console.warn(nextError);
+                if (nextError && nextError !== lastRuntimeErrorMessage) {
+                    lastRuntimeErrorMessage = nextError;
+                    alert(nextError);
+                }
+            } else {
+                lastRuntimeErrorMessage = '';
             }
 
             if (!runtimeRunning && runtimeStartPageName && getPageByName(runtimeStartPageName)) {
