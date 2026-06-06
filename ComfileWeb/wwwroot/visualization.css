@@ -106,6 +106,34 @@
             flex: 0 0 auto;
         }
 
+        .logo-settings-button {
+            position: relative;
+            width: 26px;
+            height: 26px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            padding: 0;
+            flex: 0 0 auto;
+        }
+
+        .logo-settings-button:hover {
+            background: var(--button-hover-bg);
+            border-color: var(--button-hover-border);
+        }
+
+        .logo-settings-button::before {
+            content: "⚙";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -52%);
+            font-size: 14px;
+            line-height: 1;
+        }
+
         .logo-bar {
             display: flex;
             align-items: center;
@@ -912,6 +940,209 @@
             display: flex;
             flex-direction: column;
             min-height: 0;
+        }
+
+        .canvas-shell.show-settings .design-surface,
+        .canvas-shell.show-settings .canvas-header {
+            display: none;
+        }
+
+        .app-settings-panel {
+            display: none;
+            flex: 1 1 auto;
+            min-height: 0;
+            border: 1px solid var(--surface-border);
+            background: var(--surface-bg);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+            padding: 18px;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+
+        .canvas-shell.show-settings .app-settings-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .app-settings-tabs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-bottom: 1px solid var(--property-border);
+            padding-bottom: 8px;
+        }
+
+        .app-settings-tab {
+            height: 28px;
+            padding: 0 12px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .app-settings-tab:hover {
+            background: var(--button-hover-bg);
+            border-color: var(--button-hover-border);
+        }
+
+        .app-settings-tab.active {
+            border-color: var(--focus);
+            background: color-mix(in srgb, var(--focus) 22%, var(--button-bg));
+        }
+
+        .app-settings-tab-panel {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .app-settings-tab-panel.active {
+            display: flex;
+        }
+
+        .canvas-shell.show-settings .app-settings-panel .property-input {
+            max-width: 100%;
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--property-value-bg);
+            color: var(--text);
+            box-sizing: border-box;
+        }
+
+        .canvas-shell.show-settings .app-settings-panel .property-input::placeholder {
+            color: var(--property-muted);
+        }
+
+        .app-settings-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .app-settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .app-settings-close-button {
+            min-width: 72px;
+            font-weight: 700;
+        }
+
+        .app-settings-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .app-settings-actions {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .app-settings-help {
+            color: var(--property-muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .app-settings-select-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            max-width: min(100%, 860px);
+        }
+
+        .app-settings-select-row .property-input {
+            flex: 1 1 auto;
+        }
+
+        .app-settings-select-row .property-select {
+            flex: 1 1 auto;
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--property-value-bg);
+            color: var(--text);
+            box-sizing: border-box;
+        }
+
+        .app-settings-select-row .toolbar-button {
+            flex: 0 0 auto;
+            height: 34px;
+            padding: 0 12px;
+        }
+
+        #projectSaveDirectoryBrowseButton {
+            min-width: 38px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .settings-link-panel {
+            min-height: 0;
+            max-width: min(100%, 1160px);
+            border: 1px solid var(--property-border);
+            background: var(--property-bg);
+        }
+
+        .link-wizard {
+            display: grid;
+            grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(280px, 1.4fr) minmax(170px, 1fr);
+            gap: 10px;
+        }
+
+        .link-step {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px;
+            border: 1px solid var(--property-border);
+            border-radius: 4px;
+            background: color-mix(in srgb, var(--property-value-bg) 88%, transparent);
+            min-height: 112px;
+        }
+
+        .link-step.is-disabled {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
+        .link-step-title {
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.35;
+            min-height: 30px;
+        }
+
+        .link-step-content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .link-connection-state {
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+            min-height: 20px;
+            padding: 4px 0;
         }
 
         .design-surface {
@@ -1975,33 +2206,6 @@
             min-height: 80px;
             background: var(--property-bg);
             color: var(--text);
-        }
-
-        .link-panel-splitter {
-            flex: 0 0 6px;
-            height: 6px;
-            border-top: 1px solid var(--toolbar-border);
-            border-bottom: 1px solid var(--toolbar-border);
-            background: var(--panel-bg);
-            cursor: row-resize;
-        }
-
-        .link-panel-splitter:hover,
-        .link-panel-splitter.is-dragging {
-            background: var(--focus);
-        }
-
-        body.is-resizing-link-panel {
-            cursor: row-resize;
-            user-select: none;
-        }
-
-        .link-panel {
-            flex: 0 0 220px;
-            display: flex;
-            flex-direction: column;
-            min-height: 200px;
-            background: var(--property-bg);
         }
 
         .link-panel-title {

@@ -25,11 +25,9 @@ const designSurface = document.getElementById('designSurface');
         const propertyPanelTitle = document.getElementById('propertyPanelTitle');
         const propertySplitter = document.getElementById('propertySplitter');
         const rightPanelSplitter = document.getElementById('rightPanelSplitter');
-        const linkPanelSplitter = document.getElementById('linkPanelSplitter');
         const rightPanel = document.querySelector('.right-panel');
         const projectPanel = document.querySelector('.project-panel');
         const propertyPanel = document.querySelector('.property-panel');
-        const linkPanel = document.getElementById('linkPanel');
         const projectTree = document.getElementById('projectTree');
         const projectAddPageButton = document.getElementById('projectAddPageButton');
         const linkModelSelect = document.getElementById('linkModelSelect');
@@ -42,6 +40,19 @@ const designSurface = document.getElementById('designSurface');
         const linkEthernetPortInput = document.getElementById('linkEthernetPortInput');
         const usbConnectionState = document.getElementById('usbConnectionState');
         const usbConnectButton = document.getElementById('usbConnectButton');
+        const linkStep1 = document.getElementById('linkStep1');
+        const linkStep2 = document.getElementById('linkStep2');
+        const linkStep3 = document.getElementById('linkStep3');
+        const linkStep4 = document.getElementById('linkStep4');
+        const settingsToggleButton = document.getElementById('settingsToggleButton');
+        const appSettingsPanel = document.getElementById('appSettingsPanel');
+        const projectSaveDirectoryInput = document.getElementById('projectSaveDirectoryInput');
+        const projectSaveDirectoryBrowseButton = document.getElementById('projectSaveDirectoryBrowseButton');
+        const projectSaveDirectoryApplyButton = document.getElementById('projectSaveDirectoryApplyButton');
+        const canvasShell = document.querySelector('.canvas-shell');
+        const settingsGeneralTab = document.getElementById('settingsGeneralTab');
+        const settingsLinkTab = document.getElementById('settingsLinkTab');
+        const settingsCloseButton = document.getElementById('settingsCloseButton');
 
         const documentModel = {
             version: 1,
@@ -72,7 +83,6 @@ const designSurface = document.getElementById('designSurface');
         let activeMarquee = null;
         let activePropertyPanelResize = null;
         let activeRightPanelResize = null;
-        let activeLinkPanelResize = null;
         let resizeDragIndicator = null;
         let lastWidgetPointerDown = { widgetId: '', time: 0 };
         let runtimeConnection = null;
@@ -92,6 +102,8 @@ const designSurface = document.getElementById('designSurface');
         let visualizationAddressAliasRefreshRequested = false;
         let visualizationAddressAliasesLoaded = false;
         let visualizationAddressAliasSelectionKey = '';
+        let settingsPanelVisible = false;
+        let settingsReturnPageName = '';
         const runtimeServerOrigin = window.location.protocol === 'file:' ? 'http://127.0.0.1:5129' : window.location.origin;
         const defaultColorPalette = [
             '#000000', '#404040', '#808080', '#C0C0C0', '#FFFFFF',
@@ -134,7 +146,24 @@ const designSurface = document.getElementById('designSurface');
                 gapX: 'X 간격',
                 gapY: 'Y 간격',
                 apply: '적용',
-                cancel: '취소'
+                cancel: '취소',
+                settings: '설정',
+                settingsClose: '설정 닫기',
+                projectSaveLocation: '프로젝트 저장 위치',
+                projectSaveLocationHelp: '경로를 직접 입력하거나 [...] 버튼으로 폴더를 선택한 뒤 적용을 누르세요.',
+                linkStep1: '1. 연결할 디바이스 선택',
+                linkStep2: '2. 어디에 연결',
+                linkStep3: '3. 구체적 포트 선택',
+                linkStep4: '4. 연결',
+                choose: '선택',
+                link: '디바이스 연결',
+                model: '모델',
+                portType: '포트',
+                comPort: 'COM 포트',
+                ipAddress: 'IP 주소',
+                tcpPort: 'TCP 포트',
+                state: '상태',
+                action: '동작'
             },
             en: {
                 run: 'Run',
@@ -168,7 +197,24 @@ const designSurface = document.getElementById('designSurface');
                 gapX: 'Gap X',
                 gapY: 'Gap Y',
                 apply: 'Apply',
-                cancel: 'Cancel'
+                cancel: 'Cancel',
+                settings: 'Settings',
+                settingsClose: 'Close Settings',
+                projectSaveLocation: 'Project save location',
+                projectSaveLocationHelp: 'Enter a path directly or choose a folder with [...], then click Apply.',
+                linkStep1: '1. Select device',
+                linkStep2: '2. Select connection type',
+                linkStep3: '3. Select detailed port',
+                linkStep4: '4. Connect',
+                choose: 'Choose',
+                link: 'Device Connection',
+                model: 'Model',
+                portType: 'Port',
+                comPort: 'COM Port',
+                ipAddress: 'IP Address',
+                tcpPort: 'TCP Port',
+                state: 'State',
+                action: 'Action'
             }
         };
         let useKoreanLanguage = true;
@@ -1392,7 +1438,7 @@ const designSurface = document.getElementById('designSurface');
                     X: String(cellX),
                     Y: String(cellY),
                     Minimum: '0',
-                    Maximum: '60',
+                    Maximum: '100',
                     Color: themeDefaults.gaugeDisplay,
                     Unit: '',
                     Value: '0'
@@ -4701,6 +4747,34 @@ const designSurface = document.getElementById('designSurface');
             if (linkEthernetPortRow) {
                 linkEthernetPortRow.style.display = showEthernet ? '' : 'none';
             }
+
+            updateLinkWizardStepState();
+        }
+
+        function updateLinkWizardStepState() {
+            const hasDevice = !!String(linkModelSelect?.value || '').trim();
+            const hasTransport = !!String(linkTransportSelect?.value || '').trim();
+            const transport = getLinkTransportMode();
+            let hasPortDetail = false;
+            if (transport === 'Ethernet') {
+                hasPortDetail = !!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim();
+            } else {
+                hasPortDetail = !!String(linkComPortSelect?.value || '').trim();
+            }
+
+            if (linkStep2) {
+                linkStep2.classList.toggle('is-disabled', !hasDevice);
+            }
+            if (linkStep3) {
+                linkStep3.classList.toggle('is-disabled', !(hasDevice && hasTransport));
+            }
+            if (linkStep4) {
+                linkStep4.classList.toggle('is-disabled', !(hasDevice && hasTransport && hasPortDetail));
+            }
+
+            if (usbConnectButton) {
+                usbConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
+            }
         }
 
         function updateUsbConnectionUi(connectionState) {
@@ -4741,6 +4815,7 @@ const designSurface = document.getElementById('designSurface');
                 option.value = '';
                 option.textContent = useKoreanLanguage ? '포트 없음' : 'No ports';
                 linkComPortSelect.appendChild(option);
+                updateLinkWizardStepState();
                 return;
             }
 
@@ -4751,6 +4826,44 @@ const designSurface = document.getElementById('designSurface');
                 linkComPortSelect.appendChild(option);
             });
             linkComPortSelect.value = activeValue;
+            updateLinkWizardStepState();
+        }
+
+        function fillComPortOptionsWithInfo(portInfos, selectedPortName) {
+            if (!linkComPortSelect) {
+                return;
+            }
+
+            const normalizedInfos = Array.isArray(portInfos)
+                ? portInfos
+                    .map(item => {
+                        const portName = String(item?.portName || '').trim();
+                        const displayName = String(item?.displayName || '').trim();
+                        return portName ? { portName, displayName: displayName || portName } : null;
+                    })
+                    .filter(Boolean)
+                : [];
+
+            if (normalizedInfos.length === 0) {
+                fillComPortOptions([], selectedPortName);
+                return;
+            }
+
+            const previous = String(selectedPortName || linkComPortSelect.value || '').trim();
+            const firstPortName = normalizedInfos[0]?.portName || '';
+            const activeValue = normalizedInfos.some(info => info.portName === previous)
+                ? previous
+                : firstPortName;
+
+            linkComPortSelect.innerHTML = '';
+            normalizedInfos.forEach(info => {
+                const option = document.createElement('option');
+                option.value = info.portName;
+                option.textContent = info.displayName;
+                linkComPortSelect.appendChild(option);
+            });
+            linkComPortSelect.value = activeValue;
+            updateLinkWizardStepState();
         }
 
         async function loadUsbCdcPorts(preferredPortName) {
@@ -4761,7 +4874,7 @@ const designSurface = document.getElementById('designSurface');
                 }
 
                 const payload = await response.json();
-                fillComPortOptions(payload && payload.ports, preferredPortName || payload?.portName || '');
+                fillComPortOptionsWithInfo(payload?.portInfos, preferredPortName || payload?.portName || '');
                 updateUsbConnectionUi({
                     isConnected: !!payload?.isConnected,
                     portName: payload?.portName || ''
@@ -5850,6 +5963,11 @@ const designSurface = document.getElementById('designSurface');
                 projectAddButton.title = useKoreanLanguage ? '페이지 추가' : 'Add page';
                 projectAddButton.setAttribute('aria-label', useKoreanLanguage ? '페이지 추가' : 'Add page');
             }
+            if (settingsToggleButton) {
+                const settingsLabel = useKoreanLanguage ? '설정' : 'Settings';
+                settingsToggleButton.title = settingsLabel;
+                settingsToggleButton.setAttribute('aria-label', settingsLabel);
+            }
             applyAlignmentTooltips(resources);
             updateRuntimeButtons();
             if (languageModeSelect) {
@@ -5858,6 +5976,128 @@ const designSurface = document.getElementById('designSurface');
             updateActivePageLabel();
             renderProperties();
             updateUsbConnectionUi(usbCdcConnectionState);
+        }
+
+        async function loadProjectStorageSettings() {
+            try {
+                const response = await fetch('/api/project/settings', { method: 'GET', cache: 'no-store' });
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                if (projectSaveDirectoryInput) {
+                    projectSaveDirectoryInput.value = String(payload?.projectsDirectory || '');
+                }
+            } catch {
+            }
+        }
+
+        function setSettingsPanelVisible(visible) {
+            settingsPanelVisible = !!visible;
+            if (canvasShell) {
+                canvasShell.classList.toggle('show-settings', settingsPanelVisible);
+            }
+            if (settingsToggleButton) {
+                settingsToggleButton.classList.toggle('active', settingsPanelVisible);
+            }
+
+            if (settingsPanelVisible) {
+                settingsReturnPageName = activePageName;
+                activateSettingsTab('link');
+                loadProjectStorageSettings();
+            } else {
+                const returnPage = settingsReturnPageName && getPageByName(settingsReturnPageName)
+                    ? settingsReturnPageName
+                    : activePageName;
+                if (returnPage) {
+                    setActiveVisualizationPage(returnPage);
+                }
+                settingsReturnPageName = '';
+            }
+        }
+
+        function activateSettingsTab(tabName) {
+            const nextTab = String(tabName || 'general').trim().toLowerCase() === 'link' ? 'link' : 'general';
+            document.querySelectorAll('.app-settings-tab').forEach(button => {
+                const isActive = button.dataset.settingsTab === nextTab;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+
+            document.querySelectorAll('.app-settings-tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.settingsPanel === nextTab);
+            });
+        }
+
+        async function applyProjectStorageSettings() {
+            const nextDirectory = String(projectSaveDirectoryInput?.value || '').trim();
+            if (!nextDirectory) {
+                alert(useKoreanLanguage ? '프로젝트 저장 위치를 입력하세요.' : 'Please enter a project save location.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/project/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectsDirectory: nextDirectory })
+                });
+
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(detail || String(response.status));
+                }
+
+                const payload = await response.json();
+                if (projectSaveDirectoryInput) {
+                    projectSaveDirectoryInput.value = String(payload?.projectsDirectory || nextDirectory);
+                }
+                alert(useKoreanLanguage ? '프로젝트 저장 위치가 변경되었습니다.' : 'Project save location has been updated.');
+            } catch (error) {
+                const message = error && error.message ? error.message : String(error);
+                alert((useKoreanLanguage ? '설정 저장에 실패했습니다: ' : 'Failed to save settings: ') + message);
+            }
+        }
+
+        function openProjectDirectoryPicker() {
+            const picker = document.createElement('input');
+            picker.type = 'file';
+            picker.setAttribute('webkitdirectory', '');
+            picker.setAttribute('directory', '');
+            picker.style.display = 'none';
+
+            picker.addEventListener('change', () => {
+                const files = picker.files;
+                if (!files || files.length === 0) {
+                    picker.remove();
+                    return;
+                }
+
+                const firstFile = files[0];
+                const relativePath = String(firstFile.webkitRelativePath || '');
+                const firstSlash = relativePath.indexOf('/');
+                const folderName = firstSlash > 0 ? relativePath.slice(0, firstSlash) : relativePath;
+                if (!folderName || !projectSaveDirectoryInput) {
+                    picker.remove();
+                    return;
+                }
+
+                const currentText = String(projectSaveDirectoryInput.value || '').trim();
+                const normalizedCurrent = currentText.replace(/\\/g, '/').replace(/\/+$/, '');
+                const segments = normalizedCurrent.split('/').filter(Boolean);
+                if (segments.length > 0) {
+                    segments[segments.length - 1] = folderName;
+                    projectSaveDirectoryInput.value = segments.join(currentText.includes('\\') ? '\\' : '/');
+                } else {
+                    projectSaveDirectoryInput.value = folderName;
+                }
+
+                picker.remove();
+            }, { once: true });
+
+            document.body.appendChild(picker);
+            picker.click();
         }
 
         window.applyVisualizationLanguage = applyVisualizationLanguage;
@@ -6372,12 +6612,78 @@ const designSurface = document.getElementById('designSurface');
         if (projectAddPageButton) {
             projectAddPageButton.addEventListener('click', () => addProjectTreePage());
         }
+        if (projectTree) {
+            projectTree.addEventListener('click', event => {
+                if (!settingsPanelVisible) {
+                    return;
+                }
+
+                const pageItem = event.target.closest('.project-tree-page[data-page-name]');
+                if (!pageItem) {
+                    return;
+                }
+
+                const pageName = String(pageItem.dataset.pageName || '').trim();
+                if (!pageName) {
+                    return;
+                }
+
+                setActiveVisualizationPage(pageName);
+                setSettingsPanelVisible(false);
+            });
+        }
+        if (settingsGeneralTab) {
+            settingsGeneralTab.addEventListener('click', () => activateSettingsTab('general'));
+        }
+        if (settingsLinkTab) {
+            settingsLinkTab.addEventListener('click', () => activateSettingsTab('link'));
+        }
+        if (settingsCloseButton) {
+            settingsCloseButton.addEventListener('click', () => {
+                setSettingsPanelVisible(false);
+            });
+        }
+        if (settingsToggleButton) {
+            settingsToggleButton.addEventListener('click', () => {
+                setSettingsPanelVisible(!settingsPanelVisible);
+            });
+        }
+        if (projectSaveDirectoryApplyButton) {
+            projectSaveDirectoryApplyButton.addEventListener('click', () => {
+                applyProjectStorageSettings();
+            });
+        }
+        if (projectSaveDirectoryBrowseButton) {
+            projectSaveDirectoryBrowseButton.addEventListener('click', () => {
+                openProjectDirectoryPicker();
+            });
+        }
         if (linkTransportSelect) {
             linkTransportSelect.addEventListener('change', async () => {
                 updateLinkTransportRows();
                 if (getLinkTransportMode() !== 'Ethernet') {
                     await loadUsbCdcPorts('');
                 }
+            });
+        }
+        if (linkModelSelect) {
+            linkModelSelect.addEventListener('change', () => {
+                updateLinkWizardStepState();
+            });
+        }
+        if (linkComPortSelect) {
+            linkComPortSelect.addEventListener('change', () => {
+                updateLinkWizardStepState();
+            });
+        }
+        if (linkEthernetIpInput) {
+            linkEthernetIpInput.addEventListener('input', () => {
+                updateLinkWizardStepState();
+            });
+        }
+        if (linkEthernetPortInput) {
+            linkEthernetPortInput.addEventListener('input', () => {
+                updateLinkWizardStepState();
             });
         }
         if (usbConnectButton) {
@@ -6410,3 +6716,4 @@ const designSurface = document.getElementById('designSurface');
         updateGridDivisions();
         updateLinkTransportRows();
         loadUsbCdcPorts('');
+        updateLinkWizardStepState();

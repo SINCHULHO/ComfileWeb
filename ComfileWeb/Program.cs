@@ -16,6 +16,33 @@ app.UseStaticFiles();
 var projectApi = app.MapGroup("/api/project");
 var usbApi = app.MapGroup("/api/usb-cdc");
 
+projectApi.MapGet("/settings", (ProjectStorageService storage) =>
+    Results.Ok(new
+    {
+        projectsDirectory = storage.ProjectsDirectory
+    }));
+
+projectApi.MapPost("/settings", (ProjectSettingsUpdateRequest request, ProjectStorageService storage) =>
+{
+    if (request is null || string.IsNullOrWhiteSpace(request.ProjectsDirectory))
+    {
+        return Results.BadRequest(new { detail = "Projects directory path is required." });
+    }
+
+    try
+    {
+        storage.SetProjectsDirectory(request.ProjectsDirectory);
+        return Results.Ok(new
+        {
+            projectsDirectory = storage.ProjectsDirectory
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { detail = ex.Message });
+    }
+});
+
 app.MapPost("/runtimeHub/negotiate", () =>
 {
     string connectionId = Guid.NewGuid().ToString("N");
@@ -83,6 +110,7 @@ usbApi.MapGet("/ports", (UsbCdcService usbCdc) =>
     Results.Ok(new
     {
         ports = usbCdc.GetAvailablePorts(),
+        portInfos = usbCdc.GetAvailablePortInfos(),
         isConnected = usbCdc.IsConnected,
         portName = usbCdc.ConnectedPortName
     }));

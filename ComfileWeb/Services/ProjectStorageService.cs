@@ -11,6 +11,8 @@ namespace ComfileWeb.Services;
 public sealed class ProjectStorageService
 {
     private const string ProjectExtension = ".cweb";
+    private readonly object _sync = new();
+    private string _projectsDirectory;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -20,20 +22,47 @@ public sealed class ProjectStorageService
     public ProjectStorageService(IConfiguration configuration)
     {
         string? configured = configuration["ComfileWeb:ProjectsDirectory"];
+        string resolvedPath;
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            ProjectsDirectory = Environment.ExpandEnvironmentVariables(configured);
+            resolvedPath = Environment.ExpandEnvironmentVariables(configured);
         }
         else
         {
             string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            ProjectsDirectory = Path.Combine(documents, "ComfileWeb", "Projects");
+            resolvedPath = Path.Combine(documents, "ComfileWeb", "Projects");
         }
 
-        Directory.CreateDirectory(ProjectsDirectory);
+        _projectsDirectory = resolvedPath;
+        Directory.CreateDirectory(_projectsDirectory);
     }
 
-    public string ProjectsDirectory { get; }
+    public string ProjectsDirectory
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _projectsDirectory;
+            }
+        }
+    }
+
+    public void SetProjectsDirectory(string directoryPath)
+    {
+        string normalizedPath = Path.GetFullPath((directoryPath ?? string.Empty).Trim());
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            throw new InvalidOperationException("Project directory path is required.");
+        }
+
+        Directory.CreateDirectory(normalizedPath);
+
+        lock (_sync)
+        {
+            _projectsDirectory = normalizedPath;
+        }
+    }
 
     public async Task<ProjectSaveResult> SaveAsync(ProjectSaveRequest request, CancellationToken cancellationToken)
     {

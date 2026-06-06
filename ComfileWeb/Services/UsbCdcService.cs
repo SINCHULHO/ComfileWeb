@@ -1,4 +1,6 @@
 using System.IO.Ports;
+using System.Management;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace ComfileWeb.Services;
@@ -24,11 +26,85 @@ public sealed class UsbCdcService
         }
     }
 
+    public sealed record UsbCdcPortInfo(string PortName, string DisplayName);
+
     public IReadOnlyList<string> GetAvailablePorts()
     {
-        return SerialPort.GetPortNames()
+        return GetAvailablePortInfos()
+            .Select(info => info.PortName)
+            .ToArray();
+    }
+
+    public IReadOnlyList<UsbCdcPortInfo> GetAvailablePortInfos()
+    {
+        var ports = SerialPort.GetPortNames()
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        if (ports.Length == 0)
+        {
+            return Array.Empty<UsbCdcPortInfo>();
+        }
+
+        var friendlyNameByPort = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? GetFriendlyNamesFromWmi()
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        return ports
+            .Select(portName =>
+            {
+                string friendlyName = friendlyNameByPort.TryGetValue(portName, out string? value)
+                    ? value
+                    : string.Empty;
+                string displayName = string.IsNullOrWhiteSpace(friendlyName)
+                    ? portName
+                    : $"{portName} - {friendlyName}";
+                return new UsbCdcPortInfo(portName, displayName);
+            })
+            .ToArray();
+    }
+
+    private static Dictionary<string, string> GetFriendlyNamesFromWmi()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
+            using ManagementObjectCollection results = searcher.Get();
+            foreach (ManagementObject item in results)
+            {
+                string name = Convert.ToString(item["Name"]) ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                int startIndex = name.LastIndexOf("(COM", StringComparison.OrdinalIgnoreCase);
+                if (startIndex < 0)
+                {
+                    continue;
+                }
+
+                int endIndex = name.IndexOf(')', startIndex);
+                if (endIndex <= startIndex)
+                {
+                    continue;
+                }
+
+                string portName = name.Substring(startIndex + 1, endIndex - startIndex - 1);
+                if (string.IsNullOrWhiteSpace(portName))
+                {
+                    continue;
+                }
+
+                map[portName] = name;
+            }
+        }
+        catch
+        {
+        }
+
+        return map;
     }
 
     public bool IsConnected

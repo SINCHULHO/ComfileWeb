@@ -21,6 +21,7 @@
 <body>
     <div class="designer">
         <header class="logo-bar" aria-label="ComfileWEB logo bar">
+            <button id="settingsToggleButton" class="logo-settings-button" type="button" aria-label="설정" title="설정"></button>
             <div class="toolbar-logo" aria-label="ComfileWEB logo">ComfileWEB</div>
         </header>
         <header class="toolbar" aria-label="Visualization toolbar">
@@ -105,6 +106,72 @@
                     <div id="designSurface" class="design-surface" aria-label="시각화 디자인 영역">
                         <p class="placeholder" data-i18n="placeholder">원하는 부품(버튼, 램프등)을 마우스로 끌어다 이곳에 놓으세요</p>
                     </div>
+                    <section id="appSettingsPanel" class="app-settings-panel" aria-label="Application settings">
+                        <div class="app-settings-header">
+                            <div class="app-settings-title" data-i18n="settings">설정</div>
+                            <button id="settingsCloseButton" class="toolbar-button app-settings-close-button" type="button" data-i18n="settingsClose">설정 닫기</button>
+                        </div>
+                        <div class="app-settings-tabs" role="tablist" aria-label="Settings tabs">
+                            <button id="settingsLinkTab" class="app-settings-tab active" type="button" role="tab" data-settings-tab="link" data-i18n="link">링크</button>
+                            <button id="settingsGeneralTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="general" data-i18n="projectSaveLocation">프로젝트 저장 위치</button>
+                        </div>
+                        <section id="settingsLinkPanel" class="settings-link-panel app-settings-tab-panel active" data-settings-panel="link" aria-label="Link settings" role="tabpanel">
+                            <div class="link-panel-title" data-i18n="link">링크</div>
+                            <div class="link-content link-wizard">
+                                <section id="linkStep1" class="link-step" data-step="1">
+                                    <div class="link-step-title" data-i18n="linkStep1">1. 연결할 디바이스 선택</div>
+                                    <select id="linkModelSelect" class="property-select" aria-label="Link model">
+                                        <option value="" selected data-i18n="choose">선택</option>
+                                        <option value="CUBLOC2">CUBLOC2</option>
+                                    </select>
+                                </section>
+
+                                <section id="linkStep2" class="link-step" data-step="2">
+                                    <div class="link-step-title" data-i18n="linkStep2">2. 어디에 연결</div>
+                                    <select id="linkTransportSelect" class="property-select" aria-label="Link transport">
+                                        <option value="" selected data-i18n="choose">선택</option>
+                                        <option value="USB">USB</option>
+                                        <option value="COM">COM</option>
+                                        <option value="Ethernet">Ethernet</option>
+                                    </select>
+                                </section>
+
+                                <section id="linkStep3" class="link-step" data-step="3">
+                                    <div class="link-step-title" data-i18n="linkStep3">3. 구체적 포트 선택</div>
+                                    <div id="linkComPortRow" class="link-step-content">
+                                        <select id="linkComPortSelect" class="property-select" aria-label="COM port">
+                                            <option value="" selected data-i18n="choose">선택</option>
+                                        </select>
+                                    </div>
+                                    <div id="linkEthernetIpRow" class="link-step-content" style="display:none">
+                                        <input id="linkEthernetIpInput" class="property-input" type="text" value="192.168.0.100" />
+                                    </div>
+                                    <div id="linkEthernetPortRow" class="link-step-content" style="display:none">
+                                        <input id="linkEthernetPortInput" class="property-input" type="number" min="1" max="65535" value="502" />
+                                    </div>
+                                </section>
+
+                                <section id="linkStep4" class="link-step" data-step="4">
+                                    <div class="link-step-title" data-i18n="linkStep4">4. 연결</div>
+                                    <button id="usbConnectButton" class="toolbar-button" type="button" style="width:100%">Connect</button>
+                                    <div id="usbConnectionState" class="link-connection-state">Disconnected</div>
+                                </section>
+                            </div>
+                        </section>
+                        <section id="settingsGeneralPanel" class="app-settings-tab-panel" data-settings-panel="general" role="tabpanel">
+                            <label class="app-settings-field">
+                                <span data-i18n="projectSaveLocation">프로젝트 저장 위치</span>
+                                <div class="app-settings-select-row">
+                                    <input id="projectSaveDirectoryInput" class="property-input" type="text" placeholder="예: D:\\ComfileWeb\\Projects" />
+                                    <button id="projectSaveDirectoryBrowseButton" class="toolbar-button" type="button" aria-label="폴더 선택" title="폴더 선택">...</button>
+                                </div>
+                            </label>
+                            <div class="app-settings-help" data-i18n="projectSaveLocationHelp">경로를 직접 입력하거나 [...] 버튼으로 폴더를 선택한 뒤 적용을 누르세요.</div>
+                            <div class="app-settings-actions">
+                                <button id="projectSaveDirectoryApplyButton" class="toolbar-button" type="button" data-i18n="apply">적용</button>
+                            </div>
+                        </section>
+                    </section>
                 </div>
             </main>
             <div id="propertySplitter" class="property-splitter" title="속성창 크기 조정" aria-label="속성창 크기 조정"></div>
@@ -150,64 +217,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <div id="linkPanelSplitter" class="link-panel-splitter" title="속성/링크 영역 크기 조정" aria-label="속성/링크 영역 크기 조정"></div>
-                    <section id="linkPanel" class="link-panel" aria-label="Links">
-                        <div class="link-panel-title">링크</div>
-                        <div class="link-content">
-                            <table class="property-grid link-grid">
-                                <tbody>
-                                    <tr>
-                                        <th>Model</th>
-                                        <td>
-                                            <select id="linkModelSelect" class="property-select" aria-label="Link model">
-                                                <option value="CUBLOC2" selected>CUBLOC2</option>
-                                            </select>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <th>Port</th>
-                                        <td>
-                                            <select id="linkTransportSelect" class="property-select" aria-label="Link transport">
-                                                <option value="USB" selected>USB</option>
-                                                <option value="COM">COM</option>
-                                                <option value="Ethernet">Ethernet</option>
-                                            </select>
-                                        </td>
-                                    </tr>
-                                    <tr id="linkComPortRow">
-                                        <th>COM Port</th>
-                                        <td>
-                                            <select id="linkComPortSelect" class="property-select" aria-label="COM port">
-                                                <option value="" selected>None</option>
-                                            </select>
-                                        </td>
-                                    </tr>
-                                    <tr id="linkEthernetIpRow" style="display:none">
-                                        <th>IP</th>
-                                        <td>
-                                            <input id="linkEthernetIpInput" class="property-input" type="text" value="192.168.0.100" />
-                                        </td>
-                                    </tr>
-                                    <tr id="linkEthernetPortRow" style="display:none">
-                                        <th>TCP Port</th>
-                                        <td>
-                                            <input id="linkEthernetPortInput" class="property-input" type="number" min="1" max="65535" value="502" />
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <th>State</th>
-                                        <td id="usbConnectionState" class="property-value">Disconnected</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Action</th>
-                                        <td>
-                                            <button id="usbConnectButton" class="toolbar-button" type="button" style="width:100%">Connect</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
                 </section>
             </aside>
         </div>
