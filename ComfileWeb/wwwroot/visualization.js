@@ -2,6 +2,8 @@ const designSurface = document.getElementById('designSurface');
         const workArea = document.querySelector('.work-area');
         const mainLayout = document.querySelector('.main-layout');
         const runButton = document.querySelector('.run-button');
+        const deviceConnectionStatusButton = document.getElementById('deviceConnectionStatusButton');
+        const deviceConnectionStatusText = document.getElementById('deviceConnectionStatusText');
         const activePageLabel = document.getElementById('activePageLabel');
         const gridXSlider = document.getElementById('gridXSlider');
         const gridYSlider = document.getElementById('gridYSlider');
@@ -56,6 +58,15 @@ const designSurface = document.getElementById('designSurface');
 
         const documentModel = {
             version: 1,
+            deviceConnection: {
+                device: '',
+                transport: '',
+                portName: '',
+                baudRate: 115200,
+                ethernetIpAddress: '192.168.0.100',
+                ethernetPort: 502,
+                lastConnected: false
+            },
             pages: [
                 {
                     name: 'Page1',
@@ -339,6 +350,52 @@ const designSurface = document.getElementById('designSurface');
                     page.properties.pageBackColorHtml = getThemeColorDefaults().pageBack;
                 }
             });
+        }
+
+        function createDefaultDeviceConnection() {
+            return {
+                device: '',
+                transport: '',
+                portName: '',
+                baudRate: 115200,
+                ethernetIpAddress: '192.168.0.100',
+                ethernetPort: 502,
+                lastConnected: false
+            };
+        }
+
+        function normalizeDeviceConnection(value) {
+            const source = value && typeof value === 'object' ? value : {};
+            const defaults = createDefaultDeviceConnection();
+            const baudRate = Number(source.baudRate ?? defaults.baudRate);
+            const ethernetPort = Number(source.ethernetPort ?? defaults.ethernetPort);
+
+            return {
+                device: String(source.device ?? defaults.device).trim(),
+                transport: String(source.transport ?? defaults.transport).trim(),
+                portName: String(source.portName ?? defaults.portName).trim(),
+                baudRate: Number.isFinite(baudRate) && baudRate > 0 ? Math.round(baudRate) : defaults.baudRate,
+                ethernetIpAddress: String(source.ethernetIpAddress ?? defaults.ethernetIpAddress).trim() || defaults.ethernetIpAddress,
+                ethernetPort: Number.isFinite(ethernetPort) && ethernetPort > 0 ? Math.round(ethernetPort) : defaults.ethernetPort,
+                lastConnected: !!source.lastConnected
+            };
+        }
+
+        function getDeviceConnectionState() {
+            const ethernetPort = Number(linkEthernetPortInput?.value || 502);
+            return normalizeDeviceConnection({
+                device: String(linkModelSelect?.value || '').trim(),
+                transport: String(linkTransportSelect?.value || '').trim(),
+                portName: String(linkComPortSelect?.value || '').trim(),
+                baudRate: 115200,
+                ethernetIpAddress: String(linkEthernetIpInput?.value || '192.168.0.100').trim(),
+                ethernetPort: Number.isFinite(ethernetPort) ? ethernetPort : 502,
+                lastConnected: !!usbCdcConnectionState.isConnected
+            });
+        }
+
+        function captureDeviceConnectionState() {
+            documentModel.deviceConnection = getDeviceConnectionState();
         }
 
         function getPageByName(pageName) {
@@ -4756,7 +4813,9 @@ const designSurface = document.getElementById('designSurface');
             const hasTransport = !!String(linkTransportSelect?.value || '').trim();
             const transport = getLinkTransportMode();
             let hasPortDetail = false;
-            if (transport === 'Ethernet') {
+            if (!hasDevice) {
+                hasPortDetail = false;
+            } else if (transport === 'Ethernet') {
                 hasPortDetail = !!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim();
             } else {
                 hasPortDetail = !!String(linkComPortSelect?.value || '').trim();
@@ -4774,6 +4833,36 @@ const designSurface = document.getElementById('designSurface');
 
             if (usbConnectButton) {
                 usbConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
+            }
+
+            updateDeviceConnectionStatusBar();
+        }
+
+        function updateDeviceConnectionStatusBar() {
+            if (!deviceConnectionStatusButton || !deviceConnectionStatusText) {
+                return;
+            }
+
+            const device = String(linkModelSelect?.value || '').trim();
+            const transport = String(linkTransportSelect?.value || '').trim();
+            const portName = device ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
+            const isConnected = !!usbCdcConnectionState.isConnected;
+            const hasConfiguration = !!device && (!!transport || !!portName);
+
+            deviceConnectionStatusButton.classList.toggle('is-connected', isConnected);
+            deviceConnectionStatusButton.classList.toggle('is-configured', !isConnected && hasConfiguration);
+            deviceConnectionStatusButton.classList.remove('is-error');
+
+            if (isConnected) {
+                deviceConnectionStatusText.textContent = [device || 'Device', portName || usbCdcConnectionState.portName, useKoreanLanguage ? '연결됨' : 'Connected']
+                    .filter(Boolean)
+                    .join(' / ');
+            } else if (hasConfiguration) {
+                deviceConnectionStatusText.textContent = [device || (useKoreanLanguage ? '디바이스' : 'Device'), transport, portName]
+                    .filter(Boolean)
+                    .join(' / ');
+            } else {
+                deviceConnectionStatusText.textContent = useKoreanLanguage ? '디바이스 미연결' : 'Device not connected';
             }
         }
 
@@ -4794,6 +4883,8 @@ const designSurface = document.getElementById('designSurface');
                     ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
                     : (useKoreanLanguage ? '연결' : 'Connect');
             }
+
+            updateDeviceConnectionStatusBar();
         }
 
         function fillComPortOptions(ports, selectedPortName) {
@@ -4801,16 +4892,31 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
+            const hasDevice = !!String(linkModelSelect?.value || '').trim();
+            if (!hasDevice) {
+                linkComPortSelect.innerHTML = '';
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = useKoreanLanguage ? '미정' : 'Not set';
+                linkComPortSelect.appendChild(option);
+                linkComPortSelect.value = '';
+                updateLinkWizardStepState();
+                return;
+            }
+
             const previous = String(selectedPortName || linkComPortSelect.value || '').trim();
             const normalizedPorts = Array.isArray(ports)
                 ? ports.map(item => String(item || '').trim()).filter(Boolean)
                 : [];
-            const activeValue = previous && normalizedPorts.includes(previous)
+            const displayPorts = previous && !normalizedPorts.includes(previous)
+                ? [previous, ...normalizedPorts]
+                : normalizedPorts;
+            const activeValue = previous && displayPorts.includes(previous)
                 ? previous
-                : (normalizedPorts[0] || '');
+                : (displayPorts[0] || '');
 
             linkComPortSelect.innerHTML = '';
-            if (normalizedPorts.length === 0) {
+            if (displayPorts.length === 0) {
                 const option = document.createElement('option');
                 option.value = '';
                 option.textContent = useKoreanLanguage ? '포트 없음' : 'No ports';
@@ -4819,10 +4925,12 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
-            normalizedPorts.forEach(port => {
+            displayPorts.forEach(port => {
                 const option = document.createElement('option');
                 option.value = port;
-                option.textContent = port;
+                option.textContent = port === previous && !normalizedPorts.includes(previous)
+                    ? (useKoreanLanguage ? `${port} (저장됨)` : `${port} (saved)`)
+                    : port;
                 linkComPortSelect.appendChild(option);
             });
             linkComPortSelect.value = activeValue;
@@ -4831,6 +4939,12 @@ const designSurface = document.getElementById('designSurface');
 
         function fillComPortOptionsWithInfo(portInfos, selectedPortName) {
             if (!linkComPortSelect) {
+                return;
+            }
+
+            const hasDevice = !!String(linkModelSelect?.value || '').trim();
+            if (!hasDevice) {
+                fillComPortOptions([], '');
                 return;
             }
 
@@ -4851,6 +4965,14 @@ const designSurface = document.getElementById('designSurface');
 
             const previous = String(selectedPortName || linkComPortSelect.value || '').trim();
             const firstPortName = normalizedInfos[0]?.portName || '';
+            const hasPrevious = normalizedInfos.some(info => info.portName === previous);
+            if (previous && !hasPrevious) {
+                normalizedInfos.unshift({
+                    portName: previous,
+                    displayName: useKoreanLanguage ? `${previous} (저장됨)` : `${previous} (saved)`
+                });
+            }
+
             const activeValue = normalizedInfos.some(info => info.portName === previous)
                 ? previous
                 : firstPortName;
@@ -4863,6 +4985,34 @@ const designSurface = document.getElementById('designSurface');
                 linkComPortSelect.appendChild(option);
             });
             linkComPortSelect.value = activeValue;
+            updateLinkWizardStepState();
+        }
+
+        async function applyDeviceConnectionState(state) {
+            const deviceConnection = normalizeDeviceConnection(state);
+            documentModel.deviceConnection = deviceConnection;
+
+            if (linkModelSelect) {
+                linkModelSelect.value = deviceConnection.device;
+            }
+            if (linkTransportSelect) {
+                linkTransportSelect.value = deviceConnection.transport;
+            }
+            if (linkEthernetIpInput) {
+                linkEthernetIpInput.value = deviceConnection.ethernetIpAddress;
+            }
+            if (linkEthernetPortInput) {
+                linkEthernetPortInput.value = String(deviceConnection.ethernetPort);
+            }
+
+            updateLinkTransportRows();
+            if (getLinkTransportMode() !== 'Ethernet') {
+                await loadUsbCdcPorts(deviceConnection.portName);
+                if (linkComPortSelect && deviceConnection.portName) {
+                    linkComPortSelect.value = deviceConnection.portName;
+                }
+            }
+
             updateLinkWizardStepState();
         }
 
@@ -5691,6 +5841,7 @@ const designSurface = document.getElementById('designSurface');
         window.applyVisualizationTheme = applyVisualizationTheme;
 
         function exportVisualizationDocumentText() {
+            captureDeviceConnectionState();
             return JSON.stringify(documentModel);
         }
 
@@ -5705,6 +5856,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             documentModel.version = nextDocumentModel.version || 1;
+            documentModel.deviceConnection = normalizeDeviceConnection(nextDocumentModel.deviceConnection);
             documentModel.pages = nextDocumentModel.pages;
             normalizeVisualizationDocumentPages();
             applyThemeLinkedColors('light', currentThemeMode);
@@ -5719,6 +5871,7 @@ const designSurface = document.getElementById('designSurface');
             updateGridControlsFromCurrentPage();
             renderProjectTree();
             renderWidgets();
+            applyDeviceConnectionState(documentModel.deviceConnection);
         }
 
         function getNextWidgetIdFromDocument() {
@@ -6654,6 +6807,12 @@ const designSurface = document.getElementById('designSurface');
                 setSettingsPanelVisible(!settingsPanelVisible);
             });
         }
+        if (deviceConnectionStatusButton) {
+            deviceConnectionStatusButton.addEventListener('click', () => {
+                setSettingsPanelVisible(true);
+                activateSettingsTab('link');
+            });
+        }
         if (projectSaveDirectoryApplyButton) {
             projectSaveDirectoryApplyButton.addEventListener('click', () => {
                 applyProjectStorageSettings();
@@ -6667,34 +6826,46 @@ const designSurface = document.getElementById('designSurface');
         if (linkTransportSelect) {
             linkTransportSelect.addEventListener('change', async () => {
                 updateLinkTransportRows();
+                captureDeviceConnectionState();
                 if (getLinkTransportMode() !== 'Ethernet') {
                     await loadUsbCdcPorts('');
+                    captureDeviceConnectionState();
                 }
             });
         }
         if (linkModelSelect) {
-            linkModelSelect.addEventListener('change', () => {
+            linkModelSelect.addEventListener('change', async () => {
+                if (!String(linkModelSelect.value || '').trim()) {
+                    fillComPortOptions([], '');
+                } else if (getLinkTransportMode() !== 'Ethernet') {
+                    await loadUsbCdcPorts('');
+                }
                 updateLinkWizardStepState();
+                captureDeviceConnectionState();
             });
         }
         if (linkComPortSelect) {
             linkComPortSelect.addEventListener('change', () => {
                 updateLinkWizardStepState();
+                captureDeviceConnectionState();
             });
         }
         if (linkEthernetIpInput) {
             linkEthernetIpInput.addEventListener('input', () => {
                 updateLinkWizardStepState();
+                captureDeviceConnectionState();
             });
         }
         if (linkEthernetPortInput) {
             linkEthernetPortInput.addEventListener('input', () => {
                 updateLinkWizardStepState();
+                captureDeviceConnectionState();
             });
         }
         if (usbConnectButton) {
-            usbConnectButton.addEventListener('click', () => {
-                toggleUsbCdcConnection();
+            usbConnectButton.addEventListener('click', async () => {
+                await toggleUsbCdcConnection();
+                captureDeviceConnectionState();
             });
         }
         propertySplitter.addEventListener('pointerdown', beginPropertyPanelResize);
@@ -6723,3 +6894,4 @@ const designSurface = document.getElementById('designSurface');
         updateLinkTransportRows();
         loadUsbCdcPorts('');
         updateLinkWizardStepState();
+        updateDeviceConnectionStatusBar();

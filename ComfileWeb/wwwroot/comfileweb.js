@@ -41,6 +41,11 @@
 			return;
 		}
 
+		const canOverwrite = await confirmOverwriteIfProjectExists(trimmed);
+		if (!canOverwrite) {
+			return;
+		}
+
 		let documentValue;
 		try {
 			documentValue = JSON.parse(text);
@@ -66,6 +71,25 @@
 			currentProjectName = result.name || trimmed;
 		} catch (error) {
 			window.alert('저장 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+		}
+	}
+
+	async function confirmOverwriteIfProjectExists(projectName) {
+		try {
+			const response = await fetch('/api/project/list', { cache: 'no-store' });
+			if (!response.ok) {
+				return true;
+			}
+
+			const items = await response.json();
+			const exists = Array.isArray(items) && items.some(item => String(item && item.name ? item.name : '').trim().toLowerCase() === String(projectName || '').trim().toLowerCase());
+			if (!exists) {
+				return true;
+			}
+
+			return window.confirm(`'${projectName}' 프로젝트가 이미 있습니다.\n같은 이름으로 덮어쓰시겠습니까?`);
+		} catch {
+			return true;
 		}
 	}
 

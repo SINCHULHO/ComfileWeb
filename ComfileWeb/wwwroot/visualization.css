@@ -106,6 +106,54 @@
             flex: 0 0 auto;
         }
 
+        .device-connection-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            max-width: 240px;
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            font: 12px "Segoe UI", "Malgun Gothic", sans-serif;
+            white-space: nowrap;
+            flex: 0 1 auto;
+        }
+
+        .device-connection-status:hover {
+            background: var(--button-hover-bg);
+            border-color: var(--button-hover-border);
+        }
+
+        .device-connection-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #8a8f98;
+            flex: 0 0 auto;
+        }
+
+        .device-connection-status-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .device-connection-status.is-configured .device-connection-status-dot {
+            background: #e5a100;
+        }
+
+        .device-connection-status.is-connected .device-connection-status-dot {
+            background: #2fb344;
+        }
+
+        .device-connection-status.is-error .device-connection-status-dot {
+            background: #d13438;
+        }
+
         .logo-settings-button {
             position: relative;
             width: 26px;
