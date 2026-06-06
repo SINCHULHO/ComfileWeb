@@ -4,9 +4,14 @@ namespace ComfileWeb.Models;
 
 /// <summary>
 /// 브라우저 디자이너가 보내는 프로젝트 저장 요청.
-/// Document 는 visualization.js 의 documentModel(JSON) 을 그대로 담는다.
+/// DocumentText 를 우선 사용해 JSON 원문을 그대로 저장한다.
 /// </summary>
-public sealed record ProjectSaveRequest(string Name, JsonElement Document);
+public sealed class ProjectSaveRequest
+{
+    public string Name { get; init; } = string.Empty;
+    public string? DocumentText { get; init; }
+    public JsonElement? Document { get; init; }
+}
 
 /// <summary>
 /// 프로젝트 저장 결과.

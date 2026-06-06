@@ -2127,6 +2127,57 @@
             color: var(--text);
         }
 
+        .link-panel-splitter {
+            flex: 0 0 6px;
+            height: 6px;
+            border-top: 1px solid var(--toolbar-border);
+            border-bottom: 1px solid var(--toolbar-border);
+            background: var(--panel-bg);
+            cursor: row-resize;
+        }
+
+        .link-panel-splitter:hover,
+        .link-panel-splitter.is-dragging {
+            background: var(--focus);
+        }
+
+        body.is-resizing-link-panel {
+            cursor: row-resize;
+            user-select: none;
+        }
+
+        .link-panel {
+            flex: 0 0 220px;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+            background: var(--property-bg);
+        }
+
+        .link-panel-title {
+            flex: 0 0 auto;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            border-bottom: 1px solid var(--property-border);
+            background: var(--property-key-bg);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
+        .link-content {
+            flex: 1 1 auto;
+            overflow: auto;
+            padding: 8px;
+        }
+
+        .link-grid th {
+            width: 88px;
+        }
+
         .right-panel-splitter {
             flex: 0 0 6px;
             height: 6px;

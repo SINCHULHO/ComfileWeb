@@ -25,11 +25,23 @@ const designSurface = document.getElementById('designSurface');
         const propertyPanelTitle = document.getElementById('propertyPanelTitle');
         const propertySplitter = document.getElementById('propertySplitter');
         const rightPanelSplitter = document.getElementById('rightPanelSplitter');
+        const linkPanelSplitter = document.getElementById('linkPanelSplitter');
         const rightPanel = document.querySelector('.right-panel');
         const projectPanel = document.querySelector('.project-panel');
         const propertyPanel = document.querySelector('.property-panel');
+        const linkPanel = document.getElementById('linkPanel');
         const projectTree = document.getElementById('projectTree');
         const projectAddPageButton = document.getElementById('projectAddPageButton');
+        const linkModelSelect = document.getElementById('linkModelSelect');
+        const linkTransportSelect = document.getElementById('linkTransportSelect');
+        const linkComPortSelect = document.getElementById('linkComPortSelect');
+        const linkComPortRow = document.getElementById('linkComPortRow');
+        const linkEthernetIpRow = document.getElementById('linkEthernetIpRow');
+        const linkEthernetPortRow = document.getElementById('linkEthernetPortRow');
+        const linkEthernetIpInput = document.getElementById('linkEthernetIpInput');
+        const linkEthernetPortInput = document.getElementById('linkEthernetPortInput');
+        const usbConnectionState = document.getElementById('usbConnectionState');
+        const usbConnectButton = document.getElementById('usbConnectButton');
 
         const documentModel = {
             version: 1,
@@ -60,6 +72,7 @@ const designSurface = document.getElementById('designSurface');
         let activeMarquee = null;
         let activePropertyPanelResize = null;
         let activeRightPanelResize = null;
+        let activeLinkPanelResize = null;
         let resizeDragIndicator = null;
         let lastWidgetPointerDown = { widgetId: '', time: 0 };
         let runtimeConnection = null;
@@ -67,6 +80,7 @@ const designSurface = document.getElementById('designSurface');
         let runtimeRunning = false;
         let runtimeStartPageName = '';
         let runtimeValues = new Map();
+        let usbCdcConnectionState = { isConnected: false, portName: '' };
         const runtimeLocalValueOverrides = new Map();
         const runtimeDraggingSliderIds = new Set();
         const runtimePressedWidgetIds = new Set();
@@ -4741,6 +4755,137 @@ const designSurface = document.getElementById('designSurface');
             return addresses;
         }
 
+        function getLinkTransportMode() {
+            return String(linkTransportSelect?.value || 'USB').trim();
+        }
+
+        function updateLinkTransportRows() {
+            const transport = getLinkTransportMode();
+            const showEthernet = transport === 'Ethernet';
+            if (linkComPortRow) {
+                linkComPortRow.style.display = showEthernet ? 'none' : '';
+            }
+            if (linkEthernetIpRow) {
+                linkEthernetIpRow.style.display = showEthernet ? '' : 'none';
+            }
+            if (linkEthernetPortRow) {
+                linkEthernetPortRow.style.display = showEthernet ? '' : 'none';
+            }
+        }
+
+        function updateUsbConnectionUi(connectionState) {
+            const isConnected = !!(connectionState && connectionState.isConnected);
+            const portName = connectionState && connectionState.portName ? String(connectionState.portName) : '';
+            usbCdcConnectionState = { isConnected, portName };
+            const disconnectedText = useKoreanLanguage ? '연결 안됨' : 'Disconnected';
+            const connectedText = useKoreanLanguage
+                ? `연결됨${portName ? ` (${portName})` : ''}`
+                : `Connected${portName ? ` (${portName})` : ''}`;
+
+            if (usbConnectionState) {
+                usbConnectionState.textContent = isConnected ? connectedText : disconnectedText;
+            }
+            if (usbConnectButton) {
+                usbConnectButton.textContent = isConnected
+                    ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
+                    : (useKoreanLanguage ? '연결' : 'Connect');
+            }
+        }
+
+        function fillComPortOptions(ports, selectedPortName) {
+            if (!linkComPortSelect) {
+                return;
+            }
+
+            const previous = String(selectedPortName || linkComPortSelect.value || '').trim();
+            const normalizedPorts = Array.isArray(ports)
+                ? ports.map(item => String(item || '').trim()).filter(Boolean)
+                : [];
+            const activeValue = previous && normalizedPorts.includes(previous)
+                ? previous
+                : (normalizedPorts[0] || '');
+
+            linkComPortSelect.innerHTML = '';
+            if (normalizedPorts.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = useKoreanLanguage ? '포트 없음' : 'No ports';
+                linkComPortSelect.appendChild(option);
+                return;
+            }
+
+            normalizedPorts.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                linkComPortSelect.appendChild(option);
+            });
+            linkComPortSelect.value = activeValue;
+        }
+
+        async function loadUsbCdcPorts(preferredPortName) {
+            try {
+                const response = await fetch('/api/usb-cdc/ports', { method: 'GET' });
+                if (!response.ok) {
+                    throw new Error(`USB-CDC ports request failed: ${response.status}`);
+                }
+
+                const payload = await response.json();
+                fillComPortOptions(payload && payload.ports, preferredPortName || payload?.portName || '');
+                updateUsbConnectionUi({
+                    isConnected: !!payload?.isConnected,
+                    portName: payload?.portName || ''
+                });
+            } catch (error) {
+                fillComPortOptions([], '');
+                updateUsbConnectionUi({ isConnected: false, portName: '' });
+                console.warn(error);
+            }
+        }
+
+        async function toggleUsbCdcConnection() {
+            const currentlyConnected = !!usbCdcConnectionState.isConnected;
+            if (currentlyConnected) {
+                try {
+                    await fetch('/api/usb-cdc/disconnect', { method: 'POST' });
+                } catch (error) {
+                    console.warn(error);
+                }
+                await loadUsbCdcPorts('');
+                return;
+            }
+
+            const selectedPortName = String(linkComPortSelect?.value || '').trim();
+            if (!selectedPortName) {
+                await loadUsbCdcPorts('');
+                alert(useKoreanLanguage ? '먼저 COM 포트를 선택하세요.' : 'Please select a COM port first.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/usb-cdc/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device: String(linkModelSelect?.value || 'CUBLOC2'),
+                        portName: selectedPortName,
+                        baudRate: 115200
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`USB-CDC connect failed: ${response.status}`);
+                }
+
+                const payload = await response.json();
+                await loadUsbCdcPorts(payload?.portName || selectedPortName);
+            } catch (error) {
+                console.warn(error);
+                alert(useKoreanLanguage ? 'USB-CDC 연결에 실패했습니다.' : 'Failed to connect USB-CDC.');
+                await loadUsbCdcPorts(selectedPortName);
+            }
+        }
+
         function createRuntimeHubConnection() {
             const recordSeparator = String.fromCharCode(0x1e);
             let socket = null;
@@ -5790,6 +5935,7 @@ const designSurface = document.getElementById('designSurface');
             }
             updateActivePageLabel();
             renderProperties();
+            updateUsbConnectionUi(usbCdcConnectionState);
         }
 
         window.applyVisualizationLanguage = applyVisualizationLanguage;
@@ -6304,6 +6450,19 @@ const designSurface = document.getElementById('designSurface');
         if (projectAddPageButton) {
             projectAddPageButton.addEventListener('click', () => addProjectTreePage());
         }
+        if (linkTransportSelect) {
+            linkTransportSelect.addEventListener('change', async () => {
+                updateLinkTransportRows();
+                if (getLinkTransportMode() !== 'Ethernet') {
+                    await loadUsbCdcPorts('');
+                }
+            });
+        }
+        if (usbConnectButton) {
+            usbConnectButton.addEventListener('click', () => {
+                toggleUsbCdcConnection();
+            });
+        }
         propertySplitter.addEventListener('pointerdown', beginPropertyPanelResize);
         if (rightPanelSplitter) {
             rightPanelSplitter.addEventListener('pointerdown', beginRightPanelResize);
@@ -6327,3 +6486,5 @@ const designSurface = document.getElementById('designSurface');
         updateActivePageLabel();
         applyGridVisibility();
         updateGridDivisions();
+        updateLinkTransportRows();
+        loadUsbCdcPorts('');

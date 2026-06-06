@@ -41,11 +41,27 @@ public sealed class ProjectStorageService
         string fileName = safeName + ProjectExtension;
         string fullPath = Path.Combine(ProjectsDirectory, fileName);
 
-        string json = JsonSerializer.Serialize(request.Document, SerializerOptions);
+        string json = BuildJsonText(request);
         await File.WriteAllTextAsync(fullPath, json, new UTF8Encoding(false), cancellationToken);
 
         DateTimeOffset savedAt = File.GetLastWriteTime(fullPath);
         return new ProjectSaveResult(safeName, fileName, fullPath, savedAt);
+    }
+
+    private static string BuildJsonText(ProjectSaveRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.DocumentText))
+        {
+            using JsonDocument parsed = JsonDocument.Parse(request.DocumentText);
+            return parsed.RootElement.GetRawText();
+        }
+
+        if (request.Document is JsonElement element && element.ValueKind != JsonValueKind.Undefined)
+        {
+            return JsonSerializer.Serialize(element, SerializerOptions);
+        }
+
+        throw new InvalidOperationException("Document JSON is required.");
     }
 
     public async Task<string?> LoadAsync(string name, CancellationToken cancellationToken)

@@ -53,7 +53,7 @@
 			const response = await fetch('/api/project/save', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: trimmed, document: documentValue })
+				body: JSON.stringify({ name: trimmed, documentText: text, document: documentValue })
 			});
 
 			if (!response.ok) {

@@ -147,6 +147,64 @@
                             </tbody>
                         </table>
                     </div>
+                    <div id="linkPanelSplitter" class="link-panel-splitter" title="속성/링크 영역 크기 조정" aria-label="속성/링크 영역 크기 조정"></div>
+                    <section id="linkPanel" class="link-panel" aria-label="Links">
+                        <div class="link-panel-title">링크</div>
+                        <div class="link-content">
+                            <table class="property-grid link-grid">
+                                <tbody>
+                                    <tr>
+                                        <th>Model</th>
+                                        <td>
+                                            <select id="linkModelSelect" class="property-select" aria-label="Link model">
+                                                <option value="CUBLOC2" selected>CUBLOC2</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Port</th>
+                                        <td>
+                                            <select id="linkTransportSelect" class="property-select" aria-label="Link transport">
+                                                <option value="USB" selected>USB</option>
+                                                <option value="COM">COM</option>
+                                                <option value="Ethernet">Ethernet</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr id="linkComPortRow">
+                                        <th>COM Port</th>
+                                        <td>
+                                            <select id="linkComPortSelect" class="property-select" aria-label="COM port">
+                                                <option value="" selected>None</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr id="linkEthernetIpRow" style="display:none">
+                                        <th>IP</th>
+                                        <td>
+                                            <input id="linkEthernetIpInput" class="property-input" type="text" value="192.168.0.100" />
+                                        </td>
+                                    </tr>
+                                    <tr id="linkEthernetPortRow" style="display:none">
+                                        <th>TCP Port</th>
+                                        <td>
+                                            <input id="linkEthernetPortInput" class="property-input" type="number" min="1" max="65535" value="502" />
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>State</th>
+                                        <td id="usbConnectionState" class="property-value">Disconnected</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Action</th>
+                                        <td>
+                                            <button id="usbConnectButton" class="toolbar-button" type="button" style="width:100%">Connect</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
                 </section>
             </aside>
         </div>
