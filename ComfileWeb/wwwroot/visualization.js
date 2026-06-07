@@ -3591,6 +3591,10 @@ const designSurface = document.getElementById('designSurface');
 
         function renderPropertyEditor(key, value) {
             const widget = getCurrentPage().widgets.find(item => item.id === selectedWidgetId);
+            if (isAddressPropertyKey(key)) {
+                return renderAddressPropertyEditor(key, value);
+            }
+
             if (widget && widget.kind === 'Number' && key === 'Text Size') {
                 return renderTextSizeStepper(key, value);
             }
@@ -3708,6 +3712,20 @@ const designSurface = document.getElementById('designSurface');
                 ? ' disabled'
                 : '';
             return `<input class="property-input${addressClass}" data-property-key="${escapeHtml(key)}" value="${escapeHtml(value)}"${disabledAttribute} />`;
+        }
+
+        function isAddressPropertyKey(key) {
+            return key === 'Address' || key === 'Display Address' || key === 'Lamp Address';
+        }
+
+        function renderAddressPropertyEditor(key, value) {
+            const widget = getCurrentPage().widgets.find(item => item.id === selectedWidgetId);
+            const disabled = widget && (widget.kind === 'Button' || widget.kind === 'Lamp' || widget.kind === 'Text' || widget.kind === 'Number') && key === 'Display Address' && normalizeWidgetDisplayMode(widget.properties.Display) !== 'Address';
+            const disabledAttribute = disabled ? ' disabled' : '';
+            return `<div class="property-address-editor">
+                <input class="property-input property-address-input" data-property-key="${escapeHtml(key)}" value="${escapeHtml(value)}"${disabledAttribute} />
+                <button class="property-address-picker-button" type="button" data-address-property-key="${escapeHtml(key)}" title="${useKoreanLanguage ? '주소 선택' : 'Select address'}"${disabledAttribute}>...</button>
+            </div>`;
         }
 
         function renderTextSizeStepper(key, value) {
@@ -4365,26 +4383,13 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function requestAddressInput(widget, propertyKey = 'Address') {
-            if (!window.chrome || !window.chrome.webview) {
-                return;
-            }
-
             const normalizedPropertyKey = String(propertyKey || 'Address');
             const currentAddress = normalizedPropertyKey === 'Lamp Address'
                 ? (widget.properties['Lamp Address'] || '')
                 : (normalizedPropertyKey === 'Display Address'
                 ? (widget.properties['Display Address'] || '')
                 : (widget.properties.Address || ''));
-            const requestType = normalizedPropertyKey === 'Lamp Address' || normalizedPropertyKey === 'Display Address'
-                ? 'visualization-bit-address-request'
-                : (isDataAddressWidget(widget) ? 'visualization-data-address-request' : 'visualization-bit-address-request');
-
-            window.chrome.webview.postMessage({
-                type: requestType,
-                widgetId: widget.id,
-                address: currentAddress,
-                propertyKey: normalizedPropertyKey
-            });
+            openAddressPicker(widget, normalizedPropertyKey, currentAddress);
         }
 
         function applyVisualizationWidgetAddress(widgetId, address, propertyKey) {
@@ -4883,297 +4888,6 @@ const designSurface = document.getElementById('designSurface');
             return addresses;
         }
 
-        function getLinkTransportMode() {
-            return String(linkTransportSelect?.value || 'USB').trim();
-        }
-
-        function updateLinkTransportRows() {
-            const transport = getLinkTransportMode();
-            const showEthernet = transport === 'Ethernet';
-            if (linkComPortRow) {
-                linkComPortRow.style.display = showEthernet ? 'none' : '';
-            }
-            if (linkEthernetIpRow) {
-                linkEthernetIpRow.style.display = showEthernet ? '' : 'none';
-            }
-            if (linkEthernetPortRow) {
-                linkEthernetPortRow.style.display = showEthernet ? '' : 'none';
-            }
-
-            updateLinkWizardStepState();
-        }
-
-        function updateLinkWizardStepState() {
-            const hasDevice = !!String(linkModelSelect?.value || '').trim();
-            const hasTransport = !!String(linkTransportSelect?.value || '').trim();
-            const transport = getLinkTransportMode();
-            let hasPortDetail = false;
-            if (!hasDevice) {
-                hasPortDetail = false;
-            } else if (transport === 'Ethernet') {
-                hasPortDetail = !!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim();
-            } else {
-                hasPortDetail = !!String(linkComPortSelect?.value || '').trim();
-            }
-
-            if (linkStep2) {
-                linkStep2.classList.toggle('is-disabled', !hasDevice);
-            }
-            if (linkStep3) {
-                linkStep3.classList.toggle('is-disabled', !(hasDevice && hasTransport));
-            }
-            if (linkStep4) {
-                linkStep4.classList.toggle('is-disabled', !(hasDevice && hasTransport && hasPortDetail));
-            }
-
-            if (usbConnectButton) {
-                usbConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
-            }
-
-            updateDeviceConnectionStatusBar();
-        }
-
-        function updateDeviceConnectionStatusBar() {
-            if (!deviceConnectionStatusButton || !deviceConnectionStatusText) {
-                return;
-            }
-
-            const device = String(linkModelSelect?.value || '').trim();
-            const transport = String(linkTransportSelect?.value || '').trim();
-            const portName = device ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
-            const isConnected = !!usbCdcConnectionState.isConnected;
-            const hasConfiguration = !!device && (!!transport || !!portName);
-
-            deviceConnectionStatusButton.classList.toggle('is-connected', isConnected);
-            deviceConnectionStatusButton.classList.toggle('is-configured', !isConnected && hasConfiguration);
-            deviceConnectionStatusButton.classList.remove('is-error');
-
-            if (isConnected) {
-                deviceConnectionStatusText.textContent = [device || 'Device', portName || usbCdcConnectionState.portName, useKoreanLanguage ? '연결됨' : 'Connected']
-                    .filter(Boolean)
-                    .join(' / ');
-            } else if (hasConfiguration) {
-                deviceConnectionStatusText.textContent = [device || (useKoreanLanguage ? '디바이스' : 'Device'), transport, portName]
-                    .filter(Boolean)
-                    .join(' / ');
-            } else {
-                deviceConnectionStatusText.textContent = useKoreanLanguage ? '디바이스 미연결' : 'Device not connected';
-            }
-        }
-
-        function updateUsbConnectionUi(connectionState) {
-            const isConnected = !!(connectionState && connectionState.isConnected);
-            const portName = connectionState && connectionState.portName ? String(connectionState.portName) : '';
-            usbCdcConnectionState = { isConnected, portName };
-            const disconnectedText = useKoreanLanguage ? '연결 안됨' : 'Disconnected';
-            const connectedText = useKoreanLanguage
-                ? `연결됨${portName ? ` (${portName})` : ''}`
-                : `Connected${portName ? ` (${portName})` : ''}`;
-
-            if (usbConnectionState) {
-                usbConnectionState.textContent = isConnected ? connectedText : disconnectedText;
-            }
-            if (usbConnectButton) {
-                usbConnectButton.textContent = isConnected
-                    ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
-                    : (useKoreanLanguage ? '연결' : 'Connect');
-            }
-
-            updateDeviceConnectionStatusBar();
-        }
-
-        function fillComPortOptions(ports, selectedPortName) {
-            if (!linkComPortSelect) {
-                return;
-            }
-
-            const hasDevice = !!String(linkModelSelect?.value || '').trim();
-            if (!hasDevice) {
-                linkComPortSelect.innerHTML = '';
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = useKoreanLanguage ? '미정' : 'Not set';
-                linkComPortSelect.appendChild(option);
-                linkComPortSelect.value = '';
-                updateLinkWizardStepState();
-                return;
-            }
-
-            const previous = String(selectedPortName || linkComPortSelect.value || '').trim();
-            const normalizedPorts = Array.isArray(ports)
-                ? ports.map(item => String(item || '').trim()).filter(Boolean)
-                : [];
-            const displayPorts = previous && !normalizedPorts.includes(previous)
-                ? [previous, ...normalizedPorts]
-                : normalizedPorts;
-            const activeValue = previous && displayPorts.includes(previous)
-                ? previous
-                : (displayPorts[0] || '');
-
-            linkComPortSelect.innerHTML = '';
-            if (displayPorts.length === 0) {
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = useKoreanLanguage ? '포트 없음' : 'No ports';
-                linkComPortSelect.appendChild(option);
-                updateLinkWizardStepState();
-                return;
-            }
-
-            displayPorts.forEach(port => {
-                const option = document.createElement('option');
-                option.value = port;
-                option.textContent = port === previous && !normalizedPorts.includes(previous)
-                    ? (useKoreanLanguage ? `${port} (저장됨)` : `${port} (saved)`)
-                    : port;
-                linkComPortSelect.appendChild(option);
-            });
-            linkComPortSelect.value = activeValue;
-            updateLinkWizardStepState();
-        }
-
-        function fillComPortOptionsWithInfo(portInfos, selectedPortName) {
-            if (!linkComPortSelect) {
-                return;
-            }
-
-            const hasDevice = !!String(linkModelSelect?.value || '').trim();
-            if (!hasDevice) {
-                fillComPortOptions([], '');
-                return;
-            }
-
-            const normalizedInfos = Array.isArray(portInfos)
-                ? portInfos
-                    .map(item => {
-                        const portName = String(item?.portName || '').trim();
-                        const displayName = String(item?.displayName || '').trim();
-                        return portName ? { portName, displayName: displayName || portName } : null;
-                    })
-                    .filter(Boolean)
-                : [];
-
-            if (normalizedInfos.length === 0) {
-                fillComPortOptions([], selectedPortName);
-                return;
-            }
-
-            const previous = String(selectedPortName || linkComPortSelect.value || '').trim();
-            const firstPortName = normalizedInfos[0]?.portName || '';
-            const hasPrevious = normalizedInfos.some(info => info.portName === previous);
-            if (previous && !hasPrevious) {
-                normalizedInfos.unshift({
-                    portName: previous,
-                    displayName: useKoreanLanguage ? `${previous} (저장됨)` : `${previous} (saved)`
-                });
-            }
-
-            const activeValue = normalizedInfos.some(info => info.portName === previous)
-                ? previous
-                : firstPortName;
-
-            linkComPortSelect.innerHTML = '';
-            normalizedInfos.forEach(info => {
-                const option = document.createElement('option');
-                option.value = info.portName;
-                option.textContent = info.displayName;
-                linkComPortSelect.appendChild(option);
-            });
-            linkComPortSelect.value = activeValue;
-            updateLinkWizardStepState();
-        }
-
-        async function applyDeviceConnectionState(state) {
-            const deviceConnection = normalizeDeviceConnection(state);
-            documentModel.deviceConnection = deviceConnection;
-
-            if (linkModelSelect) {
-                linkModelSelect.value = deviceConnection.device;
-            }
-            if (linkTransportSelect) {
-                linkTransportSelect.value = deviceConnection.transport;
-            }
-            if (linkEthernetIpInput) {
-                linkEthernetIpInput.value = deviceConnection.ethernetIpAddress;
-            }
-            if (linkEthernetPortInput) {
-                linkEthernetPortInput.value = String(deviceConnection.ethernetPort);
-            }
-
-            updateLinkTransportRows();
-            if (getLinkTransportMode() !== 'Ethernet') {
-                await loadUsbCdcPorts(deviceConnection.portName);
-                if (linkComPortSelect && deviceConnection.portName) {
-                    linkComPortSelect.value = deviceConnection.portName;
-                }
-            }
-
-            updateLinkWizardStepState();
-        }
-
-        async function loadUsbCdcPorts(preferredPortName) {
-            try {
-                const response = await fetch('/api/usb-cdc/ports', { method: 'GET' });
-                if (!response.ok) {
-                    throw new Error(`USB-CDC ports request failed: ${response.status}`);
-                }
-
-                const payload = await response.json();
-                fillComPortOptionsWithInfo(payload?.portInfos, preferredPortName || payload?.portName || '');
-                updateUsbConnectionUi({
-                    isConnected: !!payload?.isConnected,
-                    portName: payload?.portName || ''
-                });
-            } catch (error) {
-                fillComPortOptions([], '');
-                updateUsbConnectionUi({ isConnected: false, portName: '' });
-                console.warn(error);
-            }
-        }
-
-        async function toggleUsbCdcConnection() {
-            const currentlyConnected = !!usbCdcConnectionState.isConnected;
-            if (currentlyConnected) {
-                try {
-                    await fetch('/api/usb-cdc/disconnect', { method: 'POST' });
-                } catch (error) {
-                    console.warn(error);
-                }
-                await loadUsbCdcPorts('');
-                return;
-            }
-
-            const selectedPortName = String(linkComPortSelect?.value || '').trim();
-            if (!selectedPortName) {
-                await loadUsbCdcPorts('');
-                alert(useKoreanLanguage ? '먼저 COM 포트를 선택하세요.' : 'Please select a COM port first.');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/usb-cdc/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        device: String(linkModelSelect?.value || 'CUBLOC2'),
-                        portName: selectedPortName,
-                        baudRate: 115200
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`USB-CDC connect failed: ${response.status}`);
-                }
-
-                const payload = await response.json();
-                await loadUsbCdcPorts(payload?.portName || selectedPortName);
-            } catch (error) {
-                console.warn(error);
-                alert(useKoreanLanguage ? 'USB-CDC 연결에 실패했습니다.' : 'Failed to connect USB-CDC.');
-                await loadUsbCdcPorts(selectedPortName);
-            }
-        }
-
         function createRuntimeHubConnection() {
             const recordSeparator = String.fromCharCode(0x1e);
             let socket = null;
@@ -5369,6 +5083,10 @@ const designSurface = document.getElementById('designSurface');
         }
 
         async function startRuntime() {
+            if (settingsPanelVisible) {
+                setSettingsPanelVisible(false);
+            }
+
             runtimeStarting = true;
             runtimeRunning = false;
             runtimeStartPageName = activePageName;
@@ -5541,6 +5259,11 @@ const designSurface = document.getElementById('designSurface');
             popup.addEventListener('mousedown', stopPopupPointerEvent);
             popup.addEventListener('click', stopPopupPointerEvent);
 
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'runtime-number-popup-drag-handle';
+            dragHandle.textContent = useKoreanLanguage ? '숫자 입력' : 'Number Input';
+            popup.appendChild(dragHandle);
+
             const input = document.createElement('input');
             input.className = 'runtime-number-input';
             input.type = 'text';
@@ -5582,8 +5305,14 @@ const designSurface = document.getElementById('designSurface');
             const margin = 8;
             const left = Math.max(margin, Math.min(window.innerWidth - popupRect.width - margin, widgetRect.left + ((widgetRect.width - popupRect.width) / 2)));
             const top = Math.max(margin, Math.min(window.innerHeight - popupRect.height - margin, widgetRect.bottom + margin));
-            popup.style.left = `${left}px`;
-            popup.style.top = `${top}px`;
+            const setPopupPosition = (nextLeft, nextTop) => {
+                const rect = popup.getBoundingClientRect();
+                const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+                const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+                popup.style.left = `${Math.max(margin, Math.min(maxLeft, nextLeft))}px`;
+                popup.style.top = `${Math.max(margin, Math.min(maxTop, nextTop))}px`;
+            };
+            setPopupPosition(left, top);
 
             const close = () => closeRuntimeNumberInputPopup();
             const commit = () => {
@@ -5665,6 +5394,35 @@ const designSurface = document.getElementById('designSurface');
                 }
             };
 
+            const onDragPointerDown = event => {
+                if (event.button !== undefined && event.button !== 0) {
+                    return;
+                }
+
+                event.preventDefault();
+                const startX = event.clientX;
+                const startY = event.clientY;
+                const startLeft = Number.parseFloat(popup.style.left) || 0;
+                const startTop = Number.parseFloat(popup.style.top) || 0;
+                dragHandle.setPointerCapture?.(event.pointerId);
+
+                const onDragPointerMove = moveEvent => {
+                    moveEvent.preventDefault();
+                    setPopupPosition(startLeft + moveEvent.clientX - startX, startTop + moveEvent.clientY - startY);
+                };
+
+                const onDragPointerUp = upEvent => {
+                    dragHandle.releasePointerCapture?.(upEvent.pointerId);
+                    document.removeEventListener('pointermove', onDragPointerMove);
+                    document.removeEventListener('pointerup', onDragPointerUp);
+                    document.removeEventListener('pointercancel', onDragPointerUp);
+                };
+
+                document.addEventListener('pointermove', onDragPointerMove);
+                document.addEventListener('pointerup', onDragPointerUp);
+                document.addEventListener('pointercancel', onDragPointerUp);
+            };
+
             const onDocumentPointerDown = event => {
                 if (!popup.contains(event.target)) {
                     close();
@@ -5674,6 +5432,7 @@ const designSurface = document.getElementById('designSurface');
             keypad.addEventListener('click', onKeypadClick);
             keypad.addEventListener('pointerdown', onKeypadPointerDown);
             input.addEventListener('keydown', onKeyDown);
+            dragHandle.addEventListener('pointerdown', onDragPointerDown);
             window.setTimeout(() => document.addEventListener('pointerdown', onDocumentPointerDown), 0);
 
             activeNumberInputPopup = {
@@ -5684,6 +5443,7 @@ const designSurface = document.getElementById('designSurface');
                     popup.removeEventListener('mousedown', stopPopupPointerEvent);
                     popup.removeEventListener('click', stopPopupPointerEvent);
                     input.removeEventListener('keydown', onKeyDown);
+                    dragHandle.removeEventListener('pointerdown', onDragPointerDown);
                     keypad.removeEventListener('click', onKeypadClick);
                     keypad.removeEventListener('pointerdown', onKeypadPointerDown);
                     popup.remove();
@@ -6587,8 +6347,8 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
-            const editor = event.target.closest('.property-address-input');
-            if (!editor) {
+            const addressButton = event.target.closest('.property-address-picker-button');
+            if (!addressButton) {
                 return;
             }
 
@@ -6597,7 +6357,7 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
-            requestAddressInput(widget, editor.dataset.propertyKey || 'Address');
+            requestAddressInput(widget, addressButton.dataset.addressPropertyKey || 'Address');
         });
 
         function openPropertyColorPicker(propertyKey, anchorElement) {
