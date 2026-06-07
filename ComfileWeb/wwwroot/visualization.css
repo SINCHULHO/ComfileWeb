@@ -1,57 +1,57 @@
 :root {
             color-scheme: dark;
-            --app-bg: #17191d;
-            --text: #e7eaf0;
-            --toolbar-bg: #23262d;
-            --toolbar-border: #343944;
-            --button-bg: #2d323c;
-            --button-hover-bg: #374151;
-            --button-border: #464d5a;
-            --button-hover-border: #5b6678;
-            --panel-bg: #202329;
-            --surface-bg: #1b1f24;
-            --surface-border: #3b4350;
-            --grid-line: rgba(177, 188, 204, 0.12);
-            --property-bg: #242832;
-            --property-key-bg: #2b303a;
-            --property-value-bg: #1f242c;
-            --property-border: #38404d;
-            --property-muted: #9aa4b2;
-            --focus: #3b82f6;
-            --enter-key-bg: #16a34a;
-            --enter-key-border: #15803d;
-            --enter-key-hover-bg: #22c55e;
-            --slider-fill: #f59e0b;
+            --app-bg: #1e1e1e;
+            --text: #f5f5f5;
+            --toolbar-bg: #2d2d30;
+            --toolbar-border: #3f3f46;
+            --button-bg: #3f3f46;
+            --button-hover-bg: #4b4b52;
+            --button-border: #5a5a5f;
+            --button-hover-border: #6a6a70;
+            --panel-bg: #252526;
+            --surface-bg: #202124;
+            --surface-border: #3f3f46;
+            --grid-line: rgba(190, 190, 190, 0.18);
+            --property-bg: #2d2d30;
+            --property-key-bg: #333337;
+            --property-value-bg: #252526;
+            --property-border: #45454a;
+            --property-muted: #aeb8c8;
+            --focus: #60a5fa;
+            --enter-key-bg: #1f8f45;
+            --enter-key-border: #187237;
+            --enter-key-hover-bg: #25a34f;
+            --slider-fill: #ffc850;
             --slider-knob-bg: #ffffff;
-            --checkerboard-color: #6b7280;
+            --checkerboard-color: #8f8f8f;
         }
 
         :root[data-theme="light"] {
             color-scheme: light;
-            --app-bg: #eef1f5;
-            --text: #1f2937;
-            --toolbar-bg: #f8fafc;
-            --toolbar-border: #d7dde7;
+            --app-bg: #f3f3f3;
+            --text: #1f1f1f;
+            --toolbar-bg: #f0f0f0;
+            --toolbar-border: #c8c8c8;
             --button-bg: #ffffff;
-            --button-hover-bg: #edf4ff;
-            --button-border: #c6ceda;
-            --button-hover-border: #8aa7d6;
-            --panel-bg: #f3f6fa;
+            --button-hover-bg: #e9f2ff;
+            --button-border: #b8b8b8;
+            --button-hover-border: #7aa7d9;
+            --panel-bg: #e6e6e6;
             --surface-bg: #ffffff;
-            --surface-border: #cfd7e3;
-            --grid-line: rgba(55, 65, 81, 0.12);
-            --property-bg: #eef2f7;
-            --property-key-bg: #e2e8f0;
+            --surface-border: #c8c8c8;
+            --grid-line: rgba(70, 70, 70, 0.18);
+            --property-bg: #f3f3f3;
+            --property-key-bg: #e7e7e7;
             --property-value-bg: #ffffff;
-            --property-border: #cbd5e1;
-            --property-muted: #667085;
-            --focus: #2563eb;
-            --enter-key-bg: #0f766e;
-            --enter-key-border: #115e59;
-            --enter-key-hover-bg: #0d9488;
-            --slider-fill: #d97706;
+            --property-border: #cfcfcf;
+            --property-muted: #606060;
+            --focus: #0078d4;
+            --enter-key-bg: #0f6cbd;
+            --enter-key-border: #0a5a9c;
+            --enter-key-hover-bg: #1b7fd0;
+            --slider-fill: #cc8a00;
             --slider-knob-bg: #fdfdfd;
-            --checkerboard-color: #cbd5e1;
+            --checkerboard-color: #b8b8b8;
         }
 
         html.deployed-runtime-preload .toolbar,
@@ -734,7 +734,7 @@
             width: 132px;
             min-width: 132px;
             overflow-y: auto;
-            background: linear-gradient(180deg, color-mix(in srgb, var(--toolbar-bg) 92%, var(--panel-bg)), var(--panel-bg));
+            background: var(--toolbar-bg);
             border-right: 1px solid var(--toolbar-border);
             padding: 10px 8px;
             box-sizing: border-box;
@@ -1043,7 +1043,7 @@
             min-height: 0;
             border: 1px solid var(--surface-border);
             background: var(--surface-bg);
-            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
             padding: 18px;
             box-sizing: border-box;
             overflow: auto;
@@ -1244,7 +1244,7 @@
             min-height: 0;
             position: relative;
             overflow: hidden;
-            border: 1px solid color-mix(in srgb, var(--surface-border) 88%, var(--focus) 12%);
+            border: 1px solid var(--surface-border);
             background-color: var(--surface-bg);
             background-image:
                 linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
@@ -1252,7 +1252,7 @@
             background-size:
                 calc(100% / var(--grid-x)) 100%,
                 100% calc(100% / var(--grid-y));
-            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.025);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
         }
 
         .design-surface.grid-hidden {
@@ -2137,12 +2137,11 @@
         .right-panel {
             flex: 0 0 260px;
             width: 260px;
-            background: var(--panel-bg);
+            background: var(--property-bg);
             color: var(--text);
             display: flex;
             flex-direction: column;
             min-height: 0;
-            border-left: 1px solid var(--toolbar-border);
         }
 
         .project-panel {
@@ -2151,7 +2150,6 @@
             flex-direction: column;
             min-height: 80px;
             background: var(--property-bg);
-            border-bottom: 1px solid var(--toolbar-border);
             overflow: hidden;
         }
 
