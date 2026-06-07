@@ -36,6 +36,122 @@ const addressTableProviders = {
     }
 };
 
+let importedAddressMetadata = new Map();
+let importedAddressMetadataSourceFileName = '';
+
+function getAliasImportButtonText() {
+    const baseText = useKoreanLanguage ? 'Alias 가져오기' : 'Import Alias';
+    if (importedAddressMetadataSourceFileName) {
+        return useKoreanLanguage
+            ? `${baseText} (현재: ${importedAddressMetadataSourceFileName})`
+            : `${baseText} (current: ${importedAddressMetadataSourceFileName})`;
+    }
+
+    if (importedAddressMetadata.size > 0) {
+        return useKoreanLanguage
+            ? `${baseText} (현재: 저장된 Alias)`
+            : `${baseText} (current: saved aliases)`;
+    }
+
+    return baseText;
+}
+
+function getImportedAddressMetadata(address) {
+    const key = normalizeVisualizationAddressKey(address);
+    if (!key) {
+        return null;
+    }
+
+    if (importedAddressMetadata.has(key)) {
+        return importedAddressMetadata.get(key);
+    }
+
+    const match = key.match(/^([A-Z]+)(\d+)$/);
+    if (!match) {
+        return null;
+    }
+
+    const prefix = match[1];
+    const index = match[2];
+    if (prefix === 'TS') {
+        return importedAddressMetadata.get(`T${index}`) || null;
+    }
+    if (prefix === 'T') {
+        return importedAddressMetadata.get(`TS${index}`) || null;
+    }
+    if (prefix === 'CS') {
+        return importedAddressMetadata.get(`C${index}`) || null;
+    }
+    if (prefix === 'C') {
+        return importedAddressMetadata.get(`CS${index}`) || null;
+    }
+
+    return null;
+}
+
+function setImportedAddressMetadata(entries, sourceFileName) {
+    importedAddressMetadata = new Map();
+    importedAddressMetadataSourceFileName = String(sourceFileName || '').trim();
+    (entries || []).forEach(entry => {
+        const key = normalizeVisualizationAddressKey(`${entry.prefix}${entry.index}`);
+        const alias = String(entry.alias || '').trim();
+        const comment = String(entry.comment || '').trim();
+        if (key && (alias || comment)) {
+            importedAddressMetadata.set(key, { alias, comment });
+        }
+    });
+}
+
+function exportImportedAddressMetadata() {
+    return Array.from(importedAddressMetadata.entries()).map(([address, metadata]) => ({
+        address,
+        alias: String(metadata?.alias || ''),
+        comment: String(metadata?.comment || '')
+    }));
+}
+
+function exportImportedAddressMetadataSourceFileName() {
+    return importedAddressMetadataSourceFileName;
+}
+
+function importSavedAddressMetadata(entries, sourceFileName) {
+    importedAddressMetadata = new Map();
+    importedAddressMetadataSourceFileName = String(sourceFileName || '').trim();
+    (entries || []).forEach(entry => {
+        const key = normalizeVisualizationAddressKey(entry?.address || `${entry?.prefix || ''}${entry?.index ?? ''}`);
+        const alias = String(entry?.alias || '').trim();
+        const comment = String(entry?.comment || '').trim();
+        if (key && (alias || comment)) {
+            importedAddressMetadata.set(key, { alias, comment });
+        }
+    });
+}
+
+function syncImportedAddressMetadataFromDocumentModel() {
+    const model = window.visualizationDocumentModel;
+    if (!model || !Array.isArray(model.addressMetadata)) {
+        return;
+    }
+
+    const modelSourceFileName = String(model.addressMetadataSourceFileName || '').trim();
+    if (model.addressMetadata.length === importedAddressMetadata.size && modelSourceFileName === importedAddressMetadataSourceFileName) {
+        return;
+    }
+
+    importSavedAddressMetadata(model.addressMetadata, modelSourceFileName);
+}
+
+window.exportImportedAddressMetadata = exportImportedAddressMetadata;
+window.exportImportedAddressMetadataSourceFileName = exportImportedAddressMetadataSourceFileName;
+window.importSavedAddressMetadata = importSavedAddressMetadata;
+
+if (Array.isArray(window.visualizationDocumentModel?.addressMetadata)) {
+    importSavedAddressMetadata(
+        window.visualizationDocumentModel.addressMetadata,
+        window.visualizationDocumentModel.addressMetadataSourceFileName
+    );
+}
+
 function getCurrentAddressTableProvider() {
     const device = String(linkModelSelect?.value || documentModel.deviceConnection?.device || 'CUBLOC2').trim() || 'CUBLOC2';
     return addressTableProviders[device] || null;
@@ -99,12 +215,17 @@ function getAddressAreaEntries(provider, area, searchText, jumpStart) {
 
     for (let index = start; index <= end; index += 1) {
         const address = `${area.prefix}${index}`;
-        const alias = String(aliases[index] || '');
-        if (normalizedSearch && !address.toUpperCase().includes(normalizedSearch) && !alias.toUpperCase().includes(normalizedSearch)) {
+        const importedMetadata = getImportedAddressMetadata(address);
+        const alias = String(importedMetadata?.alias || aliases[index] || '');
+        const comment = String(importedMetadata?.comment || '');
+        if (normalizedSearch &&
+            !address.toUpperCase().includes(normalizedSearch) &&
+            !alias.toUpperCase().includes(normalizedSearch) &&
+            !comment.toUpperCase().includes(normalizedSearch)) {
             continue;
         }
 
-        result.push({ address, alias, type: area.type, comment: '' });
+        result.push({ address, alias, type: area.type, comment });
         if (result.length >= maxRows) {
             break;
         }
@@ -117,6 +238,8 @@ function openAddressPicker(widget, propertyKey, currentAddress) {
     if (!widget || runtimeRunning) {
         return;
     }
+
+    syncImportedAddressMetadataFromDocumentModel();
 
     const provider = getCurrentAddressTableProvider();
     if (!provider) {
@@ -141,6 +264,7 @@ function openAddressPicker(widget, propertyKey, currentAddress) {
         selectedAreaPrefix: findAddressAreaPrefix(provider, currentAddress, allowedAreas) || allowedAreas[0].prefix,
         currentAddress: String(currentAddress || '').trim(),
         selectedAddress: String(currentAddress || '').trim(),
+        usedAddressKeys: typeof collectUsedVisualizationAddressKeys === 'function' ? collectUsedVisualizationAddressKeys() : new Set(),
         jumpThousands: null,
         jumpHundreds: null,
         searchText: ''
@@ -317,10 +441,202 @@ function renderAddressPickerMarkup(state, allowedAreas) {
             </div>
         </div>
         <div class="address-picker-footer">
-            <button class="address-picker-cancel" type="button">${escapeHtml(resources.cancel || 'Cancel')}</button>
-            <button class="address-picker-apply" type="button" disabled>${useKoreanLanguage ? '선택' : 'Select'}</button>
+            <button class="address-picker-alias-refresh" type="button">${escapeHtml(getAliasImportButtonText())}</button>
+            <div class="address-picker-footer-actions">
+                <button class="address-picker-cancel" type="button">${escapeHtml(resources.cancel || 'Cancel')}</button>
+                <button class="address-picker-apply" type="button" disabled>${useKoreanLanguage ? '선택' : 'Select'}</button>
+            </div>
         </div>
     </div>`;
+}
+
+function createCbprojReader(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const decoder = new TextDecoder('utf-8');
+    let offset = 0;
+
+    const ensure = length => {
+        if (offset + length > view.byteLength) {
+            throw new Error('Unexpected end of file.');
+        }
+    };
+
+    return {
+        get offset() {
+            return offset;
+        },
+        byteLength: view.byteLength,
+        readByte() {
+            ensure(1);
+            const value = view.getUint8(offset);
+            offset += 1;
+            return value;
+        },
+        readBoolean() {
+            return this.readByte() !== 0;
+        },
+        readInt32() {
+            ensure(4);
+            const value = view.getInt32(offset, true);
+            offset += 4;
+            return value;
+        },
+        readUInt32() {
+            ensure(4);
+            const value = view.getUint32(offset, true);
+            offset += 4;
+            return value;
+        },
+        readUInt16() {
+            ensure(2);
+            const value = view.getUint16(offset, true);
+            offset += 2;
+            return value;
+        },
+        readAscii(length) {
+            ensure(length);
+            const bytes = new Uint8Array(arrayBuffer, offset, length);
+            offset += length;
+            return String.fromCharCode(...bytes);
+        },
+        readString8() {
+            const length = this.readByte();
+            if (length === 0) {
+                return '';
+            }
+            ensure(length);
+            const bytes = new Uint8Array(arrayBuffer, offset, length);
+            offset += length;
+            return decoder.decode(bytes);
+        },
+        readString32() {
+            const length = this.readInt32();
+            if (length < 0) {
+                throw new Error('Invalid string length.');
+            }
+            if (length === 0) {
+                return '';
+            }
+            ensure(length);
+            const bytes = new Uint8Array(arrayBuffer, offset, length);
+            offset += length;
+            return decoder.decode(bytes);
+        }
+    };
+}
+
+function parseCbprojAddressMetadata(arrayBuffer) {
+    const reader = createCbprojReader(arrayBuffer);
+    const magic = reader.readAscii(5);
+    if (magic !== 'CBPJ2') {
+        throw new Error(useKoreanLanguage ? '지원하지 않는 프로젝트 파일 형식입니다.' : 'Unsupported project file format.');
+    }
+
+    const storedSize = reader.readUInt32();
+    reader.readUInt32();
+    if (storedSize !== reader.byteLength) {
+        throw new Error(useKoreanLanguage ? '프로젝트 파일 크기가 올바르지 않습니다.' : 'Project file size is invalid.');
+    }
+
+    reader.readInt32();
+    for (let index = 0; index < 4; index += 1) {
+        reader.readByte();
+    }
+
+    const basicCount = reader.readInt32();
+    if (basicCount < 0) {
+        throw new Error('Invalid BASIC entry count.');
+    }
+    for (let index = 0; index < basicCount; index += 1) {
+        reader.readByte();
+        reader.readString8();
+        reader.readString32();
+    }
+
+    const ldCount = reader.readInt32();
+    if (ldCount < 0) {
+        throw new Error('Invalid ladder entry count.');
+    }
+    for (let entryIndex = 0; entryIndex < ldCount; entryIndex += 1) {
+        reader.readByte();
+        reader.readString8();
+        const columnCount = reader.readInt32();
+        const lmax = reader.readInt32();
+        if (columnCount < 0 || columnCount > 1000 || lmax < 0 || lmax > 100000) {
+            throw new Error('Invalid ladder document size.');
+        }
+
+        for (let y = 0; y <= lmax; y += 1) {
+            reader.readBoolean();
+            reader.readString8();
+            for (let x = 0; x < columnCount; x += 1) {
+                reader.readByte();
+                reader.readByte();
+                reader.readUInt16();
+                reader.readByte();
+                reader.readString8();
+            }
+        }
+    }
+
+    const entryCount = reader.readInt32();
+    if (entryCount < 0 || entryCount > 100000) {
+        throw new Error('Invalid address table entry count.');
+    }
+
+    const entries = [];
+    for (let index = 0; index < entryCount; index += 1) {
+        entries.push({
+            prefix: reader.readString8(),
+            index: reader.readInt32(),
+            alias: reader.readString8(),
+            comment: reader.readString8()
+        });
+    }
+
+    return entries;
+}
+
+function openCbprojAliasImportPicker(backdrop, state, button) {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = '.cbproj';
+    picker.style.display = 'none';
+    picker.addEventListener('change', async () => {
+        const file = picker.files && picker.files[0];
+        picker.remove();
+        if (!file) {
+            return;
+        }
+
+        if (!String(file.name || '').toLowerCase().endsWith('.cbproj')) {
+            window.alert(useKoreanLanguage ? 'cbproj 파일만 선택할 수 있습니다.' : 'Only cbproj files can be selected.');
+            return;
+        }
+
+        try {
+            const entries = parseCbprojAddressMetadata(await file.arrayBuffer());
+            setImportedAddressMetadata(entries, file.name);
+            if (typeof notifyVisualizationDirty === 'function') {
+                notifyVisualizationDirty();
+            }
+            renderAddressPickerRows(backdrop, state);
+            if (button) {
+                button.textContent = useKoreanLanguage ? `가져옴 ${entries.length}` : `Imported ${entries.length}`;
+                window.setTimeout(() => {
+                    if (document.body.contains(button)) {
+                        button.textContent = getAliasImportButtonText();
+                    }
+                }, 1400);
+            }
+        } catch (error) {
+            const message = error && error.message ? error.message : String(error);
+            window.alert((useKoreanLanguage ? 'Alias 가져오기에 실패했습니다: ' : 'Failed to import aliases: ') + message);
+        }
+    }, { once: true });
+
+    document.body.appendChild(picker);
+    picker.click();
 }
 
 function bindAddressPickerEvents(backdrop, state) {
@@ -373,6 +689,12 @@ function bindAddressPickerEvents(backdrop, state) {
         if (event.target.closest('.address-picker-apply')) {
             applyAddressPickerSelection(state);
             close();
+            return;
+        }
+
+        const aliasRefreshButton = event.target.closest('.address-picker-alias-refresh');
+        if (aliasRefreshButton) {
+            openCbprojAliasImportPicker(backdrop, state, aliasRefreshButton);
         }
     });
 
@@ -394,7 +716,8 @@ function renderAddressPickerRows(backdrop, state) {
         ? rows.map(row => {
             const isSelected = normalizeVisualizationAddressKey(row.address) === selectedKey;
             const isCurrent = normalizeVisualizationAddressKey(row.address) === currentKey;
-            return `<tr class="address-picker-row${isSelected ? ' is-selected' : ''}" data-address="${escapeHtml(row.address)}">
+            const isUsed = state.usedAddressKeys instanceof Set && state.usedAddressKeys.has(normalizeVisualizationAddressKey(row.address));
+            return `<tr class="address-picker-row${isSelected ? ' is-selected' : ''}${isUsed ? ' is-used' : ''}" data-address="${escapeHtml(row.address)}" aria-label="${isUsed ? (useKoreanLanguage ? '사용 중인 주소' : 'Used address') : ''}">
                 <td class="address-picker-check-cell" aria-label="${isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : ''}">${isCurrent ? '✓' : ''}</td><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.alias)}</td><td>${escapeHtml(row.comment)}</td><td>${escapeHtml(row.type)}</td>
             </tr>`;
         }).join('')

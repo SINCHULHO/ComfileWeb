@@ -2867,14 +2867,29 @@
 
         .property-address-editor {
             display: flex;
+            flex-direction: column;
+            width: 100%;
+            min-height: 26px;
+        }
+
+        .property-address-main {
+            display: flex;
             align-items: stretch;
             width: 100%;
             height: 26px;
         }
 
-        .property-address-editor .property-input {
+        .property-address-main .property-input {
             flex: 1 1 auto;
             min-width: 0;
+        }
+
+        .property-address-alias {
+            color: var(--property-muted);
+            font-size: 11px;
+            line-height: 1.25;
+            padding: 0 0 4px 0;
+            opacity: 0.85;
         }
 
         .property-address-picker-button {
@@ -2905,7 +2920,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 10px 16px;
+            padding: clamp(12px, 3vh, 28px) clamp(12px, 3vw, 32px);
             background: rgba(0, 0, 0, 0.45);
             box-sizing: border-box;
         }
@@ -2913,8 +2928,10 @@
         .address-picker-dialog {
             display: flex;
             flex-direction: column;
-            width: min(920px, 96vw);
-            height: min(820px, 97vh);
+            width: min(820px, calc(100vw - clamp(24px, 6vw, 64px)));
+            height: min(760px, calc(100vh - clamp(24px, 6vh, 56px)));
+            min-width: min(560px, calc(100vw - 24px));
+            min-height: min(520px, calc(100vh - 24px));
             border: 1px solid var(--toolbar-border);
             border-radius: 8px;
             background: var(--panel-bg);
@@ -2935,9 +2952,15 @@
         }
 
         .address-picker-footer {
-            justify-content: flex-end;
+            justify-content: space-between;
             border-top: 1px solid var(--toolbar-border);
             border-bottom: 0;
+        }
+
+        .address-picker-footer-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .address-picker-title {
@@ -2952,6 +2975,7 @@
         }
 
         .address-picker-close,
+        .address-picker-alias-refresh,
         .address-picker-cancel,
         .address-picker-apply {
             min-width: 72px;
@@ -2985,7 +3009,7 @@
 
         .address-picker-body {
             display: grid;
-            grid-template-columns: 168px minmax(0, 1fr);
+            grid-template-columns: minmax(118px, 150px) minmax(0, 1fr);
             min-height: 0;
             flex: 1 1 auto;
         }
@@ -3014,7 +3038,7 @@
         }
 
         .address-picker-area small {
-            max-width: 92px;
+            max-width: 78px;
             color: var(--property-muted);
             font-size: 10px;
             overflow: hidden;
@@ -3075,7 +3099,7 @@
             min-width: 0;
             min-height: 0;
             flex-direction: column;
-            padding: 10px;
+            padding: 8px;
         }
 
         .address-picker-toolbar {
@@ -3149,6 +3173,18 @@
 
         .address-picker-row {
             cursor: pointer;
+        }
+
+        .address-picker-row.is-used td:nth-child(2) {
+            color: color-mix(in srgb, var(--focus) 82%, var(--text));
+            font-weight: 700;
+        }
+
+        .address-picker-table th:nth-child(5),
+        .address-picker-table td:nth-child(5) {
+            width: 70px;
+            min-width: 70px;
+            max-width: 70px;
         }
 
         .address-picker-row:hover,

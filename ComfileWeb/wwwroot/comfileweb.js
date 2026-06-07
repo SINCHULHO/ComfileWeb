@@ -75,8 +75,8 @@
 		setDocumentDirty(true);
 	}
 
-	function saveTemporaryDraft() {
-		if (!documentDirty) {
+	function saveTemporaryDraft(force) {
+		if (!force && !documentDirty) {
 			return false;
 		}
 
@@ -137,11 +137,7 @@
 	}
 
 	function handleBeforeUnload() {
-		if (!documentDirty) {
-			return;
-		}
-
-		saveTemporaryDraft();
+		saveTemporaryDraft(true);
 	}
 
 	function getDocumentText() {
@@ -156,6 +152,100 @@
 		if (typeof window.importVisualizationDocumentText === 'function') {
 			window.importVisualizationDocumentText(text);
 		}
+	}
+
+	function currentDocumentHasWidgets() {
+		const text = getDocumentText();
+		if (!text || !text.trim()) {
+			return false;
+		}
+
+		try {
+			const documentValue = JSON.parse(text);
+			return Array.isArray(documentValue.pages) && documentValue.pages.some(page => Array.isArray(page.widgets) && page.widgets.length > 0);
+		} catch {
+			return false;
+		}
+	}
+
+	function askSaveCurrentWorkBeforeOpen() {
+		return new Promise(resolve => {
+			const overlay = document.createElement('div');
+			overlay.style.position = 'fixed';
+			overlay.style.inset = '0';
+			overlay.style.background = 'rgba(0, 0, 0, 0.45)';
+			overlay.style.display = 'flex';
+			overlay.style.alignItems = 'center';
+			overlay.style.justifyContent = 'center';
+			overlay.style.zIndex = '3600';
+
+			const dialog = document.createElement('div');
+			dialog.style.width = 'min(420px, 90vw)';
+			dialog.style.background = '#2d2d30';
+			dialog.style.border = '1px solid #3f3f46';
+			dialog.style.borderRadius = '8px';
+			dialog.style.padding = '18px';
+			dialog.style.boxShadow = '0 18px 42px rgba(0, 0, 0, 0.45)';
+			dialog.style.color = '#f4f4f5';
+			dialog.style.boxSizing = 'border-box';
+
+			const message = document.createElement('div');
+			message.textContent = '작업중인 화면이 있습니다. 다른 프로젝트를 열기 전에 현재 작업을 다른 이름으로 저장하시겠습니까?';
+			message.style.fontSize = '14px';
+			message.style.lineHeight = '1.5';
+			message.style.marginBottom = '16px';
+
+			const footer = document.createElement('div');
+			footer.style.display = 'flex';
+			footer.style.justifyContent = 'flex-end';
+			footer.style.gap = '8px';
+
+			const noButton = document.createElement('button');
+			noButton.type = 'button';
+			noButton.textContent = 'No';
+			applyButtonStyle(noButton);
+
+			const yesButton = document.createElement('button');
+			yesButton.type = 'button';
+			yesButton.textContent = 'Yes';
+			applyButtonStyle(yesButton);
+			yesButton.style.background = '#2563eb';
+			yesButton.style.borderColor = '#3b82f6';
+
+			const finish = value => {
+				overlay.remove();
+				resolve(value);
+			};
+
+			noButton.addEventListener('click', () => finish(false));
+			yesButton.addEventListener('click', () => finish(true));
+			overlay.addEventListener('click', event => {
+				if (event.target === overlay) {
+					finish(false);
+				}
+			});
+
+			footer.appendChild(yesButton);
+			footer.appendChild(noButton);
+			dialog.appendChild(message);
+			dialog.appendChild(footer);
+			overlay.appendChild(dialog);
+			document.body.appendChild(overlay);
+			yesButton.focus();
+		});
+	}
+
+	async function confirmSaveCurrentWorkBeforeOpen() {
+		if (!currentDocumentHasWidgets()) {
+			return true;
+		}
+
+		const shouldSave = await askSaveCurrentWorkBeforeOpen();
+		if (!shouldSave) {
+			return true;
+		}
+
+		return await saveProjectAs() === true;
 	}
 
 	function clearCurrentProjectName() {
@@ -318,6 +408,11 @@
 	}
 
 	async function openProject() {
+		const canContinue = await confirmSaveCurrentWorkBeforeOpen();
+		if (!canContinue) {
+			return;
+		}
+
 		let items;
 		try {
 			const response = await fetch('/api/project/list', { cache: 'no-store' });
@@ -358,8 +453,8 @@
 				setDocumentText(text);
 				currentProjectName = targetName;
 				documentSavedOnce = false;
-				clearTemporaryDraft();
 				setDocumentDirty(false);
+				saveTemporaryDraft(true);
 			} catch (error) {
 				window.alert('프로젝트를 불러오는 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
 			}
@@ -375,8 +470,8 @@
 			setDocumentText(selection.text);
 			currentProjectName = selection.name || currentProjectName;
 			documentSavedOnce = false;
-			clearTemporaryDraft();
 			setDocumentDirty(false);
+			saveTemporaryDraft(true);
 		}
 	}
 

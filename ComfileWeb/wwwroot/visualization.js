@@ -73,6 +73,8 @@ const designSurface = document.getElementById('designSurface');
                 ethernetPort: 502,
                 lastConnected: false
             },
+            addressMetadata: [],
+            addressMetadataSourceFileName: '',
             pages: [
                 {
                     name: 'Page1',
@@ -85,6 +87,7 @@ const designSurface = document.getElementById('designSurface');
                 }
             ]
         };
+        window.visualizationDocumentModel = documentModel;
 
         let activePageName = 'Page1';
         let selectedWidgetId = null;
@@ -4352,9 +4355,14 @@ const designSurface = document.getElementById('designSurface');
             const widget = getCurrentPage().widgets.find(item => item.id === selectedWidgetId);
             const disabled = widget && (widget.kind === 'Button' || widget.kind === 'Lamp' || widget.kind === 'Text' || widget.kind === 'Number') && key === 'Display Address' && normalizeWidgetDisplayMode(widget.properties.Display) !== 'Address';
             const disabledAttribute = disabled ? ' disabled' : '';
+            const alias = lookupVisualizationAddressAlias(value);
+            const aliasHtml = alias ? `<div class="property-address-alias">(${escapeHtml(alias)})</div>` : '';
             return `<div class="property-address-editor">
-                <input class="property-input property-address-input" data-property-key="${escapeHtml(key)}" value="${escapeHtml(value)}"${disabledAttribute} />
-                <button class="property-address-picker-button" type="button" data-address-property-key="${escapeHtml(key)}" title="${useKoreanLanguage ? '주소 선택' : 'Select address'}"${disabledAttribute}>...</button>
+                <div class="property-address-main">
+                    <input class="property-input property-address-input" data-property-key="${escapeHtml(key)}" value="${escapeHtml(value)}"${disabledAttribute} />
+                    <button class="property-address-picker-button" type="button" data-address-property-key="${escapeHtml(key)}" title="${useKoreanLanguage ? '주소 선택' : 'Select address'}"${disabledAttribute}>...</button>
+                </div>
+                ${aliasHtml}
             </div>`;
         }
 
@@ -5032,6 +5040,8 @@ const designSurface = document.getElementById('designSurface');
             window.chrome.webview.postMessage({ type: 'visualization-address-alias-refresh-request' });
         }
 
+        window.requestVisualizationAddressAliasRefresh = requestVisualizationAddressAliasRefresh;
+
         function getVisualizationAliasLookupKeys(address) {
             const key = normalizeVisualizationAddressKey(address);
             if (!key) {
@@ -5058,6 +5068,14 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function lookupVisualizationAddressAlias(address) {
+            if (typeof getImportedAddressMetadata === 'function') {
+                const importedMetadata = getImportedAddressMetadata(address);
+                const importedAlias = String(importedMetadata?.alias || '').trim();
+                if (importedAlias) {
+                    return importedAlias;
+                }
+            }
+
             for (const key of getVisualizationAliasLookupKeys(address)) {
                 const alias = visualizationAddressAliases.get(key);
                 if (alias) {
@@ -5104,8 +5122,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function formatSelectedWidgetAddressInfo(item) {
-            const addressText = item.alias ? `${item.address} (${item.alias})` : item.address;
-            return item.type ? `${addressText} · ${item.type}` : addressText;
+            return [item.address, item.alias, item.type].filter(value => String(value || '').trim()).join(' · ');
         }
 
         function collectSelectedWidgetAddressInfo(widget) {
@@ -6562,6 +6579,12 @@ const designSurface = document.getElementById('designSurface');
 
         function exportVisualizationDocumentText() {
             captureDeviceConnectionState();
+            if (typeof window.exportImportedAddressMetadata === 'function') {
+                documentModel.addressMetadata = window.exportImportedAddressMetadata();
+            }
+            if (typeof window.exportImportedAddressMetadataSourceFileName === 'function') {
+                documentModel.addressMetadataSourceFileName = window.exportImportedAddressMetadataSourceFileName();
+            }
             return JSON.stringify(documentModel);
         }
 
@@ -6577,7 +6600,12 @@ const designSurface = document.getElementById('designSurface');
 
             documentModel.version = nextDocumentModel.version || 1;
             documentModel.deviceConnection = normalizeDeviceConnection(nextDocumentModel.deviceConnection);
+            documentModel.addressMetadata = Array.isArray(nextDocumentModel.addressMetadata) ? nextDocumentModel.addressMetadata : [];
+            documentModel.addressMetadataSourceFileName = String(nextDocumentModel.addressMetadataSourceFileName || '');
             documentModel.pages = nextDocumentModel.pages;
+            if (typeof window.importSavedAddressMetadata === 'function') {
+                window.importSavedAddressMetadata(documentModel.addressMetadata, documentModel.addressMetadataSourceFileName);
+            }
             normalizeVisualizationDocumentPages();
             applyThemeLinkedColors('light', currentThemeMode);
             applyThemeLinkedColors('dark', currentThemeMode);
@@ -6748,6 +6776,8 @@ const designSurface = document.getElementById('designSurface');
             });
             return used;
         }
+
+        window.collectUsedVisualizationAddressKeys = collectUsedVisualizationAddressKeys;
 
         function getNextEmptyMAddress(usedAddressKeys) {
             for (let index = 0; index < 2048; index += 1) {
