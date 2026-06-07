@@ -971,6 +971,8 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function notifyVisualizationDirty() {
+            window.dispatchEvent(new CustomEvent('comfileweb-document-dirty'));
+
             if (!window.chrome || !window.chrome.webview) {
                 return;
             }
@@ -3630,7 +3632,7 @@ const designSurface = document.getElementById('designSurface');
                 return renderAddressPropertyEditor(key, value);
             }
 
-            if (widget && widget.kind === 'Number' && key === 'Text Size') {
+            if (widget && (widget.kind === 'Button' || widget.kind === 'Lamp' || widget.kind === 'Number' || widget.kind === 'Text') && key === 'Text Size') {
                 return renderTextSizeStepper(key, value);
             }
 
@@ -3852,7 +3854,7 @@ const designSurface = document.getElementById('designSurface');
                 return normalizeNumberUnit(value);
             }
 
-            if (widget.kind === 'Number' && propertyKey === 'Text Size') {
+            if ((widget.kind === 'Button' || widget.kind === 'Lamp' || widget.kind === 'Number' || widget.kind === 'Text') && propertyKey === 'Text Size') {
                 return String(clampNumberTextSize(value));
             }
 
@@ -5108,12 +5110,13 @@ const designSurface = document.getElementById('designSurface');
                 lastRuntimeErrorMessage = '';
             }
 
-            if (!runtimeRunning && runtimeStartPageName && getPageByName(runtimeStartPageName)) {
-                activePageName = runtimeStartPageName;
+            if (!runtimeRunning && runtimeStartPageName) {
                 runtimeStartPageName = '';
             }
 
             updateGridControlsFromCurrentPage();
+            updateActivePageLabel();
+            renderProjectTree();
             renderWidgets();
         }
 
@@ -5211,12 +5214,11 @@ const designSurface = document.getElementById('designSurface');
             runtimePressedWidgetIds.clear();
             document.body.classList.remove('runtime-running');
             designSurface.classList.remove('runtime-running');
-            if (runtimeStartPageName && getPageByName(runtimeStartPageName)) {
-                activePageName = runtimeStartPageName;
-            }
             runtimeStartPageName = '';
             updateRuntimeButtons();
             updateGridControlsFromCurrentPage();
+            updateActivePageLabel();
+            renderProjectTree();
             renderWidgets();
         }
 
@@ -6016,6 +6018,12 @@ const designSurface = document.getElementById('designSurface');
                 const settingsLabel = useKoreanLanguage ? '설정' : 'Settings';
                 settingsToggleButton.title = settingsLabel;
                 settingsToggleButton.setAttribute('aria-label', settingsLabel);
+            }
+            if (settingsCloseButton) {
+                const closeLabel = useKoreanLanguage ? '설정 닫기' : 'Close settings';
+                settingsCloseButton.title = closeLabel;
+                settingsCloseButton.setAttribute('aria-label', closeLabel);
+                settingsCloseButton.textContent = '×';
             }
             applyAlignmentTooltips(resources);
             updateRuntimeButtons();

@@ -260,7 +260,7 @@
         }
 
         body.runtime-running .work-area {
-            padding: clamp(16px, 3.2vw, 40px);
+            padding: clamp(10px, 1.8vw, 24px);
             align-items: stretch;
             justify-content: stretch;
         }
@@ -270,8 +270,8 @@
             min-height: 0;
             width: 100%;
             height: auto;
-            max-width: none;
-            max-height: none;
+            max-width: calc(100vw - clamp(20px, 3.6vw, 48px));
+            max-height: calc(100vh - clamp(20px, 3.6vw, 48px));
             border: none;
             box-shadow: none;
         }
@@ -280,8 +280,8 @@
             flex: 1 1 auto;
             width: 100%;
             height: auto;
-            max-width: none;
-            max-height: none;
+            max-width: calc(100vw - clamp(20px, 3.6vw, 48px));
+            max-height: calc(100vh - clamp(20px, 3.6vw, 48px));
         }
 
         .toolbar-button {
@@ -990,7 +990,7 @@
 
         .canvas-header {
             flex: 0 0 auto;
-            height: 30px;
+            height: 18px;
             display: flex;
             align-items: center;
             padding: 0 2px;
@@ -1025,11 +1025,22 @@
         }
 
         .canvas-shell {
-            width: min(100%, 1400px);
-            height: min(100%, 888px);
+            width: min(100%, 1650px);
+            height: min(100%, 1040px);
             display: flex;
             flex-direction: column;
             min-height: 0;
+        }
+
+        @media (min-width: 1500px) and (min-height: 800px) {
+            .work-area {
+                padding: 36px 48px;
+            }
+
+            .canvas-shell {
+                width: min(100%, calc(100vw - 468px));
+                height: min(100%, calc(100vh - 168px));
+            }
         }
 
         .canvas-shell.show-settings .design-surface,
@@ -1126,8 +1137,26 @@
         }
 
         .app-settings-close-button {
-            min-width: 72px;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            font: inherit;
+            font-size: 18px;
             font-weight: 700;
+            line-height: 1;
+        }
+
+        .app-settings-close-button:hover {
+            border-color: var(--button-hover-border);
+            background: var(--button-hover-bg);
         }
 
         .app-settings-field {

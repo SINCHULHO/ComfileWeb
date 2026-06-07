@@ -9,6 +9,33 @@
 	const openButton = document.getElementById('comfilewebOpenButton');
 
 	let currentProjectName = '';
+	let documentDirty = false;
+	let documentSavedOnce = false;
+
+	function updateSaveButtonState() {
+		if (quickSaveButton) {
+			quickSaveButton.disabled = !documentDirty;
+			quickSaveButton.textContent = documentDirty || !documentSavedOnce ? '저장' : '저장됨';
+		}
+	}
+
+	function setDocumentDirty(isDirty) {
+		documentDirty = !!isDirty;
+		if (documentDirty) {
+			documentSavedOnce = false;
+		}
+		updateSaveButtonState();
+	}
+
+	function setDocumentSaved() {
+		documentDirty = false;
+		documentSavedOnce = true;
+		updateSaveButtonState();
+	}
+
+	function markDocumentDirty() {
+		setDocumentDirty(true);
+	}
 
 	function getDocumentText() {
 		if (typeof window.exportVisualizationDocumentText !== 'function') {
@@ -26,6 +53,8 @@
 
 	function clearCurrentProjectName() {
 		currentProjectName = '';
+		documentSavedOnce = false;
+		setDocumentDirty(false);
 	}
 
 	window.clearComfileWebCurrentProjectName = clearCurrentProjectName;
@@ -35,6 +64,10 @@
 	}
 
 	async function quickSaveProject() {
+		if (!documentDirty) {
+			return;
+		}
+
 		if (!currentProjectName) {
 			await saveProjectAs();
 			return;
@@ -73,7 +106,7 @@
 			return;
 		}
 
-		await saveProjectWithName(trimmed, text);
+		return saveProjectWithName(trimmed, text);
 	}
 
 	async function saveProjectWithName(projectName, documentText) {
@@ -106,9 +139,13 @@
 
 			const result = await response.json();
 			currentProjectName = result.name || projectName;
+			setDocumentSaved();
+			return true;
 		} catch (error) {
 			window.alert('저장 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
 		}
+
+		return false;
 	}
 
 	async function loadProjectSaveDirectory() {
@@ -211,6 +248,8 @@
 
 				setDocumentText(text);
 				currentProjectName = targetName;
+				documentSavedOnce = false;
+				setDocumentDirty(false);
 			} catch (error) {
 				window.alert('프로젝트를 불러오는 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
 			}
@@ -225,6 +264,8 @@
 
 			setDocumentText(selection.text);
 			currentProjectName = selection.name || currentProjectName;
+			documentSavedOnce = false;
+			setDocumentDirty(false);
 		}
 	}
 
@@ -670,6 +711,9 @@
 	if (quickSaveButton) {
 		quickSaveButton.addEventListener('click', quickSaveProject);
 	}
+
+	window.addEventListener('comfileweb-document-dirty', markDocumentDirty);
+	updateSaveButtonState();
 
 	if (openButton) {
 		openButton.addEventListener('click', openProject);
