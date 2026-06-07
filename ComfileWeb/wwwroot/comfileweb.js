@@ -12,12 +12,49 @@
 	let currentProjectName = '';
 	let documentDirty = false;
 	let documentSavedOnce = false;
+	let textResources = {
+		save: '저장',
+		saved: '저장됨',
+		saveAs: '다른이름으로 저장',
+		open: '열기'
+	};
 
 	function updateSaveButtonState() {
 		if (quickSaveButton) {
 			quickSaveButton.disabled = !documentDirty;
-			quickSaveButton.textContent = documentDirty || !documentSavedOnce ? '저장' : '저장됨';
+			quickSaveButton.textContent = documentDirty || !documentSavedOnce ? textResources.save : textResources.saved;
 		}
+
+		if (saveButton) {
+			saveButton.textContent = textResources.saveAs;
+		}
+
+		if (openButton) {
+			openButton.textContent = textResources.open;
+		}
+	}
+
+	function applyLanguageResources(event) {
+		const resources = event && event.detail && event.detail.resources ? event.detail.resources : null;
+		if (!resources) {
+			return;
+		}
+
+		textResources = {
+			save: resources.save || textResources.save,
+			saved: resources.saved || textResources.saved,
+			saveAs: resources.saveAs || textResources.saveAs,
+			open: resources.open || textResources.open
+		};
+		updateSaveButtonState();
+	}
+
+	function syncCurrentLanguageResources() {
+		if (typeof window.getVisualizationLanguageResources !== 'function') {
+			return;
+		}
+
+		applyLanguageResources({ detail: window.getVisualizationLanguageResources() });
 	}
 
 	function setDocumentDirty(isDirty) {
@@ -787,7 +824,9 @@
 	}
 
 	window.addEventListener('comfileweb-document-dirty', markDocumentDirty);
+	window.addEventListener('visualization-language-changed', applyLanguageResources);
 	window.addEventListener('beforeunload', handleBeforeUnload);
+	syncCurrentLanguageResources();
 	updateSaveButtonState();
 	window.setTimeout(restoreTemporaryDraftIfAvailable, 0);
 

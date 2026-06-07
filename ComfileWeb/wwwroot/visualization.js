@@ -34,6 +34,9 @@ const designSurface = document.getElementById('designSurface');
         const propertyPanel = document.querySelector('.property-panel');
         const projectTree = document.getElementById('projectTree');
         const projectNewButton = document.getElementById('projectNewButton');
+        const comfilewebOpenButton = document.getElementById('comfilewebOpenButton');
+        const comfilewebQuickSaveButton = document.getElementById('comfilewebQuickSaveButton');
+        const comfilewebSaveButton = document.getElementById('comfilewebSaveButton');
         const projectAddPageButton = document.getElementById('projectAddPageButton');
         const linkModelSelect = document.getElementById('linkModelSelect');
         const linkTransportSelect = document.getElementById('linkTransportSelect');
@@ -119,6 +122,7 @@ const designSurface = document.getElementById('designSurface');
         let visualizationAddressAliasSelectionKey = '';
         let settingsPanelVisible = false;
         let settingsReturnPageName = '';
+        const languagePreferenceStorageKey = 'comfileweb.languageMode';
         const runtimeServerOrigin = window.location.protocol === 'file:' ? 'http://127.0.0.1:5129' : window.location.origin;
         const defaultColorPalette = [
             '#000000', '#404040', '#808080', '#C0C0C0', '#FFFFFF',
@@ -168,6 +172,11 @@ const designSurface = document.getElementById('designSurface');
                 gapX: 'X 간격',
                 gapY: 'Y 간격',
                 apply: '적용',
+                newProject: '새 프로젝트',
+                open: '열기',
+                save: '저장',
+                saved: '저장됨',
+                saveAs: '다른이름으로 저장',
                 cancel: '취소',
                 settings: '설정',
                 settingsClose: '설정 닫기',
@@ -226,6 +235,11 @@ const designSurface = document.getElementById('designSurface');
                 gapX: 'Gap X',
                 gapY: 'Gap Y',
                 apply: 'Apply',
+                newProject: 'New Project',
+                open: 'Open',
+                save: 'Save',
+                saved: 'Saved',
+                saveAs: 'Save As',
                 cancel: 'Cancel',
                 settings: 'Settings',
                 settingsClose: 'Close Settings',
@@ -252,6 +266,35 @@ const designSurface = document.getElementById('designSurface');
         function getVisualizationResources() {
             return useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
         }
+
+        function getStoredLanguageMode() {
+            try {
+                const value = localStorage.getItem(languagePreferenceStorageKey);
+                return value === 'en' ? 'en' : 'ko';
+            } catch {
+                return 'ko';
+            }
+        }
+
+        function storeLanguageMode(useKorean) {
+            try {
+                localStorage.setItem(languagePreferenceStorageKey, useKorean ? 'ko' : 'en');
+            } catch {
+            }
+        }
+
+        window.getVisualizationLanguageResources = function () {
+            const resources = getVisualizationResources();
+            return {
+                useKorean: useKoreanLanguage,
+                resources: {
+                    save: resources.save,
+                    saved: resources.saved,
+                    saveAs: resources.saveAs,
+                    open: resources.open
+                }
+            };
+        };
 
         const propertyDisplayNamesKo = {
             'Name': '이름',
@@ -7160,6 +7203,12 @@ const designSurface = document.getElementById('designSurface');
             useKoreanLanguage = language && typeof language.useKorean === 'boolean'
                 ? language.useKorean
                 : true;
+            window.comfileWebUseKoreanLanguage = useKoreanLanguage;
+            document.documentElement.dataset.languageMode = useKoreanLanguage ? 'ko' : 'en';
+
+            if (!language || language.persist !== false) {
+                storeLanguageMode(useKoreanLanguage);
+            }
 
             const resources = useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
             document.querySelectorAll('[data-i18n]').forEach(element => {
@@ -7173,6 +7222,28 @@ const designSurface = document.getElementById('designSurface');
                 projectAddButton.title = useKoreanLanguage ? '페이지 추가' : 'Add page';
                 projectAddButton.setAttribute('aria-label', useKoreanLanguage ? '페이지 추가' : 'Add page');
             }
+            if (projectNewButton) {
+                projectNewButton.textContent = resources.newProject;
+                projectNewButton.title = resources.newProject;
+                projectNewButton.setAttribute('aria-label', resources.newProject);
+            }
+            if (comfilewebOpenButton) {
+                comfilewebOpenButton.textContent = resources.open;
+            }
+            if (comfilewebSaveButton) {
+                comfilewebSaveButton.textContent = resources.saveAs;
+            }
+            window.dispatchEvent(new CustomEvent('visualization-language-changed', {
+                detail: {
+                    useKorean: useKoreanLanguage,
+                    resources: {
+                        save: resources.save,
+                        saved: resources.saved,
+                        saveAs: resources.saveAs,
+                        open: resources.open
+                    }
+                }
+            }));
             if (settingsToggleButton) {
                 const settingsLabel = useKoreanLanguage ? '설정' : 'Settings';
                 settingsToggleButton.title = settingsLabel;
@@ -8071,7 +8142,7 @@ const designSurface = document.getElementById('designSurface');
         });
         document.addEventListener('keydown', handleDesignerKeyDown);
         applyVisualizationTheme({ useDarkTheme: true });
-        applyVisualizationLanguage({ useKorean: true });
+        applyVisualizationLanguage({ useKorean: getStoredLanguageMode() !== 'en', persist: false });
         tryLoadStandaloneVisualizationDocument();
         renderProjectTree();
         updateActivePageLabel();

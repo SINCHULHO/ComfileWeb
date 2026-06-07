@@ -1,3 +1,53 @@
+function isCurrentVisualizationLanguageKorean() {
+    if (typeof window.comfileWebUseKoreanLanguage === 'boolean') {
+        return window.comfileWebUseKoreanLanguage;
+    }
+
+    if (typeof window.getVisualizationLanguageResources === 'function') {
+        return !!window.getVisualizationLanguageResources().useKorean;
+    }
+
+    const documentLanguage = String(document.documentElement?.dataset?.languageMode || '').trim().toLowerCase();
+    if (documentLanguage === 'en') {
+        return false;
+    }
+    if (documentLanguage === 'ko') {
+        return true;
+    }
+
+    const selectedLanguage = String(languageModeSelect?.value || '').trim().toLowerCase();
+    if (selectedLanguage === 'en') {
+        return false;
+    }
+    if (selectedLanguage === 'ko') {
+        return true;
+    }
+
+    try {
+        const storedLanguage = String(localStorage.getItem('comfileweb.languageMode') || '').trim().toLowerCase();
+        if (storedLanguage === 'en') {
+            return false;
+        }
+        if (storedLanguage === 'ko') {
+            return true;
+        }
+    } catch {
+    }
+
+    return typeof useKoreanLanguage === 'boolean' ? useKoreanLanguage : true;
+}
+
+function syncDeviceLinkLanguageUi() {
+    updateUsbConnectionUi(usbCdcConnectionState);
+    updateLinkWizardStepState();
+}
+
+window.addEventListener('visualization-language-changed', () => {
+    syncDeviceLinkLanguageUi();
+});
+
+window.setTimeout(syncDeviceLinkLanguageUi, 0);
+
 function getLinkTransportMode() {
     return String(linkTransportSelect?.value || 'USB').trim();
 }
@@ -56,6 +106,7 @@ function updateDeviceConnectionStatusBar() {
         return;
     }
 
+    const useKorean = isCurrentVisualizationLanguageKorean();
     const device = String(linkModelSelect?.value || '').trim();
     const transport = String(linkTransportSelect?.value || '').trim();
     const portName = device ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
@@ -67,30 +118,31 @@ function updateDeviceConnectionStatusBar() {
     deviceConnectionStatusButton.classList.remove('is-error');
 
     if (isConnected) {
-        deviceConnectionStatusText.textContent = [device || 'Device', portName || usbCdcConnectionState.portName, useKoreanLanguage ? '연결됨' : 'Connected']
+        deviceConnectionStatusText.textContent = [device || 'Device', portName || usbCdcConnectionState.portName, useKorean ? '연결됨' : 'Connected']
             .filter(Boolean)
             .join(' / ');
     } else if (hasConfiguration) {
         deviceConnectionStatusText.textContent = [
-            [device || (useKoreanLanguage ? '디바이스' : 'Device'), transport, portName].filter(Boolean).join(' / '),
-            useKoreanLanguage ? '연결 안됨' : 'Not connected'
+            [device || (useKorean ? '디바이스' : 'Device'), transport, portName].filter(Boolean).join(' / '),
+            useKorean ? '연결 안됨' : 'Not connected'
         ]
             .filter(Boolean)
             .join(' - ');
     } else {
-        deviceConnectionStatusText.textContent = useKoreanLanguage ? '디바이스 미연결' : 'Device not connected';
+        deviceConnectionStatusText.textContent = useKorean ? '디바이스 미연결' : 'Device not connected';
     }
 }
 
 function updateUsbConnectionUi(connectionState) {
+    const useKorean = isCurrentVisualizationLanguageKorean();
     const selectedDevice = String(linkModelSelect?.value || '').trim();
     const selectedPort = String(linkComPortSelect?.value || '').trim();
     const reportedPort = connectionState && connectionState.portName ? String(connectionState.portName) : '';
     const isConnected = !!(connectionState && connectionState.isConnected && selectedDevice && selectedPort && selectedPort === reportedPort);
     const portName = isConnected ? reportedPort : '';
     usbCdcConnectionState = { isConnected, portName };
-    const disconnectedText = useKoreanLanguage ? '연결 안됨' : 'Disconnected';
-    const connectedText = useKoreanLanguage
+    const disconnectedText = useKorean ? '연결 안됨' : 'Disconnected';
+    const connectedText = useKorean
         ? `연결됨${portName ? ` (${portName})` : ''}`
         : `Connected${portName ? ` (${portName})` : ''}`;
 
@@ -99,13 +151,13 @@ function updateUsbConnectionUi(connectionState) {
     }
     if (usbConnectButton) {
         usbConnectButton.textContent = isConnected
-            ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
-            : (useKoreanLanguage ? '연결' : 'Connect');
+            ? (useKorean ? '연결 해제' : 'Disconnect')
+            : (useKorean ? '연결' : 'Connect');
     }
     if (toolbarDeviceConnectButton) {
         toolbarDeviceConnectButton.textContent = isConnected
-            ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
-            : (useKoreanLanguage ? '연결' : 'Connect');
+            ? (useKorean ? '연결 해제' : 'Disconnect')
+            : (useKorean ? '연결' : 'Connect');
         toolbarDeviceConnectButton.classList.toggle('is-connected', isConnected);
     }
 
