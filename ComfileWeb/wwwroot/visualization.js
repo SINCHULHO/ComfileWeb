@@ -3722,6 +3722,30 @@ const designSurface = document.getElementById('designSurface');
                     }
                 }
 
+                if (areAllSelectedTexts()) {
+                    const selectedTexts = getSelectedTextWidgets();
+                    const sampleWidget = selectedTexts[0];
+                    if (sampleWidget) {
+                        selectedWidgetId = sampleWidget.id;
+                        if (propertyPanelTitle) {
+                            propertyPanelTitle.textContent = resources.properties;
+                        }
+
+                        const rows = [
+                            { key: 'Border', value: sampleWidget.properties.Border || 'Off', editable: true },
+                            { key: 'Border Color', value: getWidgetBorderBackColor(sampleWidget), editable: true },
+                            { key: 'DisplayColor', value: sampleWidget.properties.DisplayColor || '#DCDCDC', editable: true },
+                            { key: 'Position', value: getTextPositionValue(sampleWidget), editable: true },
+                            { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '18', editable: true }
+                        ];
+
+                        propertyGridBody.innerHTML = rows
+                            .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPropertyEditor(row.key, row.value)}</td></tr>`)
+                            .join('');
+                        return;
+                    }
+                }
+
                 if (areAllSelectedToggles()) {
                     const selectedToggles = getSelectedToggleWidgets();
                     const sampleWidget = selectedToggles[0];
@@ -3823,6 +3847,11 @@ const designSurface = document.getElementById('designSurface');
             return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Toggle');
         }
 
+        function getSelectedTextWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Text');
+        }
+
         function areAllSelectedButtons() {
             const selectedWidgets = getSelectedPageWidgets();
             if (selectedWidgets.length <= 1) {
@@ -3866,6 +3895,19 @@ const designSurface = document.getElementById('designSurface');
             return propertyKey === 'Border' ||
                 propertyKey === 'Border Color' ||
                 propertyKey === 'DisplayColor' ||
+                propertyKey === 'Text Size';
+        }
+
+        function areAllSelectedTexts() {
+            const selectedTexts = getSelectedTextWidgets();
+            return selectedTexts.length > 1 && selectedTexts.length === selectedWidgetIds.length;
+        }
+
+        function isTextMultiEditableProperty(propertyKey) {
+            return propertyKey === 'Border' ||
+                propertyKey === 'Border Color' ||
+                propertyKey === 'DisplayColor' ||
+                propertyKey === 'Position' ||
                 propertyKey === 'Text Size';
         }
 
@@ -4257,6 +4299,55 @@ const designSurface = document.getElementById('designSurface');
                     .map(toggle => ({
                         widget: toggle,
                         value: normalizeWidgetPropertyValue(toggle, propertyKey, value)
+                    }))
+                    .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
+
+                if (nextValues.length === 0) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                nextValues.forEach(item => {
+                    item.widget.properties[propertyKey] = item.value;
+                });
+                renderWidgets();
+                return;
+            }
+
+            if (areAllSelectedTexts() && isTextMultiEditableProperty(propertyKey)) {
+                const selectedTexts = getSelectedTextWidgets();
+                if (selectedTexts.length === 0) {
+                    return;
+                }
+
+                if (propertyKey === 'Position') {
+                    const nextPosition = normalizeTextPosition(value);
+                    const next = textPositionToAlignmentLocation(nextPosition);
+                    const changedTexts = selectedTexts.filter(text => {
+                        const currentAlignment = normalizeTextAlignment(text.properties.Alignment);
+                        const currentLocation = normalizeTextLocation(text.properties.Location);
+                        return currentAlignment !== next.alignment || currentLocation !== next.location;
+                    });
+
+                    if (changedTexts.length === 0) {
+                        renderWidgets();
+                        return;
+                    }
+
+                    pushUndoState();
+                    changedTexts.forEach(text => {
+                        text.properties.Alignment = next.alignment;
+                        text.properties.Location = next.location;
+                    });
+                    renderWidgets();
+                    return;
+                }
+
+                const nextValues = selectedTexts
+                    .map(text => ({
+                        widget: text,
+                        value: normalizeWidgetPropertyValue(text, propertyKey, value)
                     }))
                     .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
 
@@ -7280,6 +7371,11 @@ const designSurface = document.getElementById('designSurface');
 
             const positionButton = event.target.closest('.property-position-button');
             if (positionButton) {
+                if (areAllSelectedTexts()) {
+                    updateSelectedWidgetProperty('Position', positionButton.dataset.positionValue);
+                    return;
+                }
+
                 const widget = getCurrentPage().widgets.find(item => item.id === selectedWidgetId);
                 updateTextWidgetPosition(widget, positionButton.dataset.positionValue);
                 return;
