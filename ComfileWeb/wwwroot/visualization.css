@@ -721,6 +721,9 @@
 
         .auto-layout-options {
             margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
         }
 
         .auto-layout-check-field {

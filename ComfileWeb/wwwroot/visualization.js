@@ -161,7 +161,8 @@ const designSurface = document.getElementById('designSurface');
                 lampCount: '램프 수',
                 buttonCount: '버튼 수',
                 widgetGap: '위젯 간격',
-                lampBorder: '램프 보더 표시',
+                lampBorder: '램프 테두리 표시',
+                autoAssignEmptyM: '빈 M 주소 자동 할당',
                 rows: '행',
                 columns: '열',
                 gapX: 'X 간격',
@@ -219,6 +220,7 @@ const designSurface = document.getElementById('designSurface');
                 buttonCount: 'Button Count',
                 widgetGap: 'Widget Gap',
                 lampBorder: 'Show Lamp Border',
+                autoAssignEmptyM: 'Auto assign empty M area',
                 rows: 'Rows',
                 columns: 'Columns',
                 gapX: 'Gap X',
@@ -3697,6 +3699,76 @@ const designSurface = document.getElementById('designSurface');
             const widget = getCurrentPage().widgets.find(item => item.id === selectedWidgetId);
             const resources = getVisualizationResources();
             if (selectedWidgetIds.length > 1) {
+                if (areAllSelectedButtons()) {
+                    const selectedButtons = getSelectedButtonWidgets();
+                    const sampleWidget = selectedButtons[0];
+                    if (sampleWidget) {
+                        selectedWidgetId = sampleWidget.id;
+                        if (propertyPanelTitle) {
+                            propertyPanelTitle.textContent = resources.properties;
+                        }
+
+                        const rows = [
+                            { key: 'BackColor', value: sampleWidget.properties.BackColor || '', editable: true },
+                            { key: 'ForeColor', value: sampleWidget.properties.ForeColor || '', editable: true },
+                            { key: 'Round', value: sampleWidget.properties.Round || 'Yes', editable: true },
+                            { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '18', editable: true }
+                        ];
+
+                        propertyGridBody.innerHTML = rows
+                            .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPropertyEditor(row.key, row.value)}</td></tr>`)
+                            .join('');
+                        return;
+                    }
+                }
+
+                if (areAllSelectedToggles()) {
+                    const selectedToggles = getSelectedToggleWidgets();
+                    const sampleWidget = selectedToggles[0];
+                    if (sampleWidget) {
+                        selectedWidgetId = sampleWidget.id;
+                        if (propertyPanelTitle) {
+                            propertyPanelTitle.textContent = resources.properties;
+                        }
+
+                        const rows = [
+                            { key: 'Border', value: sampleWidget.properties.Border || 'Off', editable: true },
+                            { key: 'Border Color', value: getWidgetBorderBackColor(sampleWidget), editable: true },
+                            { key: 'DisplayColor', value: sampleWidget.properties.DisplayColor || '#466E3C', editable: true },
+                            { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '16', editable: true }
+                        ];
+
+                        propertyGridBody.innerHTML = rows
+                            .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPropertyEditor(row.key, row.value)}</td></tr>`)
+                            .join('');
+                        return;
+                    }
+                }
+
+                if (areAllSelectedLamps()) {
+                    const selectedLamps = getSelectedLampWidgets();
+                    const sampleWidget = selectedLamps[0];
+                    if (sampleWidget) {
+                        selectedWidgetId = sampleWidget.id;
+                        if (propertyPanelTitle) {
+                            propertyPanelTitle.textContent = resources.properties;
+                        }
+
+                        const rows = [
+                            { key: 'Border', value: sampleWidget.properties.Border || 'Off', editable: true },
+                            { key: 'Border Color', value: getWidgetBorderBackColor(sampleWidget), editable: true },
+                            { key: 'Lamp Size', value: sampleWidget.properties['Lamp Size'] || '100', editable: true },
+                            { key: 'DisplayColor', value: sampleWidget.properties.DisplayColor || '#FFC850', editable: true },
+                            { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '16', editable: true }
+                        ];
+
+                        propertyGridBody.innerHTML = rows
+                            .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPropertyEditor(row.key, row.value)}</td></tr>`)
+                            .join('');
+                        return;
+                    }
+                }
+
                 if (propertyPanelTitle) {
                     propertyPanelTitle.textContent = resources.properties;
                 }
@@ -3734,6 +3806,67 @@ const designSurface = document.getElementById('designSurface');
                     return `<tr${rowClass}><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${valueHtml}</td></tr>`;
                 })
                 .join('');
+        }
+
+        function getSelectedButtonWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Button');
+        }
+
+        function getSelectedLampWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Lamp');
+        }
+
+        function getSelectedToggleWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Toggle');
+        }
+
+        function areAllSelectedButtons() {
+            const selectedWidgets = getSelectedPageWidgets();
+            if (selectedWidgets.length <= 1) {
+                return false;
+            }
+
+            return selectedWidgets.every(widget => widget.kind === 'Button');
+        }
+
+        function isButtonMultiEditableProperty(propertyKey) {
+            return propertyKey === 'BackColor' || propertyKey === 'ForeColor' || propertyKey === 'Round' || propertyKey === 'Text Size';
+        }
+
+        function areAllSelectedLamps() {
+            const selectedWidgets = getSelectedPageWidgets();
+            if (selectedWidgets.length <= 1) {
+                return false;
+            }
+
+            return selectedWidgets.every(widget => widget.kind === 'Lamp');
+        }
+
+        function isLampMultiEditableProperty(propertyKey) {
+            return propertyKey === 'Border' ||
+                propertyKey === 'Border Color' ||
+                propertyKey === 'Lamp Size' ||
+                propertyKey === 'DisplayColor' ||
+                propertyKey === 'Text Size';
+        }
+
+        function areAllSelectedToggles() {
+            const selectedWidgets = getSelectedPageWidgets();
+            if (selectedWidgets.length <= 1) {
+                return false;
+            }
+
+            return selectedWidgets.every(widget => widget.kind === 'Toggle');
+        }
+
+        function isToggleMultiEditableProperty(propertyKey) {
+            return propertyKey === 'Border' ||
+                propertyKey === 'Border Color' ||
+                propertyKey === 'DisplayColor' ||
+                propertyKey === 'Text Size';
         }
 
         function renderPageProperties() {
@@ -3909,6 +4042,10 @@ const designSurface = document.getElementById('designSurface');
                 return renderTextSizeStepper(key, value);
             }
 
+            if (widget && widget.kind === 'Lamp' && key === 'Lamp Size') {
+                return renderTextSizeStepper(key, value);
+            }
+
             if (key === 'Lamp') {
                 const normalizedValue = normalizeButtonLampMode(value);
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
@@ -4062,6 +4199,80 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function updateSelectedWidgetProperty(propertyKey, value) {
+            if (areAllSelectedButtons() && isButtonMultiEditableProperty(propertyKey)) {
+                const selectedButtons = getSelectedButtonWidgets();
+                const nextValues = selectedButtons
+                    .map(button => ({
+                        widget: button,
+                        value: normalizeWidgetPropertyValue(button, propertyKey, value)
+                    }))
+                    .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
+
+                if (nextValues.length === 0) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                nextValues.forEach(item => {
+                    item.widget.properties[propertyKey] = item.value;
+                });
+                renderWidgets();
+                return;
+            }
+
+            if (areAllSelectedLamps() && isLampMultiEditableProperty(propertyKey)) {
+                const selectedLamps = getSelectedLampWidgets();
+                if (selectedLamps.length === 0) {
+                    return;
+                }
+
+                const nextValues = selectedLamps
+                    .map(lamp => ({
+                        widget: lamp,
+                        value: normalizeWidgetPropertyValue(lamp, propertyKey, value)
+                    }))
+                    .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
+
+                if (nextValues.length === 0) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                nextValues.forEach(item => {
+                    item.widget.properties[propertyKey] = item.value;
+                });
+                renderWidgets();
+                return;
+            }
+
+            if (areAllSelectedToggles() && isToggleMultiEditableProperty(propertyKey)) {
+                const selectedToggles = getSelectedToggleWidgets();
+                if (selectedToggles.length === 0) {
+                    return;
+                }
+
+                const nextValues = selectedToggles
+                    .map(toggle => ({
+                        widget: toggle,
+                        value: normalizeWidgetPropertyValue(toggle, propertyKey, value)
+                    }))
+                    .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
+
+                if (nextValues.length === 0) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                nextValues.forEach(item => {
+                    item.widget.properties[propertyKey] = item.value;
+                });
+                renderWidgets();
+                return;
+            }
+
             const widget = getCurrentPage().widgets.find(item => item.id === selectedWidgetId);
             if (!widget) {
                 return;
@@ -6226,7 +6437,39 @@ const designSurface = document.getElementById('designSurface');
             return cells;
         }
 
-        function applyAutoLayout(lampCount, buttonCount, widgetGap, useLampBorder) {
+        function collectUsedVisualizationAddressKeys() {
+            const used = new Set();
+            (documentModel.pages || []).forEach(page => {
+                (page.widgets || []).forEach(widget => {
+                    if (!widget || !widget.properties) {
+                        return;
+                    }
+
+                    ['Address', 'Display Address', 'Lamp Address'].forEach(propertyKey => {
+                        const key = normalizeVisualizationAddressKey(widget.properties[propertyKey]);
+                        if (key) {
+                            used.add(key);
+                        }
+                    });
+                });
+            });
+            return used;
+        }
+
+        function getNextEmptyMAddress(usedAddressKeys) {
+            for (let index = 0; index < 2048; index += 1) {
+                const address = `M${index}`;
+                const key = normalizeVisualizationAddressKey(address);
+                if (!usedAddressKeys.has(key)) {
+                    usedAddressKeys.add(key);
+                    return address;
+                }
+            }
+
+            return '';
+        }
+
+        function applyAutoLayout(lampCount, buttonCount, widgetGap, useLampBorder, autoAssignEmptyM) {
             if (runtimeRunning) {
                 return;
             }
@@ -6265,11 +6508,15 @@ const designSurface = document.getElementById('designSurface');
             const buttonCells = calculateAutoLayoutCells(buttons, layoutLeft, buttonAreaTop, layoutWidth, buttonAreaHeight, gridX, gridY, gap, 'bottom');
             const createdWidgets = [];
             const reservedNames = getProjectWidgetNameSet();
+            const usedAddressKeys = autoAssignEmptyM ? collectUsedVisualizationAddressKeys() : null;
 
             lampCells.forEach(cell => {
                 const widget = createLampWidget(cell.x, cell.y, reservedNames);
                 widget.cellWidth = cell.width;
                 widget.cellHeight = cell.height;
+                if (usedAddressKeys) {
+                    widget.properties.Address = getNextEmptyMAddress(usedAddressKeys);
+                }
                 if (useLampBorder) {
                     widget.properties.Border = 'On';
                     widget.properties.Text = widget.properties.Name || '';
@@ -6283,6 +6530,9 @@ const designSurface = document.getElementById('designSurface');
                 const widget = createButtonWidget(cell.x, cell.y, reservedNames);
                 widget.cellWidth = cell.width;
                 widget.cellHeight = cell.height;
+                if (usedAddressKeys) {
+                    widget.properties.Address = getNextEmptyMAddress(usedAddressKeys);
+                }
                 widget.properties.X = String(cell.x);
                 widget.properties.Y = String(cell.y);
                 createdWidgets.push(widget);
@@ -6290,6 +6540,12 @@ const designSurface = document.getElementById('designSurface');
 
             if (createdWidgets.length === 0) {
                 return;
+            }
+
+            if (autoAssignEmptyM && createdWidgets.some(widget => !String(widget.properties.Address || '').trim())) {
+                window.alert(useKoreanLanguage
+                    ? '사용 가능한 빈 M 주소가 부족해서 일부 위젯에는 주소를 할당하지 못했습니다.'
+                    : 'Not enough empty M addresses were available, so some widgets were created without addresses.');
             }
 
             pushUndoState();
@@ -6358,6 +6614,16 @@ const designSurface = document.getElementById('designSurface');
             lampBorderField.appendChild(lampBorderLabel);
             optionGrid.appendChild(lampBorderField);
 
+            const autoAssignMField = document.createElement('label');
+            autoAssignMField.className = 'auto-layout-check-field';
+            const autoAssignMCheckbox = document.createElement('input');
+            autoAssignMCheckbox.type = 'checkbox';
+            const autoAssignMLabel = document.createElement('span');
+            autoAssignMLabel.textContent = resources.autoAssignEmptyM;
+            autoAssignMField.appendChild(autoAssignMCheckbox);
+            autoAssignMField.appendChild(autoAssignMLabel);
+            optionGrid.appendChild(autoAssignMField);
+
             const footer = document.createElement('div');
             footer.className = 'array-duplicate-footer';
             const applyButton = document.createElement('button');
@@ -6370,7 +6636,7 @@ const designSurface = document.getElementById('designSurface');
             cancelButton.textContent = resources.cancel;
 
             applyButton.addEventListener('click', () => {
-                applyAutoLayout(lampField.input.value, buttonField.input.value, gapField.input.value, lampBorderCheckbox.checked);
+                applyAutoLayout(lampField.input.value, buttonField.input.value, gapField.input.value, lampBorderCheckbox.checked, autoAssignMCheckbox.checked);
                 closeAutoLayoutDialog();
             });
             cancelButton.addEventListener('click', closeAutoLayoutDialog);
@@ -7029,6 +7295,11 @@ const designSurface = document.getElementById('designSurface');
                 }
 
                 const currentValue = toNumber(widget.properties[propertyKey], 24);
+                if (widget.kind === 'Lamp' && propertyKey === 'Lamp Size') {
+                    updateSelectedWidgetProperty(propertyKey, String(parseLampSizePercent(currentValue + delta)));
+                    return;
+                }
+
                 updateSelectedWidgetProperty(propertyKey, String(clampNumberTextSize(currentValue + delta)));
                 return;
             }
