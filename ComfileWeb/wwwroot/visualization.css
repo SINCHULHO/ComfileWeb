@@ -1803,18 +1803,52 @@
 
         .runtime-number-popup-drag-handle {
             height: clamp(20px, 3.08vmin, 32px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: clamp(6px, 0.98vmin, 12px);
             margin: calc(clamp(10px, 1.54vmin, 20px) * -1) calc(clamp(10px, 1.54vmin, 20px) * -1) clamp(8px, 1.26vmin, 15px);
-            padding: 0 clamp(8px, 1.26vmin, 15px);
+            padding: 0 clamp(5px, 0.84vmin, 10px) 0 clamp(8px, 1.26vmin, 15px);
             border-bottom: 1px solid var(--property-border);
             border-radius: clamp(4px, 0.84vmin, 10px) clamp(4px, 0.84vmin, 10px) 0 0;
             background: var(--toolbar-bg);
             color: var(--property-muted);
             font-size: clamp(10px, 1.68vmin, 18px);
             font-weight: 700;
-            line-height: clamp(20px, 3.08vmin, 32px);
             cursor: move;
             user-select: none;
             touch-action: none;
+        }
+
+        .runtime-number-popup-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .runtime-number-popup-close-button {
+            width: clamp(18px, 2.52vmin, 28px);
+            height: clamp(18px, 2.52vmin, 28px);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: clamp(3px, 0.56vmin, 6px);
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font: inherit;
+            font-size: clamp(14px, 2.1vmin, 22px);
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .runtime-number-popup-close-button:hover {
+            border-color: var(--button-hover-border);
+            background: var(--button-hover-bg);
         }
 
         .runtime-number-input {
@@ -2765,7 +2799,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 10px 16px;
             background: rgba(0, 0, 0, 0.45);
             box-sizing: border-box;
         }
@@ -2774,7 +2808,7 @@
             display: flex;
             flex-direction: column;
             width: min(920px, 96vw);
-            height: min(640px, 90vh);
+            height: min(820px, 97vh);
             border: 1px solid var(--toolbar-border);
             border-radius: 8px;
             background: var(--panel-bg);
@@ -2888,6 +2922,48 @@
             background: color-mix(in srgb, var(--focus) 22%, var(--button-bg) 78%);
         }
 
+        .address-picker-jump-panel {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--toolbar-border);
+        }
+
+        .address-picker-jump-caption {
+            margin: 8px 0 5px;
+            color: var(--property-muted);
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .address-picker-jump-row {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        .address-picker-jump-button {
+            height: 24px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .address-picker-jump-button:hover {
+            border-color: var(--button-hover-border);
+            background: var(--button-hover-bg);
+        }
+
+        .address-picker-jump-button.is-selected {
+            border-color: var(--focus);
+            background: color-mix(in srgb, var(--focus) 36%, var(--button-bg) 64%);
+            color: var(--text);
+        }
+
         .address-picker-content {
             display: flex;
             min-width: 0;
@@ -2951,6 +3027,18 @@
             z-index: 1;
             background: var(--property-key-bg);
             font-weight: 700;
+        }
+
+        .address-picker-check-header,
+        .address-picker-check-cell {
+            width: 28px;
+            min-width: 28px;
+            max-width: 28px;
+            padding: 0;
+            color: var(--focus);
+            font-size: 14px;
+            font-weight: 800;
+            text-align: center;
         }
 
         .address-picker-row {

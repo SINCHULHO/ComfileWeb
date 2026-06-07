@@ -5298,7 +5298,17 @@ const designSurface = document.getElementById('designSurface');
 
             const dragHandle = document.createElement('div');
             dragHandle.className = 'runtime-number-popup-drag-handle';
-            dragHandle.textContent = useKoreanLanguage ? '숫자 입력' : 'Number Input';
+            const title = document.createElement('span');
+            title.className = 'runtime-number-popup-title';
+            title.textContent = useKoreanLanguage ? '숫자 입력' : 'Number Input';
+            dragHandle.appendChild(title);
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'runtime-number-popup-close-button';
+            closeButton.textContent = '×';
+            closeButton.title = useKoreanLanguage ? '취소' : 'Cancel';
+            closeButton.setAttribute('aria-label', useKoreanLanguage ? '취소' : 'Cancel');
+            dragHandle.appendChild(closeButton);
             popup.appendChild(dragHandle);
 
             const input = document.createElement('input');
@@ -5431,7 +5441,15 @@ const designSurface = document.getElementById('designSurface');
                 }
             };
 
+            const onCloseButtonPointerDown = event => {
+                event.stopPropagation();
+            };
+
             const onDragPointerDown = event => {
+                if (event.target.closest('.runtime-number-popup-close-button')) {
+                    return;
+                }
+
                 if (event.button !== undefined && event.button !== 0) {
                     return;
                 }
@@ -5469,6 +5487,8 @@ const designSurface = document.getElementById('designSurface');
             keypad.addEventListener('click', onKeypadClick);
             keypad.addEventListener('pointerdown', onKeypadPointerDown);
             input.addEventListener('keydown', onKeyDown);
+            closeButton.addEventListener('click', close);
+            closeButton.addEventListener('pointerdown', onCloseButtonPointerDown);
             dragHandle.addEventListener('pointerdown', onDragPointerDown);
             window.setTimeout(() => document.addEventListener('pointerdown', onDocumentPointerDown), 0);
 
@@ -5480,6 +5500,8 @@ const designSurface = document.getElementById('designSurface');
                     popup.removeEventListener('mousedown', stopPopupPointerEvent);
                     popup.removeEventListener('click', stopPopupPointerEvent);
                     input.removeEventListener('keydown', onKeyDown);
+                    closeButton.removeEventListener('click', close);
+                    closeButton.removeEventListener('pointerdown', onCloseButtonPointerDown);
                     dragHandle.removeEventListener('pointerdown', onDragPointerDown);
                     keypad.removeEventListener('click', onKeypadClick);
                     keypad.removeEventListener('pointerdown', onKeypadPointerDown);

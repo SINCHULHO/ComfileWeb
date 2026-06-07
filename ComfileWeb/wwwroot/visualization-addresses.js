@@ -81,14 +81,18 @@ function isAddressAreaAllowedForMode(area, mode) {
     return true;
 }
 
-function getAddressAreaEntries(provider, area, searchText) {
+function getAddressAreaEntries(provider, area, searchText, jumpStart) {
     if (!provider || !area) {
         return [];
     }
 
     const normalizedSearch = String(searchText || '').trim().toUpperCase();
-    const start = Number.isFinite(Number(area.visibleStart)) ? Number(area.visibleStart) : 0;
-    const end = Number.isFinite(Number(area.visibleEnd)) ? Number(area.visibleEnd) : Math.max(0, Number(area.size || 0) - 1);
+    let start = Number.isFinite(Number(area.visibleStart)) ? Number(area.visibleStart) : 0;
+    let end = Number.isFinite(Number(area.visibleEnd)) ? Number(area.visibleEnd) : Math.max(0, Number(area.size || 0) - 1);
+    if (!normalizedSearch && Number.isFinite(Number(jumpStart))) {
+        start = Math.max(start, Number(jumpStart));
+        end = Math.min(end, start + 99);
+    }
     const aliases = provider.aliases?.[area.prefix] || {};
     const result = [];
     const maxRows = normalizedSearch ? 500 : 300;
@@ -135,9 +139,13 @@ function openAddressPicker(widget, propertyKey, currentAddress) {
         provider,
         mode,
         selectedAreaPrefix: findAddressAreaPrefix(provider, currentAddress, allowedAreas) || allowedAreas[0].prefix,
+        currentAddress: String(currentAddress || '').trim(),
         selectedAddress: String(currentAddress || '').trim(),
+        jumpThousands: null,
+        jumpHundreds: null,
         searchText: ''
     };
+    initializeAddressJumpState(state);
 
     const backdrop = document.createElement('div');
     backdrop.className = 'address-picker-backdrop';
@@ -162,6 +170,117 @@ function findAddressAreaPrefix(provider, address, allowedAreas) {
     return allowedAreas.some(area => area.prefix === prefix) ? prefix : '';
 }
 
+function getAddressAreaRange(area) {
+    const start = Number.isFinite(Number(area?.visibleStart)) ? Number(area.visibleStart) : 0;
+    const end = Number.isFinite(Number(area?.visibleEnd)) ? Number(area.visibleEnd) : Math.max(0, Number(area?.size || 0) - 1);
+    return { start, end, count: Math.max(0, end - start + 1) };
+}
+
+function getAddressIndexForArea(area, address) {
+    const key = normalizeVisualizationAddressKey(address);
+    const prefix = String(area?.prefix || '').toUpperCase();
+    if (!key || !prefix || !key.startsWith(prefix)) {
+        return null;
+    }
+
+    const value = Number.parseInt(key.slice(prefix.length), 10);
+    return Number.isFinite(value) ? value : null;
+}
+
+function initializeAddressJumpState(state) {
+    const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+    const range = getAddressAreaRange(area);
+    if (!area || range.count <= 100) {
+        state.jumpThousands = null;
+        state.jumpHundreds = null;
+        return;
+    }
+
+    const currentIndex = getAddressIndexForArea(area, state.currentAddress);
+    const baseIndex = currentIndex !== null && currentIndex >= range.start && currentIndex <= range.end
+        ? currentIndex
+        : range.start;
+    if (range.end >= 1000) {
+        state.jumpThousands = Math.floor(baseIndex / 1000);
+        state.jumpHundreds = Math.floor((baseIndex % 1000) / 100);
+    } else {
+        state.jumpThousands = null;
+        state.jumpHundreds = Math.floor(baseIndex / 100);
+    }
+}
+
+function getAddressJumpStart(state) {
+    const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+    const range = getAddressAreaRange(area);
+    if (!area || range.count <= 100) {
+        return null;
+    }
+
+    if (range.end >= 1000) {
+        const thousands = Number.isFinite(Number(state.jumpThousands)) ? Number(state.jumpThousands) : Math.floor(range.start / 1000);
+        const hundreds = Number.isFinite(Number(state.jumpHundreds)) ? Number(state.jumpHundreds) : 0;
+        return Math.max(range.start, Math.min(range.end, (thousands * 1000) + (hundreds * 100)));
+    }
+
+    const hundreds = Number.isFinite(Number(state.jumpHundreds)) ? Number(state.jumpHundreds) : Math.floor(range.start / 100);
+    return Math.max(range.start, Math.min(range.end, hundreds * 100));
+}
+
+function getAddressJumpMarkup(state) {
+    const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+    const range = getAddressAreaRange(area);
+    if (!area || range.count <= 100) {
+        return '';
+    }
+
+    const renderButtons = (level, values, selectedValue) => values.map(value => `<button class="address-picker-jump-button${value === selectedValue ? ' is-selected' : ''}" type="button" data-address-jump-level="${level}" data-address-jump-value="${value}">${value}</button>`).join('');
+    if (range.end >= 1000) {
+        const firstThousand = Math.floor(range.start / 1000);
+        const lastThousand = Math.floor(range.end / 1000);
+        const thousands = [];
+        for (let value = firstThousand; value <= lastThousand; value += 1) {
+            thousands.push(value);
+        }
+
+        const selectedThousand = Number.isFinite(Number(state.jumpThousands)) ? Number(state.jumpThousands) : firstThousand;
+        const hundredRangeStart = Math.max(range.start, selectedThousand * 1000);
+        const hundredRangeEnd = Math.min(range.end, (selectedThousand * 1000) + 999);
+        const firstHundred = Math.floor((hundredRangeStart - (selectedThousand * 1000)) / 100);
+        const lastHundred = Math.floor((hundredRangeEnd - (selectedThousand * 1000)) / 100);
+        const hundreds = [];
+        for (let value = firstHundred; value <= lastHundred; value += 1) {
+            hundreds.push(value);
+        }
+        const selectedHundred = Number.isFinite(Number(state.jumpHundreds)) ? Number(state.jumpHundreds) : firstHundred;
+
+        return `<div class="address-picker-jump-panel">
+            <div class="address-picker-jump-caption">${useKoreanLanguage ? '1000 단위' : 'Thousands'}</div>
+            <div class="address-picker-jump-row">${renderButtons('thousand', thousands, selectedThousand)}</div>
+            <div class="address-picker-jump-caption">${useKoreanLanguage ? '100 단위' : 'Hundreds'}</div>
+            <div class="address-picker-jump-row">${renderButtons('hundred', hundreds, selectedHundred)}</div>
+        </div>`;
+    }
+
+    const firstHundred = Math.floor(range.start / 100);
+    const lastHundred = Math.floor(range.end / 100);
+    const hundreds = [];
+    for (let value = firstHundred; value <= lastHundred; value += 1) {
+        hundreds.push(value);
+    }
+    const selectedHundred = Number.isFinite(Number(state.jumpHundreds)) ? Number(state.jumpHundreds) : firstHundred;
+    return `<div class="address-picker-jump-panel">
+        <div class="address-picker-jump-caption">${useKoreanLanguage ? '100 단위' : 'Hundreds'}</div>
+        <div class="address-picker-jump-row">${renderButtons('hundred', hundreds, selectedHundred)}</div>
+    </div>`;
+}
+
+function renderAddressJumpPanel(backdrop, state) {
+    const panel = backdrop.querySelector('.address-picker-jump-host');
+    if (panel) {
+        panel.innerHTML = getAddressJumpMarkup(state);
+    }
+}
+
 function renderAddressPickerMarkup(state, allowedAreas) {
     const resources = getVisualizationResources();
     const title = useKoreanLanguage ? '주소 테이블' : 'Address Table';
@@ -182,6 +301,7 @@ function renderAddressPickerMarkup(state, allowedAreas) {
                     <span>${escapeHtml(area.prefix)}</span>
                     <small>${escapeHtml(useKoreanLanguage ? area.labelKo : area.type)}</small>
                 </button>`).join('')}
+                <div class="address-picker-jump-host"></div>
             </div>
             <div class="address-picker-content">
                 <div class="address-picker-toolbar">
@@ -190,7 +310,7 @@ function renderAddressPickerMarkup(state, allowedAreas) {
                 </div>
                 <div class="address-picker-table-wrap">
                     <table class="address-picker-table">
-                        <thead><tr><th>${useKoreanLanguage ? '주소' : 'Address'}</th><th>Alias</th><th>Comment</th><th>Type</th></tr></thead>
+                        <thead><tr><th class="address-picker-check-header"></th><th>${useKoreanLanguage ? '주소' : 'Address'}</th><th>Alias</th><th>Comment</th><th>Type</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -215,7 +335,26 @@ function bindAddressPickerEvents(backdrop, state) {
         if (areaButton) {
             state.selectedAreaPrefix = areaButton.dataset.addressArea;
             state.selectedAddress = '';
+            initializeAddressJumpState(state);
             backdrop.querySelectorAll('.address-picker-area').forEach(button => button.classList.toggle('is-selected', button === areaButton));
+            renderAddressJumpPanel(backdrop, state);
+            renderAddressPickerRows(backdrop, state);
+            return;
+        }
+
+        const jumpButton = event.target.closest('.address-picker-jump-button');
+        if (jumpButton) {
+            const value = Number.parseInt(jumpButton.dataset.addressJumpValue || '0', 10);
+            if (jumpButton.dataset.addressJumpLevel === 'thousand') {
+                state.jumpThousands = value;
+                const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+                const range = getAddressAreaRange(area);
+                const firstHundred = Math.floor((Math.max(range.start, value * 1000) - (value * 1000)) / 100);
+                state.jumpHundreds = firstHundred;
+            } else {
+                state.jumpHundreds = value;
+            }
+            renderAddressJumpPanel(backdrop, state);
             renderAddressPickerRows(backdrop, state);
             return;
         }
@@ -246,20 +385,35 @@ function bindAddressPickerEvents(backdrop, state) {
 
 function renderAddressPickerRows(backdrop, state) {
     const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
-    const rows = getAddressAreaEntries(state.provider, area, state.searchText);
+    renderAddressJumpPanel(backdrop, state);
+    const rows = getAddressAreaEntries(state.provider, area, state.searchText, getAddressJumpStart(state));
     const tbody = backdrop.querySelector('.address-picker-table tbody');
+    const selectedKey = normalizeVisualizationAddressKey(state.selectedAddress);
+    const currentKey = normalizeVisualizationAddressKey(state.currentAddress);
     tbody.innerHTML = rows.length > 0
-        ? rows.map(row => `<tr class="address-picker-row${normalizeVisualizationAddressKey(row.address) === normalizeVisualizationAddressKey(state.selectedAddress) ? ' is-selected' : ''}" data-address="${escapeHtml(row.address)}">
-            <td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.alias)}</td><td>${escapeHtml(row.comment)}</td><td>${escapeHtml(row.type)}</td>
-        </tr>`).join('')
-        : `<tr><td colspan="4" class="address-picker-empty">${useKoreanLanguage ? '표시할 주소가 없습니다.' : 'No addresses to display.'}</td></tr>`;
+        ? rows.map(row => {
+            const isSelected = normalizeVisualizationAddressKey(row.address) === selectedKey;
+            const isCurrent = normalizeVisualizationAddressKey(row.address) === currentKey;
+            return `<tr class="address-picker-row${isSelected ? ' is-selected' : ''}" data-address="${escapeHtml(row.address)}">
+                <td class="address-picker-check-cell" aria-label="${isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : ''}">${isCurrent ? '✓' : ''}</td><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.alias)}</td><td>${escapeHtml(row.comment)}</td><td>${escapeHtml(row.type)}</td>
+            </tr>`;
+        }).join('')
+        : `<tr><td colspan="5" class="address-picker-empty">${useKoreanLanguage ? '표시할 주소가 없습니다.' : 'No addresses to display.'}</td></tr>`;
     updateAddressPickerSelection(backdrop, state);
 }
 
 function updateAddressPickerSelection(backdrop, state) {
     const selectedKey = normalizeVisualizationAddressKey(state.selectedAddress);
+    const currentKey = normalizeVisualizationAddressKey(state.currentAddress);
     backdrop.querySelectorAll('.address-picker-row').forEach(row => {
-        row.classList.toggle('is-selected', normalizeVisualizationAddressKey(row.dataset.address) === selectedKey);
+        const isSelected = normalizeVisualizationAddressKey(row.dataset.address) === selectedKey;
+        const isCurrent = normalizeVisualizationAddressKey(row.dataset.address) === currentKey;
+        row.classList.toggle('is-selected', isSelected);
+        const checkCell = row.querySelector('.address-picker-check-cell');
+        if (checkCell) {
+            checkCell.textContent = isCurrent ? '✓' : '';
+            checkCell.setAttribute('aria-label', isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : '');
+        }
     });
     const current = backdrop.querySelector('.address-picker-current');
     if (current) {
