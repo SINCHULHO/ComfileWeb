@@ -44,6 +44,9 @@ function updateLinkWizardStepState() {
     if (usbConnectButton) {
         usbConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
     }
+    if (toolbarDeviceConnectButton) {
+        toolbarDeviceConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
+    }
 
     updateDeviceConnectionStatusBar();
 }
@@ -98,6 +101,12 @@ function updateUsbConnectionUi(connectionState) {
         usbConnectButton.textContent = isConnected
             ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
             : (useKoreanLanguage ? '연결' : 'Connect');
+    }
+    if (toolbarDeviceConnectButton) {
+        toolbarDeviceConnectButton.textContent = isConnected
+            ? (useKoreanLanguage ? '연결 해제' : 'Disconnect')
+            : (useKoreanLanguage ? '연결' : 'Connect');
+        toolbarDeviceConnectButton.classList.toggle('is-connected', isConnected);
     }
 
     updateDeviceConnectionStatusBar();

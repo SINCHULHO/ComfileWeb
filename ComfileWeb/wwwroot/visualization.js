@@ -4,6 +4,7 @@ const designSurface = document.getElementById('designSurface');
         const runButton = document.querySelector('.run-button');
         const deviceConnectionStatusButton = document.getElementById('deviceConnectionStatusButton');
         const deviceConnectionStatusText = document.getElementById('deviceConnectionStatusText');
+        const toolbarDeviceConnectButton = document.getElementById('toolbarDeviceConnectButton');
         const activePageLabel = document.getElementById('activePageLabel');
         const gridXSlider = document.getElementById('gridXSlider');
         const gridYSlider = document.getElementById('gridYSlider');
@@ -31,6 +32,7 @@ const designSurface = document.getElementById('designSurface');
         const projectPanel = document.querySelector('.project-panel');
         const propertyPanel = document.querySelector('.property-panel');
         const projectTree = document.getElementById('projectTree');
+        const projectNewButton = document.getElementById('projectNewButton');
         const projectAddPageButton = document.getElementById('projectAddPageButton');
         const linkModelSelect = document.getElementById('linkModelSelect');
         const linkTransportSelect = document.getElementById('linkTransportSelect');
@@ -437,6 +439,39 @@ const designSurface = document.getElementById('designSurface');
             updateActivePageLabel();
             renderProjectTree();
             renderWidgets();
+        }
+
+        function createNewVisualizationProject() {
+            if (runtimeRunning || deployedRuntimeMode) {
+                return;
+            }
+
+            const confirmMessage = useKoreanLanguage
+                ? '현재 작업 중인 내용을 닫고 새 프로젝트를 시작할까요?\n저장하지 않은 변경 내용은 사라질 수 있습니다.'
+                : 'Start a new project and close the current work?\nUnsaved changes may be lost.';
+            if (!window.confirm(confirmMessage)) {
+                return;
+            }
+
+            const deviceConnection = normalizeDeviceConnection(documentModel.deviceConnection);
+            undoStack.length = 0;
+            redoStack.length = 0;
+            documentModel.version = 1;
+            documentModel.deviceConnection = deviceConnection;
+            documentModel.pages = [createVisualizationPage('Page1')];
+            activePageName = 'Page1';
+            selectedWidgetId = null;
+            selectedWidgetIds = [];
+            selectedCell = null;
+            copiedWidgets = [];
+            nextWidgetId = 1;
+            updateGridControlsFromCurrentPage();
+            updateActivePageLabel();
+            renderProjectTree();
+            renderWidgets();
+            if (typeof window.clearComfileWebCurrentProjectName === 'function') {
+                window.clearComfileWebCurrentProjectName();
+            }
         }
 
         function updateActivePageLabel() {
@@ -6733,6 +6768,9 @@ const designSurface = document.getElementById('designSurface');
         if (projectAddPageButton) {
             projectAddPageButton.addEventListener('click', () => addProjectTreePage());
         }
+        if (projectNewButton) {
+            projectNewButton.addEventListener('click', () => createNewVisualizationProject());
+        }
         if (projectTree) {
             projectTree.addEventListener('click', event => {
                 if (!settingsPanelVisible) {
@@ -6826,6 +6864,12 @@ const designSurface = document.getElementById('designSurface');
         }
         if (usbConnectButton) {
             usbConnectButton.addEventListener('click', async () => {
+                await toggleUsbCdcConnection();
+                captureDeviceConnectionState();
+            });
+        }
+        if (toolbarDeviceConnectButton) {
+            toolbarDeviceConnectButton.addEventListener('click', async () => {
                 await toggleUsbCdcConnection();
                 captureDeviceConnectionState();
             });

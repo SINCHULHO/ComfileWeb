@@ -5,6 +5,7 @@
 	'use strict';
 
 	const saveButton = document.getElementById('comfilewebSaveButton');
+	const quickSaveButton = document.getElementById('comfilewebQuickSaveButton');
 	const openButton = document.getElementById('comfilewebOpenButton');
 
 	let currentProjectName = '';
@@ -23,7 +24,26 @@
 		}
 	}
 
+	function clearCurrentProjectName() {
+		currentProjectName = '';
+	}
+
+	window.clearComfileWebCurrentProjectName = clearCurrentProjectName;
+
 	async function saveProject() {
+		return saveProjectAs();
+	}
+
+	async function quickSaveProject() {
+		if (!currentProjectName) {
+			await saveProjectAs();
+			return;
+		}
+
+		await saveProjectWithName(currentProjectName);
+	}
+
+	async function saveProjectAs() {
 		const text = getDocumentText();
 		if (!text || !text.trim()) {
 			window.alert('저장할 화면 내용이 없습니다.');
@@ -53,6 +73,16 @@
 			return;
 		}
 
+		await saveProjectWithName(trimmed, text);
+	}
+
+	async function saveProjectWithName(projectName, documentText) {
+		const text = documentText || getDocumentText();
+		if (!text || !text.trim()) {
+			window.alert('저장할 화면 내용이 없습니다.');
+			return;
+		}
+
 		let documentValue;
 		try {
 			documentValue = JSON.parse(text);
@@ -65,7 +95,7 @@
 			const response = await fetch('/api/project/save', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: trimmed, documentText: text, document: documentValue })
+				body: JSON.stringify({ name: projectName, documentText: text, document: documentValue })
 			});
 
 			if (!response.ok) {
@@ -75,7 +105,7 @@
 			}
 
 			const result = await response.json();
-			currentProjectName = result.name || trimmed;
+			currentProjectName = result.name || projectName;
 		} catch (error) {
 			window.alert('저장 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
 		}
@@ -200,7 +230,8 @@
 
 	function showOpenProjectDialog(items) {
 		return new Promise(resolve => {
-			let selectedIndex = items.length > 0 ? 0 : -1;
+			const visibleItems = Array.isArray(items) ? items.slice(0, 5) : [];
+			let selectedIndex = visibleItems.length > 0 ? 0 : -1;
 			let selectedFile = null;
 
 			const overlay = document.createElement('div');
@@ -243,6 +274,7 @@
 
 			const fileStatus = document.createElement('div');
 			fileStatus.textContent = '';
+			fileStatus.style.display = 'none';
 			fileStatus.style.fontSize = '12px';
 			fileStatus.style.color = '#a1a1aa';
 
@@ -278,9 +310,13 @@
 				openButton.disabled = selectedIndex < 0 && !selectedFile;
 			}
 
+			function updateFileStatusVisibility() {
+				fileStatus.style.display = fileStatus.textContent ? '' : 'none';
+			}
+
 			function renderList() {
 				list.innerHTML = '';
-				if (items.length === 0) {
+				if (visibleItems.length === 0) {
 					const empty = document.createElement('div');
 					empty.textContent = '저장된 프로젝트가 없습니다. 또는 아래 파일 선택으로 직접 파일을 고르세요.';
 					empty.style.fontSize = '12px';
@@ -289,7 +325,7 @@
 					return;
 				}
 
-				items.forEach((item, index) => {
+				visibleItems.forEach((item, index) => {
 					const row = document.createElement('button');
 					row.type = 'button';
 					row.style.display = 'flex';
@@ -325,6 +361,7 @@
 						selectedIndex = index;
 						selectedFile = null;
 						fileStatus.textContent = '';
+						updateFileStatusVisibility();
 						renderList();
 						updateOpenEnabled();
 					});
@@ -358,6 +395,7 @@
 						};
 						selectedIndex = -1;
 						fileStatus.textContent = '선택된 파일: ' + file.name;
+						updateFileStatusVisibility();
 						renderList();
 						updateOpenEnabled();
 					} catch (error) {
@@ -375,8 +413,8 @@
 					return;
 				}
 
-				if (selectedIndex >= 0 && items[selectedIndex]) {
-					close({ kind: 'server', name: String(items[selectedIndex].name || '') });
+				if (selectedIndex >= 0 && visibleItems[selectedIndex]) {
+					close({ kind: 'server', name: String(visibleItems[selectedIndex].name || '') });
 				}
 			});
 
@@ -627,6 +665,10 @@
 
 	if (saveButton) {
 		saveButton.addEventListener('click', saveProject);
+	}
+
+	if (quickSaveButton) {
+		quickSaveButton.addEventListener('click', quickSaveProject);
 	}
 
 	if (openButton) {
