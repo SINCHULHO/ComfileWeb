@@ -266,6 +266,8 @@ const designSurface = document.getElementById('designSurface');
             'Lamp Size': '램프 크기',
             'LampColor': '램프 색상',
             'DisplayColor': '표시 색상',
+            'Fill Color': '채움 색상',
+            'Handle Color': '핸들 색상',
             'BackColor': '배경색',
             'ForeColor': '글자색',
             'Round': '라운드',
@@ -311,6 +313,8 @@ const designSurface = document.getElementById('designSurface');
                 numberDisplay: '#DCDCDC',
                 textDisplay: '#DCDCDC',
                 textBorder: '#DCDCDC',
+                sliderFill: '#FFC850',
+                sliderHandle: '#FFFFFF',
                 progressDisplay: '#50AAF5',
                 gaugeDisplay: '#F0B000'
             },
@@ -325,6 +329,8 @@ const designSurface = document.getElementById('designSurface');
                 numberDisplay: '#303030',
                 textDisplay: '#303030',
                 textBorder: '#B8B8B8',
+                sliderFill: '#FFC850',
+                sliderHandle: '#FFFFFF',
                 progressDisplay: '#0078D4',
                 gaugeDisplay: '#CC8A00'
             }
@@ -1703,6 +1709,7 @@ const designSurface = document.getElementById('designSurface');
 
         function createSliderWidget(cellX, cellY) {
             const name = createUniqueIndexedWidgetName('Slider');
+            const themeDefaults = getThemeColorDefaults();
 
             return {
                 id: `w${nextWidgetId++}`,
@@ -1719,6 +1726,8 @@ const designSurface = document.getElementById('designSurface');
                     Y: String(cellY),
                     Minimum: '0',
                     Maximum: '100',
+                    'Fill Color': themeDefaults.sliderFill,
+                    'Handle Color': themeDefaults.sliderHandle,
                     Value: '0'
                 }
             };
@@ -2810,6 +2819,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function renderSliderWidget(widget) {
+            const themeDefaults = getThemeColorDefaults();
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
                 widget.properties.Value = String(runtimeValue);
@@ -2832,6 +2842,7 @@ const designSurface = document.getElementById('designSurface');
 
             const fill = document.createElement('div');
             fill.className = 'slider-fill';
+            fill.style.backgroundColor = normalizeCssColor(widget.properties['Fill Color']) || themeDefaults.sliderFill;
             const ratio = getSliderRatio(widget);
             if (direction === 'Vertical') {
                 fill.style.height = `${ratio * 100}%`;
@@ -2842,6 +2853,7 @@ const designSurface = document.getElementById('designSurface');
 
             const knob = document.createElement('div');
             knob.className = 'slider-knob';
+            knob.style.backgroundColor = normalizeCssColor(widget.properties['Handle Color']) || themeDefaults.sliderHandle;
             if (direction === 'Vertical') {
                 knob.style.bottom = getSliderKnobPositionStyle(ratio);
             } else {
@@ -3722,6 +3734,30 @@ const designSurface = document.getElementById('designSurface');
                     }
                 }
 
+                if (areAllSelectedProgressBars()) {
+                    const selectedProgressBars = getSelectedProgressBarWidgets();
+                    const sampleWidget = selectedProgressBars[0];
+                    if (sampleWidget) {
+                        selectedWidgetId = sampleWidget.id;
+                        if (propertyPanelTitle) {
+                            propertyPanelTitle.textContent = resources.properties;
+                        }
+
+                        const rows = [
+                            { key: 'Direction', value: sampleWidget.properties.Direction || 'Horizontal', editable: true },
+                            { key: 'Marking', value: normalizeProgressBarMarking(sampleWidget.properties.Marking), editable: true },
+                            { key: 'Minimum', value: sampleWidget.properties.Minimum || '0', editable: true },
+                            { key: 'Maximum', value: sampleWidget.properties.Maximum || '100', editable: true },
+                            { key: 'DisplayColor', value: sampleWidget.properties.DisplayColor || getThemeColorDefaults().progressDisplay, editable: true }
+                        ];
+
+                        propertyGridBody.innerHTML = rows
+                            .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPropertyEditor(row.key, row.value)}</td></tr>`)
+                            .join('');
+                        return;
+                    }
+                }
+
                 if (areAllSelectedTexts()) {
                     const selectedTexts = getSelectedTextWidgets();
                     const sampleWidget = selectedTexts[0];
@@ -3793,6 +3829,30 @@ const designSurface = document.getElementById('designSurface');
                     }
                 }
 
+                if (areAllSelectedSliders()) {
+                    const selectedSliders = getSelectedSliderWidgets();
+                    const sampleWidget = selectedSliders[0];
+                    if (sampleWidget) {
+                        selectedWidgetId = sampleWidget.id;
+                        if (propertyPanelTitle) {
+                            propertyPanelTitle.textContent = resources.properties;
+                        }
+
+                        const rows = [
+                            { key: 'Direction', value: sampleWidget.properties.Direction || 'Horizontal', editable: true },
+                            { key: 'Minimum', value: sampleWidget.properties.Minimum || '0', editable: true },
+                            { key: 'Maximum', value: sampleWidget.properties.Maximum || '100', editable: true },
+                            { key: 'Fill Color', value: sampleWidget.properties['Fill Color'] || getThemeColorDefaults().sliderFill, editable: true },
+                            { key: 'Handle Color', value: sampleWidget.properties['Handle Color'] || getThemeColorDefaults().sliderHandle, editable: true }
+                        ];
+
+                        propertyGridBody.innerHTML = rows
+                            .map(row => `<tr><th>${escapeHtml(getPropertyDisplayName(row.key))}</th><td class="property-value">${renderPropertyEditor(row.key, row.value)}</td></tr>`)
+                            .join('');
+                        return;
+                    }
+                }
+
                 if (propertyPanelTitle) {
                     propertyPanelTitle.textContent = resources.properties;
                 }
@@ -3852,6 +3912,16 @@ const designSurface = document.getElementById('designSurface');
             return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Text');
         }
 
+        function getSelectedSliderWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'Slider');
+        }
+
+        function getSelectedProgressBarWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id) && widget.kind === 'ProgressBar');
+        }
+
         function areAllSelectedButtons() {
             const selectedWidgets = getSelectedPageWidgets();
             if (selectedWidgets.length <= 1) {
@@ -3909,6 +3979,32 @@ const designSurface = document.getElementById('designSurface');
                 propertyKey === 'DisplayColor' ||
                 propertyKey === 'Position' ||
                 propertyKey === 'Text Size';
+        }
+
+        function areAllSelectedSliders() {
+            const selectedSliders = getSelectedSliderWidgets();
+            return selectedSliders.length > 1 && selectedSliders.length === selectedWidgetIds.length;
+        }
+
+        function isSliderMultiEditableProperty(propertyKey) {
+            return propertyKey === 'Direction' ||
+                propertyKey === 'Minimum' ||
+                propertyKey === 'Maximum' ||
+                propertyKey === 'Fill Color' ||
+                propertyKey === 'Handle Color';
+        }
+
+        function areAllSelectedProgressBars() {
+            const selectedProgressBars = getSelectedProgressBarWidgets();
+            return selectedProgressBars.length > 1 && selectedProgressBars.length === selectedWidgetIds.length;
+        }
+
+        function isProgressBarMultiEditableProperty(propertyKey) {
+            return propertyKey === 'Direction' ||
+                propertyKey === 'Marking' ||
+                propertyKey === 'Minimum' ||
+                propertyKey === 'Maximum' ||
+                propertyKey === 'DisplayColor';
         }
 
         function renderPageProperties() {
@@ -4006,6 +4102,8 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
                     { key: 'Minimum', value: widget.properties.Minimum || '0', editable: true },
                     { key: 'Maximum', value: widget.properties.Maximum || '100', editable: true },
+                    { key: 'Fill Color', value: widget.properties['Fill Color'] || getThemeColorDefaults().sliderFill, editable: true },
+                    { key: 'Handle Color', value: widget.properties['Handle Color'] || getThemeColorDefaults().sliderHandle, editable: true },
                     { key: 'Value', value: widget.properties.Value || '0', editable: true }
                 ];
             }
@@ -4359,6 +4457,64 @@ const designSurface = document.getElementById('designSurface');
                 pushUndoState();
                 nextValues.forEach(item => {
                     item.widget.properties[propertyKey] = item.value;
+                });
+                renderWidgets();
+                return;
+            }
+
+            if (areAllSelectedSliders() && isSliderMultiEditableProperty(propertyKey)) {
+                const selectedSliders = getSelectedSliderWidgets();
+                if (selectedSliders.length === 0) {
+                    return;
+                }
+
+                const nextValues = selectedSliders
+                    .map(slider => ({
+                        widget: slider,
+                        value: normalizeWidgetPropertyValue(slider, propertyKey, value)
+                    }))
+                    .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
+
+                if (nextValues.length === 0) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                nextValues.forEach(item => {
+                    item.widget.properties[propertyKey] = item.value;
+                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value') {
+                        normalizeSliderRangeProperties(item.widget);
+                    }
+                });
+                renderWidgets();
+                return;
+            }
+
+            if (areAllSelectedProgressBars() && isProgressBarMultiEditableProperty(propertyKey)) {
+                const selectedProgressBars = getSelectedProgressBarWidgets();
+                if (selectedProgressBars.length === 0) {
+                    return;
+                }
+
+                const nextValues = selectedProgressBars
+                    .map(progressBar => ({
+                        widget: progressBar,
+                        value: normalizeWidgetPropertyValue(progressBar, propertyKey, value)
+                    }))
+                    .filter(item => String(item.widget.properties[propertyKey] || '') !== String(item.value || ''));
+
+                if (nextValues.length === 0) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                nextValues.forEach(item => {
+                    item.widget.properties[propertyKey] = item.value;
+                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum') {
+                        normalizeSliderRangeProperties(item.widget);
+                    }
                 });
                 renderWidgets();
                 return;
@@ -6344,6 +6500,9 @@ const designSurface = document.getElementById('designSurface');
                     } else if (widget.kind === 'Text') {
                         replaceThemeLinkedColor(widget.properties, 'DisplayColor', sourceDefaults.textDisplay, targetDefaults.textDisplay);
                         replaceThemeLinkedColor(widget.properties, 'Border Color', sourceDefaults.textBorder, targetDefaults.textBorder);
+                    } else if (widget.kind === 'Slider') {
+                        replaceThemeLinkedColor(widget.properties, 'Fill Color', sourceDefaults.sliderFill, targetDefaults.sliderFill);
+                        replaceThemeLinkedColor(widget.properties, 'Handle Color', sourceDefaults.sliderHandle, targetDefaults.sliderHandle);
                     } else if (widget.kind === 'ProgressBar') {
                         replaceThemeLinkedColor(widget.properties, 'DisplayColor', sourceDefaults.progressDisplay, targetDefaults.progressDisplay);
                     } else if (widget.kind === 'Gauge') {
