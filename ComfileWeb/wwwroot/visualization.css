@@ -615,6 +615,26 @@
             box-shadow: 8px 0 0 0 var(--button-bg), 8px 0 0 0 1px var(--text), 0 8px 0 0 var(--button-bg), 0 8px 0 0 1px var(--text), 8px 8px 0 0 var(--button-bg), 8px 8px 0 0 1px var(--text);
         }
 
+        .icon-auto-layout::before {
+            left: 5px;
+            top: 5px;
+            width: 14px;
+            height: 6px;
+            border: 1px solid var(--text);
+            border-radius: 2px;
+            box-shadow: 0 10px 0 -1px var(--button-bg), 0 10px 0 0 var(--text);
+        }
+
+        .icon-auto-layout::after {
+            left: 8px;
+            top: 9px;
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid var(--text);
+            border-bottom: 2px solid var(--text);
+            transform: rotate(45deg);
+        }
+
         .array-duplicate-dialog-overlay {
             position: fixed;
             inset: 0;
@@ -642,10 +662,79 @@
             font-weight: 700;
         }
 
+        .array-duplicate-dimension-picker {
+            margin-bottom: 10px;
+        }
+
+        .array-duplicate-dimension-label {
+            margin-bottom: 6px;
+            color: var(--property-muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .array-duplicate-dimension-grid {
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            gap: 2px;
+            padding: 6px;
+            border: 1px solid var(--property-border);
+            border-radius: 5px;
+            background: var(--property-bg);
+            touch-action: none;
+            user-select: none;
+        }
+
+        .array-duplicate-dimension-cell {
+            aspect-ratio: 1;
+            min-width: 0;
+            padding: 0;
+            border: 1px solid var(--button-border);
+            border-radius: 2px;
+            background: var(--property-value-bg);
+            cursor: pointer;
+        }
+
+        .array-duplicate-dimension-cell:hover {
+            border-color: var(--button-hover-border);
+            background: var(--button-hover-bg);
+        }
+
+        .array-duplicate-dimension-cell.is-selected {
+            border-color: color-mix(in srgb, var(--focus) 55%, var(--button-border));
+            background: color-mix(in srgb, var(--focus) 36%, var(--button-bg) 64%);
+        }
+
+        .array-duplicate-dimension-cell.is-edge {
+            border-color: var(--focus);
+        }
+
         .array-duplicate-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
+        }
+
+        .auto-layout-dialog .array-duplicate-grid {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .auto-layout-options {
+            margin-top: 10px;
+        }
+
+        .auto-layout-check-field {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: var(--text);
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .auto-layout-check-field input {
+            margin: 0;
         }
 
         .array-duplicate-field {
@@ -1362,10 +1451,12 @@
         body.runtime-running .cell-cursor,
         body.runtime-running .selection-marquee,
         body.runtime-running .selection-outline,
+        body.runtime-running .multi-selection-box,
         body.runtime-running .resize-handle,
         .design-surface.runtime-running .cell-cursor,
         .design-surface.runtime-running .selection-marquee,
         .design-surface.runtime-running .selection-outline,
+        .design-surface.runtime-running .multi-selection-box,
         .design-surface.runtime-running .resize-handle {
             display: none;
         }
@@ -1494,6 +1585,18 @@
             border: 1px dashed var(--text);
             pointer-events: none;
             z-index: 1;
+        }
+
+        .multi-selection-box {
+            position: absolute;
+            border: 1px dashed var(--text);
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .multi-selection-box .resize-handle {
+            pointer-events: auto;
         }
 
         .resize-handle {

@@ -21,6 +21,7 @@ const designSurface = document.getElementById('designSurface');
         const distributeVerticalButton = document.getElementById('distributeVerticalButton');
         const matchSizeButton = document.getElementById('matchSizeButton');
         const arrayDuplicateButton = document.getElementById('arrayDuplicateButton');
+        const autoLayoutButton = document.getElementById('autoLayoutButton');
         const pageBackColorButton = document.getElementById('pageBackColorButton');
         const pageBackColorSwatch = document.getElementById('pageBackColorSwatch');
         const deployWebServerButton = document.getElementById('deployWebServerButton');
@@ -154,7 +155,13 @@ const designSurface = document.getElementById('designSurface');
                 distributeVerticalTooltip: '세로 간격 균등',
                 matchSizeTooltip: '크기 맞춤',
                 arrayDuplicateTooltip: '배열복제',
+                autoLayoutTooltip: '자동배치',
                 arrayDuplicateTitle: '배열복제',
+                autoLayoutTitle: '자동배치',
+                lampCount: '램프 수',
+                buttonCount: '버튼 수',
+                widgetGap: '위젯 간격',
+                lampBorder: '램프 보더 표시',
                 rows: '행',
                 columns: '열',
                 gapX: 'X 간격',
@@ -205,7 +212,13 @@ const designSurface = document.getElementById('designSurface');
                 distributeVerticalTooltip: 'Distribute Vertically',
                 matchSizeTooltip: 'Match Size',
                 arrayDuplicateTooltip: 'Array Duplicate',
+                autoLayoutTooltip: 'Auto Layout',
                 arrayDuplicateTitle: 'Array Duplicate',
+                autoLayoutTitle: 'Auto Layout',
+                lampCount: 'Lamp Count',
+                buttonCount: 'Button Count',
+                widgetGap: 'Widget Gap',
+                lampBorder: 'Show Lamp Border',
                 rows: 'Rows',
                 columns: 'Columns',
                 gapX: 'Gap X',
@@ -1422,10 +1435,62 @@ const designSurface = document.getElementById('designSurface');
             renderWidgets();
         }
 
-        function createButtonWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const buttonIndex = page.widgets.filter(widget => widget.kind === 'Button').length + 1;
-            const name = `Button${buttonIndex}`;
+        function normalizeWidgetNameText(name, fallback) {
+            const text = String(name || '').trim();
+            return text || fallback || 'Widget';
+        }
+
+        function getWidgetNameKey(name) {
+            return normalizeWidgetNameText(name, '').toLocaleLowerCase();
+        }
+
+        function getProjectWidgetNameSet(excludedWidgetId) {
+            const names = new Set();
+            (documentModel.pages || []).forEach(page => {
+                (page.widgets || []).forEach(widget => {
+                    if (excludedWidgetId && widget.id === excludedWidgetId) {
+                        return;
+                    }
+
+                    const key = getWidgetNameKey(widget.properties?.Name || '');
+                    if (key) {
+                        names.add(key);
+                    }
+                });
+            });
+            return names;
+        }
+
+        function createUniqueWidgetName(baseName, reservedNames, excludedWidgetId) {
+            const normalizedBaseName = normalizeWidgetNameText(baseName, 'Widget');
+            const names = reservedNames || getProjectWidgetNameSet(excludedWidgetId);
+            let name = normalizedBaseName;
+            let index = 2;
+            while (names.has(getWidgetNameKey(name))) {
+                name = `${normalizedBaseName} ${index}`;
+                index += 1;
+            }
+
+            names.add(getWidgetNameKey(name));
+            return name;
+        }
+
+        function createUniqueIndexedWidgetName(prefix, reservedNames) {
+            const names = reservedNames || getProjectWidgetNameSet();
+            const normalizedPrefix = normalizeWidgetNameText(prefix, 'Widget');
+            let index = 1;
+            let name = `${normalizedPrefix}${index}`;
+            while (names.has(getWidgetNameKey(name))) {
+                index += 1;
+                name = `${normalizedPrefix}${index}`;
+            }
+
+            names.add(getWidgetNameKey(name));
+            return name;
+        }
+
+        function createButtonWidget(cellX, cellY, reservedNames) {
+            const name = createUniqueIndexedWidgetName('Button', reservedNames);
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1454,10 +1519,8 @@ const designSurface = document.getElementById('designSurface');
             };
         }
 
-        function createLampWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const lampIndex = page.widgets.filter(widget => widget.kind === 'Lamp').length + 1;
-            const name = `Lamp${lampIndex}`;
+        function createLampWidget(cellX, cellY, reservedNames) {
+            const name = createUniqueIndexedWidgetName('Lamp', reservedNames);
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1585,9 +1648,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function createGaugeWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const gaugeIndex = page.widgets.filter(widget => widget.kind === 'Gauge').length + 1;
-            const name = `Gauge${gaugeIndex}`;
+            const name = createUniqueIndexedWidgetName('Gauge');
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1613,9 +1674,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function createProgressBarWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const progressIndex = page.widgets.filter(widget => widget.kind === 'ProgressBar').length + 1;
-            const name = `ProgressBar${progressIndex}`;
+            const name = createUniqueIndexedWidgetName('ProgressBar');
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1641,9 +1700,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function createSliderWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const sliderIndex = page.widgets.filter(widget => widget.kind === 'Slider').length + 1;
-            const name = `Slider${sliderIndex}`;
+            const name = createUniqueIndexedWidgetName('Slider');
 
             return {
                 id: `w${nextWidgetId++}`,
@@ -1666,9 +1723,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function createTextWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const textIndex = page.widgets.filter(widget => widget.kind === 'Text').length + 1;
-            const name = `Text${textIndex}`;
+            const name = createUniqueIndexedWidgetName('Text');
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1697,9 +1752,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function createNumberWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const numberIndex = page.widgets.filter(widget => widget.kind === 'Number').length + 1;
-            const name = `Number${numberIndex}`;
+            const name = createUniqueIndexedWidgetName('Number');
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1726,9 +1779,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function createToggleWidget(cellX, cellY) {
-            const page = getCurrentPage();
-            const toggleIndex = page.widgets.filter(widget => widget.kind === 'Toggle').length + 1;
-            const name = `Toggle${toggleIndex}`;
+            const name = createUniqueIndexedWidgetName('Toggle');
             const themeDefaults = getThemeColorDefaults();
 
             return {
@@ -1761,6 +1812,7 @@ const designSurface = document.getElementById('designSurface');
             designSurface.classList.toggle('runtime-running', runtimeRunning);
             designSurface.querySelectorAll('.design-widget').forEach(widgetElement => widgetElement.remove());
             designSurface.querySelectorAll('.selected-widget-address-popup').forEach(element => element.remove());
+            designSurface.querySelectorAll('.multi-selection-box').forEach(element => element.remove());
             removeRuntimePageNavigationElement();
             renderRuntimePageNavigation();
             removeCellCursorElement();
@@ -1795,8 +1847,64 @@ const designSurface = document.getElementById('designSurface');
             updatePlaceholderVisibility();
             if (!runtimeRunning) {
                 renderCellCursor();
+                renderMultiSelectionBox();
             }
             renderProperties();
+        }
+
+        function getSelectedPageWidgets() {
+            const selectedIds = new Set(selectedWidgetIds);
+            return getCurrentPage().widgets.filter(widget => selectedIds.has(widget.id));
+        }
+
+        function getWidgetGroupRect(widgets) {
+            if (!Array.isArray(widgets) || widgets.length === 0) {
+                return null;
+            }
+
+            const left = Math.min(...widgets.map(widget => widget.cellX));
+            const top = Math.min(...widgets.map(widget => widget.cellY));
+            const right = Math.max(...widgets.map(widget => widget.cellX + Math.max(1, widget.cellWidth)));
+            const bottom = Math.max(...widgets.map(widget => widget.cellY + Math.max(1, widget.cellHeight)));
+            return {
+                x: left,
+                y: top,
+                width: Math.max(1, right - left),
+                height: Math.max(1, bottom - top)
+            };
+        }
+
+        function renderMultiSelectionBox() {
+            if (selectedWidgetIds.length <= 1 || !designSurface) {
+                return;
+            }
+
+            const selectedWidgets = getSelectedPageWidgets();
+            const groupRect = getWidgetGroupRect(selectedWidgets);
+            if (!groupRect) {
+                return;
+            }
+
+            const gridX = toNumber(gridXSlider.value, 10);
+            const gridY = toNumber(gridYSlider.value, 9);
+            const cellWidth = designSurface.clientWidth / gridX;
+            const cellHeight = designSurface.clientHeight / gridY;
+            const box = document.createElement('div');
+            box.className = 'multi-selection-box';
+            box.style.left = `${groupRect.x * cellWidth}px`;
+            box.style.top = `${groupRect.y * cellHeight}px`;
+            box.style.width = `${groupRect.width * cellWidth}px`;
+            box.style.height = `${groupRect.height * cellHeight}px`;
+
+            ['nw', 'ne', 'sw', 'se'].forEach(position => {
+                const handle = document.createElement('div');
+                handle.className = `resize-handle multi-selection-resize-handle ${position}`;
+                handle.dataset.handle = position;
+                handle.addEventListener('pointerdown', event => beginGroupResize(event, position));
+                box.appendChild(handle);
+            });
+
+            designSurface.appendChild(box);
         }
 
         function renderRuntimePageNavigation() {
@@ -3107,12 +3215,56 @@ const designSurface = document.getElementById('designSurface');
             window.addEventListener('pointerup', endResizeSelectedWidget, { once: true });
         }
 
+        function beginGroupResize(event, handle) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const selectedWidgets = getSelectedPageWidgets();
+            const groupRect = getWidgetGroupRect(selectedWidgets);
+            if (selectedWidgets.length <= 1 || !groupRect) {
+                return;
+            }
+
+            activeResize = {
+                group: true,
+                beforeSnapshot: createHistorySnapshot(),
+                hasChanged: false,
+                handle,
+                startPointerX: event.clientX,
+                startPointerY: event.clientY,
+                startGroupRect: groupRect,
+                widgets: selectedWidgets.map(widget => ({
+                    widgetId: widget.id,
+                    x: widget.cellX,
+                    y: widget.cellY,
+                    width: Math.max(1, widget.cellWidth),
+                    height: Math.max(1, widget.cellHeight)
+                })),
+                snappedDeltaX: 0,
+                snappedDeltaY: 0
+            };
+
+            resizeDragIndicator = document.createElement('div');
+            resizeDragIndicator.className = 'resize-drag-indicator';
+            document.body.appendChild(resizeDragIndicator);
+            updateResizeDragIndicator(event);
+
+            event.currentTarget.setPointerCapture(event.pointerId);
+            window.addEventListener('pointermove', resizeSelectedWidget);
+            window.addEventListener('pointerup', endResizeSelectedWidget, { once: true });
+        }
+
         function resizeSelectedWidget(event) {
             if (!activeResize) {
                 return;
             }
 
             updateResizeDragIndicator(event);
+
+            if (activeResize.group) {
+                resizeSelectedWidgetGroup(event);
+                return;
+            }
 
             const widget = getCurrentPage().widgets.find(item => item.id === activeResize.widgetId);
             if (!widget) {
@@ -3162,6 +3314,127 @@ const designSurface = document.getElementById('designSurface');
             activeResize.hasChanged = true;
 
             renderWidgets();
+        }
+
+        function resizeSelectedWidgetGroup(event) {
+            if (!activeResize || !activeResize.group) {
+                return;
+            }
+
+            const rect = designSurface.getBoundingClientRect();
+            const gridX = toNumber(gridXSlider.value, 10);
+            const gridY = toNumber(gridYSlider.value, 9);
+            const cellWidth = rect.width / gridX;
+            const cellHeight = rect.height / gridY;
+            const snappedDeltaX = getSnappedDragDelta((event.clientX - activeResize.startPointerX) / cellWidth, activeResize.snappedDeltaX);
+            const snappedDeltaY = getSnappedDragDelta((event.clientY - activeResize.startPointerY) / cellHeight, activeResize.snappedDeltaY);
+            activeResize.snappedDeltaX = snappedDeltaX;
+            activeResize.snappedDeltaY = snappedDeltaY;
+
+            const start = activeResize.startGroupRect;
+            let left = start.x;
+            let top = start.y;
+            let right = start.x + start.width;
+            let bottom = start.y + start.height;
+
+            if (activeResize.handle.includes('w')) {
+                left = Math.max(0, Math.min(start.x + snappedDeltaX, right - 1));
+            }
+            if (activeResize.handle.includes('e')) {
+                right = Math.max(left + 1, Math.min(start.x + start.width + snappedDeltaX, gridX));
+            }
+            if (activeResize.handle.includes('n')) {
+                top = Math.max(0, Math.min(start.y + snappedDeltaY, bottom - 1));
+            }
+            if (activeResize.handle.includes('s')) {
+                bottom = Math.max(top + 1, Math.min(start.y + start.height + snappedDeltaY, gridY));
+            }
+
+            const nextGroup = {
+                x: left,
+                y: top,
+                width: right - left,
+                height: bottom - top
+            };
+            const nextRects = getScaledGroupWidgetRects(activeResize.widgets, start, nextGroup);
+            if (!canApplyGroupResize(nextRects)) {
+                return;
+            }
+
+            const page = getCurrentPage();
+            nextRects.forEach(rectItem => {
+                const widget = page.widgets.find(item => item.id === rectItem.widgetId);
+                if (!widget) {
+                    return;
+                }
+
+                widget.cellX = rectItem.x;
+                widget.cellY = rectItem.y;
+                widget.cellWidth = rectItem.width;
+                widget.cellHeight = rectItem.height;
+                widget.properties.X = String(rectItem.x);
+                widget.properties.Y = String(rectItem.y);
+            });
+
+            activeResize.hasChanged = true;
+            renderWidgets();
+        }
+
+        function getScaledGroupWidgetRects(widgets, startGroup, nextGroup) {
+            const scaleX = nextGroup.width / Math.max(1, startGroup.width);
+            const scaleY = nextGroup.height / Math.max(1, startGroup.height);
+            return widgets.map(widget => {
+                const relativeLeft = widget.x - startGroup.x;
+                const relativeTop = widget.y - startGroup.y;
+                const relativeRight = relativeLeft + widget.width;
+                const relativeBottom = relativeTop + widget.height;
+                const nextLeft = nextGroup.x + Math.round(relativeLeft * scaleX);
+                const nextTop = nextGroup.y + Math.round(relativeTop * scaleY);
+                const nextRight = nextGroup.x + Math.round(relativeRight * scaleX);
+                const nextBottom = nextGroup.y + Math.round(relativeBottom * scaleY);
+                return {
+                    widgetId: widget.widgetId,
+                    x: Math.max(nextGroup.x, Math.min(nextGroup.x + nextGroup.width - 1, nextLeft)),
+                    y: Math.max(nextGroup.y, Math.min(nextGroup.y + nextGroup.height - 1, nextTop)),
+                    width: Math.max(1, nextRight - nextLeft),
+                    height: Math.max(1, nextBottom - nextTop)
+                };
+            });
+        }
+
+        function canApplyGroupResize(nextRects) {
+            const page = getCurrentPage();
+            const gridX = toNumber(gridXSlider.value, 10);
+            const gridY = toNumber(gridYSlider.value, 9);
+            const resizingIds = new Set(nextRects.map(item => item.widgetId));
+
+            for (let index = 0; index < nextRects.length; index += 1) {
+                const rect = nextRects[index];
+                if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > gridX || rect.y + rect.height > gridY) {
+                    return false;
+                }
+
+                if (nextRects.some((other, otherIndex) => otherIndex !== index && rectanglesOverlap(rect, other))) {
+                    return false;
+                }
+
+                if (page.widgets.some(other => {
+                    if (resizingIds.has(other.id)) {
+                        return false;
+                    }
+
+                    return rectanglesOverlap(rect, {
+                        x: other.cellX,
+                        y: other.cellY,
+                        width: Math.max(1, other.cellWidth),
+                        height: Math.max(1, other.cellHeight)
+                    });
+                })) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         function getSnappedDragDelta(value, previousDelta) {
@@ -3821,13 +4094,16 @@ const designSurface = document.getElementById('designSurface');
                 widget.properties.Y = String(nextY);
             } else {
                 const normalizedValue = normalizeWidgetPropertyValue(widget, propertyKey, value);
-                if (String(widget.properties[propertyKey] || '') === String(normalizedValue || '')) {
+                const nextValue = propertyKey === 'Name'
+                    ? createUniqueWidgetName(normalizedValue, null, widget.id)
+                    : normalizedValue;
+                if (String(widget.properties[propertyKey] || '') === String(nextValue || '')) {
                     renderWidgets();
                     return;
                 }
 
                 pushUndoState();
-                widget.properties[propertyKey] = normalizedValue;
+                widget.properties[propertyKey] = nextValue;
             }
 
             renderWidgets();
@@ -3999,6 +4275,8 @@ const designSurface = document.getElementById('designSurface');
             const gridY = toNumber(gridYSlider.value, 9);
             const page = getCurrentPage();
             const pasteWidgets = [];
+            const reservedNames = getProjectWidgetNameSet();
+            let addressOffset = 1;
 
             for (const copiedWidget of copiedWidgets) {
                 const cellX = anchor.x + (copiedWidget.cellX - minX);
@@ -4039,27 +4317,51 @@ const designSurface = document.getElementById('designSurface');
                     properties: { ...copiedWidget.properties }
                 };
 
-                widget.properties.Name = createCopiedWidgetName(copiedWidget);
+                widget.properties.Name = createCopiedWidgetName(copiedWidget, reservedNames);
+                applyCopiedWidgetAddressOffsets(widget, addressOffset);
                 widget.properties.X = String(cellX);
                 widget.properties.Y = String(cellY);
                 pasteWidgets.push(widget);
+                addressOffset += 1;
             }
 
             return pasteWidgets;
         }
 
-        function createCopiedWidgetName(widget) {
-            const page = getCurrentPage();
+        function createCopiedWidgetName(widget, reservedNames) {
             const baseName = String(widget.properties.Name || widget.kind || 'Widget').replace(/\s+Copy(?:\s+\d+)?$/i, '');
-            let index = 1;
-            let name = `${baseName} Copy`;
-            const existingNames = new Set(page.widgets.map(item => String(item.properties.Name || '')));
-            while (existingNames.has(name)) {
-                index += 1;
-                name = `${baseName} Copy ${index}`;
+            return createUniqueWidgetName(`${baseName} Copy`, reservedNames);
+        }
+
+        function incrementVisualizationAddress(address, offset) {
+            const text = String(address || '').trim();
+            if (!text || !Number.isFinite(Number(offset)) || Number(offset) === 0) {
+                return text;
             }
 
-            return name;
+            const match = text.match(/^(\s*[A-Za-z]+\s*)(\d+)(\s*)$/);
+            if (!match) {
+                return text;
+            }
+
+            const nextIndex = Number.parseInt(match[2], 10) + Number(offset);
+            if (!Number.isFinite(nextIndex) || nextIndex < 0) {
+                return text;
+            }
+
+            return `${match[1]}${nextIndex}${match[3]}`;
+        }
+
+        function applyCopiedWidgetAddressOffsets(widget, offset) {
+            if (!widget || !widget.properties) {
+                return;
+            }
+
+            ['Address', 'Display Address', 'Lamp Address'].forEach(propertyKey => {
+                if (Object.prototype.hasOwnProperty.call(widget.properties, propertyKey)) {
+                    widget.properties[propertyKey] = incrementVisualizationAddress(widget.properties[propertyKey], offset);
+                }
+            });
         }
 
         function handleDesignerKeyDown(event) {
@@ -5841,10 +6143,253 @@ const designSurface = document.getElementById('designSurface');
             setTooltip(distributeVerticalButton, resources.distributeVerticalTooltip);
             setTooltip(matchSizeButton, resources.matchSizeTooltip);
             setTooltip(arrayDuplicateButton, resources.arrayDuplicateTooltip);
+            setTooltip(autoLayoutButton, resources.autoLayoutTooltip);
         }
 
         function closeArrayDuplicateDialog() {
             document.querySelectorAll('.array-duplicate-dialog-overlay').forEach(element => element.remove());
+        }
+
+        function closeAutoLayoutDialog() {
+            document.querySelectorAll('.auto-layout-dialog-overlay').forEach(element => element.remove());
+        }
+
+        function calculateAutoLayoutCells(count, areaLeft, areaTop, areaWidth, areaHeight, gridX, gridY, gap, verticalAlign = 'center') {
+            const normalizedCount = Math.max(0, Math.floor(toNumber(count, 0)));
+            if (normalizedCount <= 0 || areaWidth <= 0 || areaHeight <= 0 || gridX <= 0 || gridY <= 0) {
+                return [];
+            }
+
+            const requestedGap = Math.max(0, Math.floor(toNumber(gap, 0)));
+
+            let best = null;
+            for (let columns = 1; columns <= Math.min(areaWidth, normalizedCount); columns += 1) {
+                const rows = Math.ceil(normalizedCount / columns);
+                const maxGapX = columns > 1 ? Math.floor((areaWidth - columns) / (columns - 1)) : requestedGap;
+                const maxGapY = rows > 1 ? Math.floor((areaHeight - rows) / (rows - 1)) : requestedGap;
+                const effectiveGap = Math.max(0, Math.min(requestedGap, maxGapX, maxGapY));
+                const availableWidth = areaWidth - ((columns - 1) * effectiveGap);
+                const availableHeight = areaHeight - ((rows - 1) * effectiveGap);
+                if (availableWidth < columns || availableHeight < rows) {
+                    continue;
+                }
+
+                const cellWidth = Math.max(1, Math.floor(availableWidth / columns));
+                const cellHeight = Math.max(1, Math.floor(availableHeight / rows));
+                const squareSize = Math.min(cellWidth, cellHeight);
+                const aspectPenalty = Math.abs(cellWidth - cellHeight) * 120;
+                const score = squareSize * 1000 - aspectPenalty + effectiveGap;
+                if (!best || score > best.score) {
+                    best = { columns, rows, cellWidth: squareSize, cellHeight: squareSize, gap: effectiveGap, score };
+                }
+            }
+
+            if (!best) {
+                best = {
+                    columns: Math.min(areaWidth, normalizedCount),
+                    rows: Math.min(areaHeight, Math.ceil(normalizedCount / Math.max(1, Math.min(areaWidth, normalizedCount)))),
+                    cellWidth: 1,
+                    cellHeight: 1,
+                    gap: 0
+                };
+            }
+
+            const cells = [];
+            const usedRows = best.rows;
+            const usedColumns = Math.min(best.columns, normalizedCount);
+            const totalWidth = (usedColumns * best.cellWidth) + ((usedColumns - 1) * best.gap);
+            const totalHeight = (usedRows * best.cellHeight) + ((usedRows - 1) * best.gap);
+            const startX = areaLeft + Math.max(0, Math.floor((areaWidth - totalWidth) / 2));
+            const remainingHeight = Math.max(0, areaHeight - totalHeight);
+            const verticalOffset = verticalAlign === 'top'
+                ? 0
+                : (verticalAlign === 'bottom' ? remainingHeight : Math.floor(remainingHeight / 2));
+            const startY = areaTop + verticalOffset;
+
+            for (let index = 0; index < normalizedCount; index += 1) {
+                const row = Math.floor(index / best.columns);
+                const column = index % best.columns;
+                if (row >= best.rows) {
+                    break;
+                }
+
+                const x = Math.min(gridX - 1, startX + column * (best.cellWidth + best.gap));
+                const y = Math.min(gridY - 1, startY + row * (best.cellHeight + best.gap));
+                cells.push({
+                    x,
+                    y,
+                    width: Math.max(1, Math.min(best.cellWidth, gridX - x)),
+                    height: Math.max(1, Math.min(best.cellHeight, gridY - y))
+                });
+            }
+
+            return cells;
+        }
+
+        function applyAutoLayout(lampCount, buttonCount, widgetGap, useLampBorder) {
+            if (runtimeRunning) {
+                return;
+            }
+
+            const lamps = Math.max(0, Math.min(200, Math.floor(toNumber(lampCount, 0))));
+            const buttons = Math.max(0, Math.min(200, Math.floor(toNumber(buttonCount, 0))));
+            if (lamps === 0 && buttons === 0) {
+                return;
+            }
+
+            const page = getCurrentPage();
+            if (page.widgets.length > 0) {
+                const confirmMessage = useKoreanLanguage
+                    ? '현재 페이지의 기존 위젯을 지우고 자동배치할까요?'
+                    : 'Clear existing widgets on the current page and apply auto layout?';
+                if (!window.confirm(confirmMessage)) {
+                    return;
+                }
+            }
+
+            const gridX = Math.max(1, toNumber(gridXSlider.value, 49));
+            const gridY = Math.max(1, toNumber(gridYSlider.value, 30));
+            const edgeMargin = gridX > 2 && gridY > 2 ? 1 : 0;
+            const layoutLeft = edgeMargin;
+            const layoutTop = edgeMargin;
+            const layoutWidth = Math.max(1, gridX - (edgeMargin * 2));
+            const layoutTotalHeight = Math.max(1, gridY - (edgeMargin * 2));
+            const maxReasonableGap = Math.max(0, Math.floor(Math.min(gridX, gridY) / 4));
+            const gap = Math.max(0, Math.min(maxReasonableGap, Math.floor(toNumber(widgetGap, 1))));
+            const groupGap = lamps > 0 && buttons > 0 ? Math.min(gap, Math.max(0, layoutTotalHeight - 2)) : 0;
+            const layoutHeight = Math.max(1, layoutTotalHeight - groupGap);
+            const lampAreaHeight = buttons > 0 ? Math.max(1, Math.floor(layoutHeight / 2)) : layoutTotalHeight;
+            const buttonAreaTop = lamps > 0 ? layoutTop + lampAreaHeight + groupGap : layoutTop;
+            const buttonAreaHeight = Math.max(1, layoutTop + layoutTotalHeight - buttonAreaTop);
+            const lampCells = calculateAutoLayoutCells(lamps, layoutLeft, layoutTop, layoutWidth, lampAreaHeight, gridX, gridY, gap, 'top');
+            const buttonCells = calculateAutoLayoutCells(buttons, layoutLeft, buttonAreaTop, layoutWidth, buttonAreaHeight, gridX, gridY, gap, 'bottom');
+            const createdWidgets = [];
+            const reservedNames = getProjectWidgetNameSet();
+
+            lampCells.forEach(cell => {
+                const widget = createLampWidget(cell.x, cell.y, reservedNames);
+                widget.cellWidth = cell.width;
+                widget.cellHeight = cell.height;
+                if (useLampBorder) {
+                    widget.properties.Border = 'On';
+                    widget.properties.Text = widget.properties.Name || '';
+                }
+                widget.properties.X = String(cell.x);
+                widget.properties.Y = String(cell.y);
+                createdWidgets.push(widget);
+            });
+
+            buttonCells.forEach(cell => {
+                const widget = createButtonWidget(cell.x, cell.y, reservedNames);
+                widget.cellWidth = cell.width;
+                widget.cellHeight = cell.height;
+                widget.properties.X = String(cell.x);
+                widget.properties.Y = String(cell.y);
+                createdWidgets.push(widget);
+            });
+
+            if (createdWidgets.length === 0) {
+                return;
+            }
+
+            pushUndoState();
+            page.widgets = [];
+            page.widgets.push(...createdWidgets);
+            setSelectedWidgets(createdWidgets.map(widget => widget.id));
+            renderWidgets();
+        }
+
+        function openAutoLayoutDialog() {
+            if (runtimeRunning) {
+                return;
+            }
+
+            closeAutoLayoutDialog();
+            const resources = useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'array-duplicate-dialog-overlay auto-layout-dialog-overlay';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'array-duplicate-dialog auto-layout-dialog';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
+            dialog.setAttribute('aria-label', resources.autoLayoutTitle);
+
+            const title = document.createElement('h3');
+            title.className = 'array-duplicate-title';
+            title.textContent = resources.autoLayoutTitle;
+
+            const fieldGrid = document.createElement('div');
+            fieldGrid.className = 'array-duplicate-grid';
+
+            const createCountField = (labelText, defaultValue) => {
+                const field = document.createElement('label');
+                field.className = 'array-duplicate-field';
+                const label = document.createElement('span');
+                label.textContent = labelText;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.min = '0';
+                input.max = '200';
+                input.value = String(defaultValue);
+                field.appendChild(label);
+                field.appendChild(input);
+                return { field, input };
+            };
+
+            const lampField = createCountField(resources.lampCount, 12);
+            const buttonField = createCountField(resources.buttonCount, 12);
+            const gapField = createCountField(resources.widgetGap, 1);
+            gapField.input.max = '20';
+            fieldGrid.appendChild(lampField.field);
+            fieldGrid.appendChild(buttonField.field);
+            fieldGrid.appendChild(gapField.field);
+
+            const optionGrid = document.createElement('div');
+            optionGrid.className = 'auto-layout-options';
+            const lampBorderField = document.createElement('label');
+            lampBorderField.className = 'auto-layout-check-field';
+            const lampBorderCheckbox = document.createElement('input');
+            lampBorderCheckbox.type = 'checkbox';
+            const lampBorderLabel = document.createElement('span');
+            lampBorderLabel.textContent = resources.lampBorder;
+            lampBorderField.appendChild(lampBorderCheckbox);
+            lampBorderField.appendChild(lampBorderLabel);
+            optionGrid.appendChild(lampBorderField);
+
+            const footer = document.createElement('div');
+            footer.className = 'array-duplicate-footer';
+            const applyButton = document.createElement('button');
+            applyButton.type = 'button';
+            applyButton.className = 'toolbar-button';
+            applyButton.textContent = resources.autoLayoutTitle;
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'toolbar-button';
+            cancelButton.textContent = resources.cancel;
+
+            applyButton.addEventListener('click', () => {
+                applyAutoLayout(lampField.input.value, buttonField.input.value, gapField.input.value, lampBorderCheckbox.checked);
+                closeAutoLayoutDialog();
+            });
+            cancelButton.addEventListener('click', closeAutoLayoutDialog);
+            overlay.addEventListener('pointerdown', event => {
+                if (event.target === overlay) {
+                    closeAutoLayoutDialog();
+                }
+            });
+
+            footer.appendChild(applyButton);
+            footer.appendChild(cancelButton);
+            dialog.appendChild(title);
+            dialog.appendChild(fieldGrid);
+            dialog.appendChild(optionGrid);
+            dialog.appendChild(footer);
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+            lampField.input.focus();
+            lampField.input.select();
         }
 
         function applyArrayDuplicate(rows, columns, gapX, gapY) {
@@ -5868,6 +6413,7 @@ const designSurface = document.getElementById('designSurface');
             const gridY = toNumber(gridYSlider.value, 30);
 
             const createdWidgets = [];
+            const reservedNames = getProjectWidgetNameSet();
             const occupiedRects = page.widgets.map(widget => ({
                 x: widget.cellX,
                 y: widget.cellY,
@@ -5907,7 +6453,9 @@ const designSurface = document.getElementById('designSurface');
                             properties: { ...source.properties }
                         };
 
-                        widget.properties.Name = createCopiedWidgetName(source);
+                        const duplicateIndex = (row * columns) + col;
+                        widget.properties.Name = createCopiedWidgetName(source, reservedNames);
+                        applyCopiedWidgetAddressOffsets(widget, duplicateIndex);
                         widget.properties.X = String(nextX);
                         widget.properties.Y = String(nextY);
                         createdWidgets.push(widget);
@@ -5947,6 +6495,82 @@ const designSurface = document.getElementById('designSurface');
             title.className = 'array-duplicate-title';
             title.textContent = resources.arrayDuplicateTitle;
 
+            const dimensionState = { rows: 1, columns: 2 };
+
+            const dimensionPicker = document.createElement('div');
+            dimensionPicker.className = 'array-duplicate-dimension-picker';
+
+            const dimensionLabel = document.createElement('div');
+            dimensionLabel.className = 'array-duplicate-dimension-label';
+            dimensionPicker.appendChild(dimensionLabel);
+
+            const dimensionGrid = document.createElement('div');
+            dimensionGrid.className = 'array-duplicate-dimension-grid';
+            dimensionPicker.appendChild(dimensionGrid);
+
+            const updateDimensionGrid = () => {
+                dimensionLabel.textContent = `${resources.rows}: ${dimensionState.rows} · ${resources.columns}: ${dimensionState.columns}`;
+                dimensionGrid.querySelectorAll('.array-duplicate-dimension-cell').forEach(cell => {
+                    const row = Number(cell.dataset.row || 0);
+                    const column = Number(cell.dataset.column || 0);
+                    cell.classList.toggle('is-selected', row <= dimensionState.rows && column <= dimensionState.columns);
+                    cell.classList.toggle('is-edge', row === dimensionState.rows || column === dimensionState.columns);
+                });
+            };
+
+            for (let row = 1; row <= 20; row += 1) {
+                for (let column = 1; column <= 20; column += 1) {
+                    const cell = document.createElement('button');
+                    cell.type = 'button';
+                    cell.className = 'array-duplicate-dimension-cell';
+                    cell.dataset.row = String(row);
+                    cell.dataset.column = String(column);
+                    cell.setAttribute('aria-label', `${row} x ${column}`);
+                    dimensionGrid.appendChild(cell);
+                }
+            }
+
+            const setDimensionFromCell = cell => {
+                if (!cell) {
+                    return;
+                }
+
+                dimensionState.rows = Math.max(1, Math.min(20, Number(cell.dataset.row || 1)));
+                dimensionState.columns = Math.max(1, Math.min(20, Number(cell.dataset.column || 1)));
+                updateDimensionGrid();
+            };
+
+            let draggingDimension = false;
+            dimensionGrid.addEventListener('pointerdown', event => {
+                const cell = event.target.closest('.array-duplicate-dimension-cell');
+                if (!cell) {
+                    return;
+                }
+
+                event.preventDefault();
+                draggingDimension = true;
+                dimensionGrid.setPointerCapture?.(event.pointerId);
+                setDimensionFromCell(cell);
+            });
+            dimensionGrid.addEventListener('pointermove', event => {
+                if (!draggingDimension) {
+                    return;
+                }
+
+                const target = document.elementFromPoint(event.clientX, event.clientY);
+                const cell = target?.closest?.('.array-duplicate-dimension-cell');
+                if (cell && dimensionGrid.contains(cell)) {
+                    setDimensionFromCell(cell);
+                }
+            });
+            const stopDimensionDrag = event => {
+                draggingDimension = false;
+                dimensionGrid.releasePointerCapture?.(event.pointerId);
+            };
+            dimensionGrid.addEventListener('pointerup', stopDimensionDrag);
+            dimensionGrid.addEventListener('pointercancel', stopDimensionDrag);
+            updateDimensionGrid();
+
             const fieldGrid = document.createElement('div');
             fieldGrid.className = 'array-duplicate-grid';
 
@@ -5965,15 +6589,11 @@ const designSurface = document.getElementById('designSurface');
                 return { field, input };
             };
 
-            const rowsField = createNumberField(resources.rows, 1);
-            const columnsField = createNumberField(resources.columns, 2);
             const gapXField = createNumberField(resources.gapX, 1);
             const gapYField = createNumberField(resources.gapY, 1);
             gapXField.input.min = '0';
             gapYField.input.min = '0';
 
-            fieldGrid.appendChild(rowsField.field);
-            fieldGrid.appendChild(columnsField.field);
             fieldGrid.appendChild(gapXField.field);
             fieldGrid.appendChild(gapYField.field);
 
@@ -5989,8 +6609,8 @@ const designSurface = document.getElementById('designSurface');
             cancelButton.textContent = resources.cancel;
 
             applyButton.addEventListener('click', () => {
-                const rows = Math.max(1, Math.min(20, Math.floor(toNumber(rowsField.input.value, 1))));
-                const columns = Math.max(1, Math.min(20, Math.floor(toNumber(columnsField.input.value, 2))));
+                const rows = Math.max(1, Math.min(20, Math.floor(dimensionState.rows)));
+                const columns = Math.max(1, Math.min(20, Math.floor(dimensionState.columns)));
                 const gapX = Math.max(0, Math.floor(toNumber(gapXField.input.value, 1)));
                 const gapY = Math.max(0, Math.floor(toNumber(gapYField.input.value, 1)));
                 applyArrayDuplicate(rows, columns, gapX, gapY);
@@ -6007,6 +6627,7 @@ const designSurface = document.getElementById('designSurface');
             footer.appendChild(cancelButton);
 
             dialog.appendChild(title);
+            dialog.appendChild(dimensionPicker);
             dialog.appendChild(fieldGrid);
             dialog.appendChild(footer);
             overlay.appendChild(dialog);
@@ -6765,6 +7386,9 @@ const designSurface = document.getElementById('designSurface');
         }
         if (arrayDuplicateButton) {
             arrayDuplicateButton.addEventListener('click', () => openArrayDuplicateDialog());
+        }
+        if (autoLayoutButton) {
+            autoLayoutButton.addEventListener('click', () => openAutoLayoutDialog());
         }
         if (pageBackColorButton) {
             pageBackColorButton.addEventListener('click', event => {

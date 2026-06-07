@@ -7,6 +7,7 @@
 	const saveButton = document.getElementById('comfilewebSaveButton');
 	const quickSaveButton = document.getElementById('comfilewebQuickSaveButton');
 	const openButton = document.getElementById('comfilewebOpenButton');
+	const temporaryDraftStorageKey = 'comfileweb.temporaryDraft.v1';
 
 	let currentProjectName = '';
 	let documentDirty = false;
@@ -37,6 +38,75 @@
 		setDocumentDirty(true);
 	}
 
+	function saveTemporaryDraft() {
+		if (!documentDirty) {
+			return false;
+		}
+
+		const text = getDocumentText();
+		if (!text || !text.trim()) {
+			return false;
+		}
+
+		try {
+			sessionStorage.setItem(temporaryDraftStorageKey, JSON.stringify({
+				projectName: currentProjectName,
+				documentText: text,
+				savedAt: new Date().toISOString()
+			}));
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function clearTemporaryDraft() {
+		try {
+			sessionStorage.removeItem(temporaryDraftStorageKey);
+		} catch {
+		}
+	}
+
+	function loadTemporaryDraft() {
+		try {
+			const raw = sessionStorage.getItem(temporaryDraftStorageKey);
+			if (!raw) {
+				return null;
+			}
+
+			const draft = JSON.parse(raw);
+			if (!draft || typeof draft.documentText !== 'string' || !draft.documentText.trim()) {
+				clearTemporaryDraft();
+				return null;
+			}
+
+			return draft;
+		} catch {
+			clearTemporaryDraft();
+			return null;
+		}
+	}
+
+	function restoreTemporaryDraftIfAvailable() {
+		const draft = loadTemporaryDraft();
+		if (!draft) {
+			return;
+		}
+
+		setDocumentText(draft.documentText);
+		currentProjectName = draft.projectName || currentProjectName;
+		documentSavedOnce = false;
+		setDocumentDirty(true);
+	}
+
+	function handleBeforeUnload() {
+		if (!documentDirty) {
+			return;
+		}
+
+		saveTemporaryDraft();
+	}
+
 	function getDocumentText() {
 		if (typeof window.exportVisualizationDocumentText !== 'function') {
 			return '';
@@ -54,6 +124,7 @@
 	function clearCurrentProjectName() {
 		currentProjectName = '';
 		documentSavedOnce = false;
+		clearTemporaryDraft();
 		setDocumentDirty(false);
 	}
 
@@ -139,6 +210,7 @@
 
 			const result = await response.json();
 			currentProjectName = result.name || projectName;
+			clearTemporaryDraft();
 			setDocumentSaved();
 			return true;
 		} catch (error) {
@@ -249,6 +321,7 @@
 				setDocumentText(text);
 				currentProjectName = targetName;
 				documentSavedOnce = false;
+				clearTemporaryDraft();
 				setDocumentDirty(false);
 			} catch (error) {
 				window.alert('프로젝트를 불러오는 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
@@ -265,6 +338,7 @@
 			setDocumentText(selection.text);
 			currentProjectName = selection.name || currentProjectName;
 			documentSavedOnce = false;
+			clearTemporaryDraft();
 			setDocumentDirty(false);
 		}
 	}
@@ -713,7 +787,9 @@
 	}
 
 	window.addEventListener('comfileweb-document-dirty', markDocumentDirty);
+	window.addEventListener('beforeunload', handleBeforeUnload);
 	updateSaveButtonState();
+	window.setTimeout(restoreTemporaryDraftIfAvailable, 0);
 
 	if (openButton) {
 		openButton.addEventListener('click', openProject);
