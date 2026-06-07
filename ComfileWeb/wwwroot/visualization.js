@@ -1644,7 +1644,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (kind === 'Toggle') {
-                return { width: 84, height: 44 };
+                return { width: 130, height: 58 };
             }
 
             return { width: 120, height: 72 };
