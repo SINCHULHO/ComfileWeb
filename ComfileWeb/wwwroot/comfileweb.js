@@ -5,9 +5,8 @@
 	'use strict';
 
 	const saveButton = document.getElementById('comfilewebSaveButton');
-	const quickOpenButton = document.getElementById('comfilewebQuickOpenButton');
 	const quickSaveButton = document.getElementById('comfilewebQuickSaveButton');
-	const openButton = document.getElementById('comfilewebOpenButton');
+	const openButtons = Array.from(document.querySelectorAll('.comfileweb-open-button'));
 	const fileMenuButton = document.getElementById('fileMenuButton');
 	const fileMenuPanel = document.getElementById('fileMenuPanel');
 	const fileMenuContainer = fileMenuButton ? fileMenuButton.closest('.logo-file-menu') : null;
@@ -34,13 +33,10 @@
 			saveButton.textContent = textResources.saveAs;
 		}
 
-		if (openButton) {
-			openButton.textContent = textResources.open;
-		}
-
-		if (quickOpenButton) {
-			quickOpenButton.textContent = textResources.open;
-		}
+		openButtons.forEach(button => {
+			button.disabled = false;
+			button.textContent = textResources.open;
+		});
 	}
 
 	function applyLanguageResources(event) {
@@ -990,9 +986,13 @@
 		quickSaveButton.addEventListener('click', quickSaveProject);
 	}
 
-	if (quickOpenButton) {
-		quickOpenButton.addEventListener('click', openProject);
-	}
+
+	openButtons.forEach(button => {
+		button.addEventListener('click', event => {
+			event.preventDefault();
+			openProject();
+		});
+	});
 
 	if (fileMenuButton) {
 		fileMenuButton.addEventListener('click', event => {
@@ -1033,7 +1033,4 @@
 	updateSaveButtonState();
 	window.setTimeout(restoreTemporaryDraftIfAvailable, 0);
 
-	if (openButton) {
-		openButton.addEventListener('click', openProject);
-	}
 })();
