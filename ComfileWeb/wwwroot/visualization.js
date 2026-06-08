@@ -60,6 +60,7 @@ const designSurface = document.getElementById('designSurface');
         const canvasShell = document.querySelector('.canvas-shell');
         const settingsGeneralTab = document.getElementById('settingsGeneralTab');
         const settingsLinkTab = document.getElementById('settingsLinkTab');
+        const settingsScreenTab = document.getElementById('settingsScreenTab');
         const settingsCloseButton = document.getElementById('settingsCloseButton');
 
         const documentModel = {
@@ -144,7 +145,7 @@ const designSurface = document.getElementById('designSurface');
                 color: '배경색',
                 grid: '격자',
                 theme: '테마',
-                language: '언어',
+                language: '언어(Language)',
                 widgets: '위젯',
                 project: '프로젝트',
                 currentPagePrefix: '현재 페이지',
@@ -183,6 +184,7 @@ const designSurface = document.getElementById('designSurface');
                 cancel: '취소',
                 settings: '설정',
                 settingsClose: '설정 닫기',
+                screenSetup: '화면 셋업 (Setup)',
                 projectSaveLocation: '프로젝트 저장 위치',
                 projectSaveLocationHelp: '경로를 직접 입력하거나 [...] 버튼으로 폴더를 선택한 뒤 적용을 누르세요.',
                 linkStep1: '1. 대상 장치 선택',
@@ -246,6 +248,7 @@ const designSurface = document.getElementById('designSurface');
                 cancel: 'Cancel',
                 settings: 'Settings',
                 settingsClose: 'Close Settings',
+                screenSetup: 'Screen Setup',
                 projectSaveLocation: 'Project save location',
                 projectSaveLocationHelp: 'Enter a path directly or choose a folder with [...], then click Apply.',
                 linkStep1: '1. Select Target Device',
@@ -7335,7 +7338,8 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function activateSettingsTab(tabName) {
-            const nextTab = String(tabName || 'general').trim().toLowerCase() === 'link' ? 'link' : 'general';
+            const requestedTab = String(tabName || 'general').trim().toLowerCase();
+            const nextTab = requestedTab === 'link' || requestedTab === 'screen' ? requestedTab : 'general';
             document.querySelectorAll('.app-settings-tab').forEach(button => {
                 const isActive = button.dataset.settingsTab === nextTab;
                 button.classList.toggle('active', isActive);
@@ -8077,6 +8081,9 @@ const designSurface = document.getElementById('designSurface');
         }
         if (settingsLinkTab) {
             settingsLinkTab.addEventListener('click', () => activateSettingsTab('link'));
+        }
+        if (settingsScreenTab) {
+            settingsScreenTab.addEventListener('click', () => activateSettingsTab('screen'));
         }
         if (settingsCloseButton) {
             settingsCloseButton.addEventListener('click', () => {

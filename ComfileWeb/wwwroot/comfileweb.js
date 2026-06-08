@@ -7,6 +7,10 @@
 	const saveButton = document.getElementById('comfilewebSaveButton');
 	const quickSaveButton = document.getElementById('comfilewebQuickSaveButton');
 	const openButton = document.getElementById('comfilewebOpenButton');
+	const fileMenuButton = document.getElementById('fileMenuButton');
+	const fileMenuPanel = document.getElementById('fileMenuPanel');
+	const fileMenuContainer = fileMenuButton ? fileMenuButton.closest('.logo-file-menu') : null;
+	const aboutButton = document.getElementById('aboutButton');
 	const temporaryDraftStorageKey = 'comfileweb.temporaryDraft.v1';
 
 	let currentProjectName = '';
@@ -55,6 +59,64 @@
 		}
 
 		applyLanguageResources({ detail: window.getVisualizationLanguageResources() });
+	}
+
+	function setFileMenuOpen(isOpen) {
+		if (!fileMenuContainer || !fileMenuButton) {
+			return;
+		}
+
+		fileMenuContainer.classList.toggle('open', !!isOpen);
+		fileMenuButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+	}
+
+	function isFileMenuOpen() {
+		return !!fileMenuContainer && fileMenuContainer.classList.contains('open');
+	}
+
+	function closeFileMenu() {
+		setFileMenuOpen(false);
+	}
+
+	function showAboutDialog() {
+		document.querySelectorAll('.about-dialog-backdrop').forEach(element => element.remove());
+
+		const overlay = document.createElement('div');
+		overlay.className = 'about-dialog-backdrop';
+
+		const dialog = document.createElement('div');
+		dialog.className = 'about-dialog';
+		dialog.setAttribute('role', 'dialog');
+		dialog.setAttribute('aria-modal', 'true');
+		dialog.setAttribute('aria-label', 'About ComfileWEB');
+
+		const title = document.createElement('div');
+		title.className = 'about-dialog-title';
+		title.textContent = 'ComfileWEB version 0.80';
+
+		const company = document.createElement('div');
+		company.className = 'about-dialog-company';
+		company.innerHTML = 'COMFILE Technology Inc.<br />HMI Visualization Editor';
+
+		const closeButton = document.createElement('button');
+		closeButton.type = 'button';
+		closeButton.className = 'about-dialog-close';
+		closeButton.textContent = 'OK';
+
+		const close = () => overlay.remove();
+		closeButton.addEventListener('click', close);
+		overlay.addEventListener('click', event => {
+			if (event.target === overlay) {
+				close();
+			}
+		});
+
+		dialog.appendChild(title);
+		dialog.appendChild(company);
+		dialog.appendChild(closeButton);
+		overlay.appendChild(dialog);
+		document.body.appendChild(overlay);
+		closeButton.focus();
 	}
 
 	function setDocumentDirty(isDirty) {
@@ -917,6 +979,38 @@
 	if (quickSaveButton) {
 		quickSaveButton.addEventListener('click', quickSaveProject);
 	}
+
+	if (fileMenuButton) {
+		fileMenuButton.addEventListener('click', event => {
+			event.preventDefault();
+			event.stopPropagation();
+			setFileMenuOpen(!isFileMenuOpen());
+		});
+	}
+
+	if (fileMenuPanel) {
+		fileMenuPanel.addEventListener('click', event => {
+			if (event.target && event.target.closest('button')) {
+				closeFileMenu();
+			}
+		});
+	}
+
+	if (aboutButton) {
+		aboutButton.addEventListener('click', showAboutDialog);
+	}
+
+	document.addEventListener('click', event => {
+		if (fileMenuContainer && !fileMenuContainer.contains(event.target)) {
+			closeFileMenu();
+		}
+	});
+
+	document.addEventListener('keydown', event => {
+		if (event.key === 'Escape') {
+			closeFileMenu();
+		}
+	});
 
 	window.addEventListener('comfileweb-document-dirty', markDocumentDirty);
 	window.addEventListener('visualization-language-changed', applyLanguageResources);

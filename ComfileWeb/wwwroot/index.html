@@ -22,14 +22,19 @@
     <div class="designer">
         <header class="logo-bar" aria-label="ComfileWEB logo bar">
             <button id="settingsToggleButton" class="logo-settings-button" type="button" aria-label="설정" title="설정"></button>
-            <div class="toolbar-logo" aria-label="ComfileWEB logo">ComfileWEB</div>
+            <div class="logo-file-menu">
+                <button id="fileMenuButton" class="logo-file-menu-button" type="button" aria-label="파일 메뉴" title="파일 메뉴" aria-expanded="false">☰</button>
+                <div id="fileMenuPanel" class="logo-file-menu-panel" role="menu" aria-label="File commands">
+                    <button id="projectNewButton" class="logo-file-menu-item" type="button" role="menuitem" title="새 프로젝트" aria-label="새 프로젝트">새 프로젝트</button>
+                    <button id="comfilewebOpenButton" class="logo-file-menu-item comfileweb-open-button" type="button" role="menuitem">열기</button>
+                    <button id="comfilewebSaveButton" class="logo-file-menu-item comfileweb-save-button" type="button" role="menuitem">다른이름으로 저장</button>
+                </div>
+            </div>
+            <button id="aboutButton" class="toolbar-logo" type="button" aria-label="About ComfileWEB" title="About ComfileWEB">ComfileWEB</button>
         </header>
         <header class="toolbar" aria-label="Visualization toolbar">
             <div class="toolbar-group toolbar-file-group" aria-label="File commands">
-                <button id="projectNewButton" class="toolbar-button" type="button" title="새 프로젝트" aria-label="새 프로젝트">새 프로젝트</button>
-                <button id="comfilewebOpenButton" class="toolbar-button comfileweb-open-button" type="button">열기</button>
                 <button id="comfilewebQuickSaveButton" class="toolbar-button comfileweb-save-button" type="button">저장</button>
-                <button id="comfilewebSaveButton" class="toolbar-button comfileweb-save-button" type="button">다른이름으로 저장</button>
             </div>
             <div class="toolbar-group toolbar-run-group" aria-label="Run commands">
                 <button class="toolbar-button run-button" type="button" data-i18n="run">실행</button>
@@ -58,21 +63,6 @@
                 <label class="division-control division-control-grid" title="격자 표시">
                     <span data-i18n="grid">Grid</span>
                     <input id="gridVisibleCheckbox" type="checkbox" checked />
-                </label>
-                <span class="division-separator" aria-hidden="true"></span>
-                <label class="division-control compact-division-control" title="Theme">
-                    <span data-i18n="theme">Theme</span>
-                    <select id="themeModeSelect" class="toolbar-select" aria-label="Theme mode">
-                        <option value="dark" selected>Dark</option>
-                        <option value="light">Light</option>
-                    </select>
-                </label>
-                <label class="division-control compact-division-control" title="Language">
-                    <span>Language</span>
-                    <select id="languageModeSelect" class="toolbar-select" aria-label="Language mode">
-                        <option value="en">English</option>
-                        <option value="ko" selected>Korean</option>
-                    </select>
                 </label>
                 <span class="division-separator" aria-hidden="true"></span>
                 <label class="division-control grid-slider-control">
@@ -116,6 +106,7 @@
                         </div>
                         <div class="app-settings-tabs" role="tablist" aria-label="Settings tabs">
                             <button id="settingsLinkTab" class="app-settings-tab active" type="button" role="tab" data-settings-tab="link" data-i18n="link">링크</button>
+                            <button id="settingsScreenTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="screen" data-i18n="screenSetup">화면 셋업 (Setup)</button>
                             <button id="settingsGeneralTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="general" data-i18n="projectSaveLocation">프로젝트 저장 위치</button>
                         </div>
                         <section id="settingsLinkPanel" class="settings-link-panel app-settings-tab-panel active" data-settings-panel="link" aria-label="Link settings" role="tabpanel">
@@ -160,6 +151,22 @@
                                     <div id="usbConnectionState" class="link-connection-state">Disconnected</div>
                                 </section>
                             </div>
+                        </section>
+                        <section id="settingsScreenPanel" class="app-settings-tab-panel" data-settings-panel="screen" role="tabpanel">
+                            <label class="app-settings-field screen-settings-field">
+                                <span data-i18n="theme">Theme</span>
+                                <select id="themeModeSelect" class="property-select" aria-label="Theme mode">
+                                    <option value="dark" selected>Dark</option>
+                                    <option value="light">Light</option>
+                                </select>
+                            </label>
+                            <label class="app-settings-field screen-settings-field">
+                                <span data-i18n="language">Language</span>
+                                <select id="languageModeSelect" class="property-select" aria-label="Language mode">
+                                    <option value="en">English</option>
+                                    <option value="ko" selected>Korean</option>
+                                </select>
+                            </label>
                         </section>
                         <section id="settingsGeneralPanel" class="app-settings-tab-panel" data-settings-panel="general" role="tabpanel">
                             <label class="app-settings-field">
