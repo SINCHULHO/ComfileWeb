@@ -234,6 +234,107 @@ function getAddressAreaEntries(provider, area, searchText, jumpStart) {
     return result;
 }
 
+function parseAddressEntry(provider, address) {
+    const key = normalizeVisualizationAddressKey(address);
+    if (!provider || !key) {
+        return null;
+    }
+
+    const areas = Array.isArray(provider.areas)
+        ? [...provider.areas].sort((left, right) => String(right.prefix || '').length - String(left.prefix || '').length)
+        : [];
+    for (const area of areas) {
+        const prefix = String(area?.prefix || '').toUpperCase();
+        if (!prefix || !key.startsWith(prefix)) {
+            continue;
+        }
+
+        const indexText = key.slice(prefix.length);
+        if (!/^\d+$/.test(indexText)) {
+            continue;
+        }
+
+        const index = Number.parseInt(indexText, 10);
+        const size = Number(area?.size || 0);
+        if (!Number.isFinite(index) || index < 0 || (size > 0 && index >= size)) {
+            continue;
+        }
+
+        const importedMetadata = getImportedAddressMetadata(`${prefix}${index}`);
+        const alias = String(importedMetadata?.alias || provider.aliases?.[prefix]?.[index] || '');
+        const comment = String(importedMetadata?.comment || '');
+        return {
+            address: `${prefix}${index}`,
+            alias,
+            comment,
+            type: String(area?.type || ''),
+            prefix,
+            index
+        };
+    }
+
+    return null;
+}
+
+function getActiveAddressEntries(provider, usedAddressKeys, currentAddress, searchText) {
+    const normalizedSearch = String(searchText || '').trim().toUpperCase();
+    const collected = new Map();
+    const append = address => {
+        const entry = parseAddressEntry(provider, address);
+        if (!entry) {
+            return;
+        }
+
+        if (entry.prefix === 'S' || entry.prefix === 'SD') {
+            return;
+        }
+
+        const key = normalizeVisualizationAddressKey(entry.address);
+        if (!key || collected.has(key)) {
+            return;
+        }
+
+        if (normalizedSearch &&
+            !entry.address.toUpperCase().includes(normalizedSearch) &&
+            !entry.alias.toUpperCase().includes(normalizedSearch) &&
+            !entry.comment.toUpperCase().includes(normalizedSearch) &&
+            !entry.type.toUpperCase().includes(normalizedSearch)) {
+            return;
+        }
+
+        collected.set(key, entry);
+    };
+
+    if (usedAddressKeys instanceof Set) {
+        usedAddressKeys.forEach(addressKey => append(addressKey));
+    }
+    append(currentAddress);
+
+    importedAddressMetadata.forEach((metadata, address) => {
+        const alias = String(metadata?.alias || '').trim();
+        const comment = String(metadata?.comment || '').trim();
+        if (alias || comment) {
+            append(address);
+        }
+    });
+
+    Object.entries(provider?.aliases || {}).forEach(([prefix, indexMap]) => {
+        Object.keys(indexMap || {}).forEach(index => {
+            append(`${prefix}${index}`);
+        });
+    });
+
+    return Array.from(collected.values())
+        .sort((left, right) => {
+            if (left.prefix !== right.prefix) {
+                return left.prefix.localeCompare(right.prefix);
+            }
+            return left.index - right.index;
+        })
+        .slice(0, 500)
+        .map(({ address, alias, comment, type }) => ({ address, alias, comment, type }));
+}
+
 function openAddressPicker(widget, propertyKey, currentAddress) {
     if (!widget || runtimeRunning) {
         return;
@@ -421,6 +522,10 @@ function renderAddressPickerMarkup(state, allowedAreas) {
         </div>
         <div class="address-picker-body">
             <div class="address-picker-sidebar">
+                <button class="address-picker-area${state.selectedAreaPrefix === '__ACTIVE__' ? ' is-selected' : ''}" type="button" data-address-area="__ACTIVE__">
+                    <span>${useKoreanLanguage ? '활성주소' : 'Active'}</span>
+                    <small>${useKoreanLanguage ? '비트/데이터' : 'Bit/Data'}</small>
+                </button>
                 ${allowedAreas.map(area => `<button class="address-picker-area${area.prefix === state.selectedAreaPrefix ? ' is-selected' : ''}" type="button" data-address-area="${escapeHtml(area.prefix)}">
                     <span>${escapeHtml(area.prefix)}</span>
                     <small>${escapeHtml(useKoreanLanguage ? area.labelKo : area.type)}</small>
@@ -708,7 +813,9 @@ function bindAddressPickerEvents(backdrop, state) {
 function renderAddressPickerRows(backdrop, state) {
     const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
     renderAddressJumpPanel(backdrop, state);
-    const rows = getAddressAreaEntries(state.provider, area, state.searchText, getAddressJumpStart(state));
+    const rows = state.selectedAreaPrefix === '__ACTIVE__'
+        ? getActiveAddressEntries(state.provider, state.usedAddressKeys, state.currentAddress, state.searchText)
+        : getAddressAreaEntries(state.provider, area, state.searchText, getAddressJumpStart(state));
     const tbody = backdrop.querySelector('.address-picker-table tbody');
     const selectedKey = normalizeVisualizationAddressKey(state.selectedAddress);
     const currentKey = normalizeVisualizationAddressKey(state.currentAddress);

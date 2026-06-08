@@ -5297,6 +5297,86 @@ const designSurface = document.getElementById('designSurface');
             };
         }
 
+        function getCublocLadderItemData(dataTransfer) {
+            if (!dataTransfer) {
+                return null;
+            }
+
+            const formats = [
+                'Comfile.CUBLOC2.LadderItem',
+                'comfile.cubloc2.ladderitem',
+                'application/x-comfile-cubloc2-ladderitem',
+                'text/plain'
+            ];
+
+            for (const format of formats) {
+                let raw = '';
+                try {
+                    raw = dataTransfer.getData(format);
+                } catch {
+                    raw = '';
+                }
+
+                if (!raw || !raw.trim()) {
+                    continue;
+                }
+
+                try {
+                    const item = JSON.parse(raw);
+                    const element = String(item?.element || '').trim();
+                    const address = normalizeVisualizationAddressKey(item?.address || '');
+                    if (element && address) {
+                        return { element, address };
+                    }
+                } catch {
+                }
+            }
+
+            return null;
+        }
+
+        function getCublocLadderWidgetKind(element) {
+            switch (String(element || '').trim().toLowerCase()) {
+                case 'contact':
+                    return 'Button';
+                case 'coil':
+                    return 'Lamp';
+                case 'timer':
+                case 'counter':
+                    return 'Number';
+                default:
+                    return '';
+            }
+        }
+
+        function isCublocLadderDrag(dataTransfer) {
+            if (!dataTransfer || !dataTransfer.types) {
+                return false;
+            }
+
+            return Array.from(dataTransfer.types).some(type => String(type || '').toLowerCase() === 'comfile.cubloc2.ladderitem');
+        }
+
+        function createWidgetFromCublocLadderItem(item, cell) {
+            const kind = getCublocLadderWidgetKind(item?.element);
+            const address = normalizeVisualizationAddressKey(item?.address || '');
+            if (!kind || !address) {
+                return null;
+            }
+
+            const widget = createWidget(kind, cell.x, cell.y);
+            widget.properties.Address = address;
+            if (kind === 'Button') {
+                widget.properties.Text = address;
+            } else if (kind === 'Lamp') {
+                widget.properties.Text = address;
+            } else if (kind === 'Number') {
+                widget.properties.Text = '0';
+            }
+
+            return widget;
+        }
+
         function isCellOccupied(cellX, cellY) {
             return getCurrentPage().widgets.some(widget =>
                 cellX >= widget.cellX &&
@@ -7541,7 +7621,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             const kind = event.dataTransfer.types.includes('text/plain') ? event.dataTransfer.getData('text/plain') : '';
-            if (isSupportedWidgetKind(kind) || kind === '') {
+            if (isCublocLadderDrag(event.dataTransfer) || isSupportedWidgetKind(kind) || kind === '') {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'copy';
                 designSurface.classList.add('drag-over');
@@ -7570,17 +7650,20 @@ const designSurface = document.getElementById('designSurface');
             event.preventDefault();
             designSurface.classList.remove('drag-over');
 
-            const kind = event.dataTransfer.getData('text/plain');
-            if (!isSupportedWidgetKind(kind)) {
-                return;
-            }
-
             const cell = getDropCell(event);
             if (isCellOccupied(cell.x, cell.y)) {
                 return;
             }
 
-            const widget = createWidget(kind, cell.x, cell.y);
+            const ladderItem = getCublocLadderItemData(event.dataTransfer);
+            const widget = ladderItem
+                ? createWidgetFromCublocLadderItem(ladderItem, cell)
+                : createWidget(event.dataTransfer.getData('text/plain'), cell.x, cell.y);
+
+            if (!widget || !isSupportedWidgetKind(widget.kind)) {
+                return;
+            }
+
             pushUndoState();
             getCurrentPage().widgets.push(widget);
             setSelectedWidgets([widget.id]);

@@ -92,11 +92,15 @@
 
 		const title = document.createElement('div');
 		title.className = 'about-dialog-title';
-		title.textContent = 'ComfileWEB version 0.80';
+		title.textContent = 'ComfileWEB';
 
-		const company = document.createElement('div');
-		company.className = 'about-dialog-company';
-		company.innerHTML = 'COMFILE Technology Inc.<br />HMI Visualization Editor';
+		const version = document.createElement('div');
+		version.className = 'about-dialog-version';
+		version.textContent = 'Version 0.80';
+
+		const meta = document.createElement('div');
+		meta.className = 'about-dialog-meta';
+		meta.innerHTML = 'COMFILE Technology Inc.<br />© 2026 COMFILE Technology Inc. All rights reserved.<br />HMI 화면 설계, 위젯 배치, 장치 링크 설정 등 핵심 기능을 제공합니다.<br />지원 디바이스 : CUBLOC CORE, CUBLOC MSB, CUBLOC2';
 
 		const closeButton = document.createElement('button');
 		closeButton.type = 'button';
@@ -112,7 +116,8 @@
 		});
 
 		dialog.appendChild(title);
-		dialog.appendChild(company);
+		dialog.appendChild(version);
+		dialog.appendChild(meta);
 		dialog.appendChild(closeButton);
 		overlay.appendChild(dialog);
 		document.body.appendChild(overlay);
