@@ -34,6 +34,7 @@
         </header>
         <header class="toolbar" aria-label="Visualization toolbar">
             <div class="toolbar-group toolbar-file-group" aria-label="File commands">
+                <button id="comfilewebQuickOpenButton" class="toolbar-button comfileweb-open-button" type="button">열기</button>
                 <button id="comfilewebQuickSaveButton" class="toolbar-button comfileweb-save-button" type="button">저장</button>
             </div>
             <div class="toolbar-group toolbar-run-group" aria-label="Run commands">
@@ -45,7 +46,6 @@
                     <span id="deviceConnectionStatusDot" class="device-connection-status-dot" aria-hidden="true"></span>
                     <span id="deviceConnectionStatusText" class="device-connection-status-text">디바이스 미연결</span>
                 </button>
-                <button id="toolbarDeviceConnectButton" class="toolbar-button toolbar-device-connect-button" type="button">연결</button>
             </div>
             <div class="toolbar-group toolbar-align-group" aria-label="Alignment tools">
                 <button id="alignTopButton" class="align-tool icon-align-top" type="button" title="위 맞춤" aria-label="위 맞춤"></button>
@@ -106,6 +106,7 @@
                         </div>
                         <div class="app-settings-tabs" role="tablist" aria-label="Settings tabs">
                             <button id="settingsLinkTab" class="app-settings-tab active" type="button" role="tab" data-settings-tab="link" data-i18n="link">링크</button>
+                            <button id="settingsSourceSyncTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="source" data-i18n="addressLadderSync">주소/래더 동기화</button>
                             <button id="settingsScreenTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="screen" data-i18n="screenSetup">화면 셋업 (Setup)</button>
                             <button id="settingsGeneralTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="general" data-i18n="projectSaveLocation">프로젝트 저장 위치</button>
                         </div>
@@ -146,10 +147,40 @@
                                 </section>
 
                                 <section id="linkStep4" class="link-step" data-step="4">
-                                    <div class="link-step-title" data-i18n="linkStep4">4. 연결</div>
-                                    <button id="usbConnectButton" class="toolbar-button" type="button" style="width:100%">Connect</button>
-                                    <div id="usbConnectionState" class="link-connection-state">Disconnected</div>
+                                    <div class="link-step-title" data-i18n="linkStep4">4. 연결 테스트</div>
+                                    <button id="usbConnectButton" class="toolbar-button" type="button" style="width:100%" data-i18n="connectionTest">연결 테스트</button>
+                                    <div id="usbConnectionState" class="link-connection-state">실행 시 연결됩니다</div>
                                 </section>
+                            </div>
+                        </section>
+                        <section id="settingsSourceSyncPanel" class="app-settings-tab-panel" data-settings-panel="source" role="tabpanel">
+                            <div class="source-sync-panel">
+                                <div class="source-sync-title" data-i18n="addressLadderSync">주소/래더 동기화</div>
+                                <div id="sourceSyncUnsupportedMessage" class="app-settings-help" data-i18n="sourceSyncUnsupported">CUBLOC2 장치를 선택하면 소스 파일 동기화를 사용할 수 있습니다.</div>
+                                <div id="sourceSyncContent" class="source-sync-content">
+                                    <div class="source-sync-file-block">
+                                        <div class="source-sync-file-label" data-i18n="cubloc2SourceFile">CUBLOC2 소스 파일</div>
+                                        <div id="cublocSourceFileName" class="source-sync-file-name">선택된 파일 없음</div>
+                                    </div>
+                                    <div class="source-sync-status-grid" aria-label="CUBLOC2 source synchronization status">
+                                        <div class="source-sync-status-label" data-i18n="sourceSyncState">상태</div>
+                                        <div id="cublocSourceConnectionState" class="source-sync-status-value">연결 안됨</div>
+                                        <div class="source-sync-status-label" data-i18n="lastSyncTime">마지막 동기화</div>
+                                        <div id="cublocSourceLastSyncTime" class="source-sync-status-value">-</div>
+                                        <div class="source-sync-status-label" data-i18n="sourceFileModifiedTime">파일 수정 시간</div>
+                                        <div id="cublocSourceModifiedTime" class="source-sync-status-value">-</div>
+                                    </div>
+                                    <div class="source-sync-actions">
+                                        <button id="cublocSourceFileBrowseButton" class="toolbar-button" type="button" data-i18n="syncNow">지금 동기화</button>
+                                        <button id="cublocSourceFileChooseButton" class="toolbar-button" type="button" data-i18n="connectOrChangeSourceFile">소스 파일 연결/변경</button>
+                                    </div>
+                                    <label class="source-sync-auto-option">
+                                        <input id="cublocSourceAutoSyncCheckbox" type="checkbox" />
+                                        <span data-i18n="autoSyncSourceFile">파일 변경 시 자동 동기화</span>
+                                    </label>
+                                    <div id="cublocSourceSummary" class="source-sync-summary">Alias: 0 / Comment: 0 / Ladder: 0</div>
+                                    <div class="app-settings-help" data-i18n="sourceSyncHelp">CUBLOC2 Studio 프로젝트 파일에서 Alias, Comment, Ladder 정보를 가져와 주소 테이블과 LD 모니터링에 사용합니다.</div>
+                                </div>
                             </div>
                         </section>
                         <section id="settingsScreenPanel" class="app-settings-tab-panel" data-settings-panel="screen" role="tabpanel">

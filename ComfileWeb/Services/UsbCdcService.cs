@@ -141,20 +141,31 @@ public sealed class UsbCdcService
         {
             DisconnectCore();
 
-            var serialPort = new SerialPort(normalizedPort, baudRate)
-            {
-                NewLine = "\r\n",
-                ReadTimeout = 700,
-                WriteTimeout = 700,
-                DtrEnable = true,
-                RtsEnable = true,
-                Handshake = Handshake.None,
-                Encoding = TextEncoding
-            };
-
+            var serialPort = CreateSerialPort(normalizedPort, baudRate);
             serialPort.Open();
             _port = serialPort;
             return _port.IsOpen;
+        }
+    }
+
+    public bool Test(string? portName, int baudRate)
+    {
+        string normalizedPort = string.IsNullOrWhiteSpace(portName) ? string.Empty : portName.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedPort))
+        {
+            return false;
+        }
+
+        lock (_sync)
+        {
+            if (_port is { IsOpen: true })
+            {
+                return string.Equals(_port.PortName, normalizedPort, StringComparison.OrdinalIgnoreCase);
+            }
+
+            using var serialPort = CreateSerialPort(normalizedPort, baudRate);
+            serialPort.Open();
+            return serialPort.IsOpen;
         }
     }
 
@@ -185,5 +196,19 @@ public sealed class UsbCdcService
             _port.Dispose();
             _port = null;
         }
+    }
+
+    private static SerialPort CreateSerialPort(string portName, int baudRate)
+    {
+        return new SerialPort(portName, baudRate > 0 ? baudRate : 115200)
+        {
+            NewLine = "\r\n",
+            ReadTimeout = 700,
+            WriteTimeout = 700,
+            DtrEnable = true,
+            RtsEnable = true,
+            Handshake = Handshake.None,
+            Encoding = TextEncoding
+        };
     }
 }

@@ -5,6 +5,7 @@
 	'use strict';
 
 	const saveButton = document.getElementById('comfilewebSaveButton');
+	const quickOpenButton = document.getElementById('comfilewebQuickOpenButton');
 	const quickSaveButton = document.getElementById('comfilewebQuickSaveButton');
 	const openButton = document.getElementById('comfilewebOpenButton');
 	const fileMenuButton = document.getElementById('fileMenuButton');
@@ -35,6 +36,10 @@
 
 		if (openButton) {
 			openButton.textContent = textResources.open;
+		}
+
+		if (quickOpenButton) {
+			quickOpenButton.textContent = textResources.open;
 		}
 	}
 
@@ -983,6 +988,10 @@
 
 	if (quickSaveButton) {
 		quickSaveButton.addEventListener('click', quickSaveProject);
+	}
+
+	if (quickOpenButton) {
+		quickOpenButton.addEventListener('click', openProject);
 	}
 
 	if (fileMenuButton) {

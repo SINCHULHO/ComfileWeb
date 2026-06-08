@@ -815,6 +815,114 @@ function parseCbprojAddressMetadata(arrayBuffer) {
     return { entries, ldMonitorDocument, ldEntries };
 }
 
+function importCublocSourceResult(result, sourceFileName) {
+    const entries = Array.isArray(result) ? result : (result.entries || []);
+    setImportedAddressMetadata(entries, sourceFileName);
+    setLdMonitorDocument(result.ldMonitorDocument || null, sourceFileName);
+    if (window.visualizationDocumentModel) {
+        window.visualizationDocumentModel.addressMetadata = exportImportedAddressMetadata();
+        window.visualizationDocumentModel.addressMetadataSourceFileName = importedAddressMetadataSourceFileName;
+    }
+    if (typeof notifyVisualizationDirty === 'function') {
+        notifyVisualizationDirty();
+    }
+
+    return {
+        entries,
+        ldMonitorDocument: result.ldMonitorDocument || null,
+        sourceFileName
+    };
+}
+
+async function importCublocSourceFile(file) {
+    if (!file) {
+        return null;
+    }
+
+    if (!String(file.name || '').toLowerCase().endsWith('.cbproj')) {
+        window.alert(useKoreanLanguage ? 'cbproj 파일만 선택할 수 있습니다.' : 'Only cbproj files can be selected.');
+        return null;
+    }
+
+    try {
+        const result = parseCbprojAddressMetadata(await file.arrayBuffer());
+        const importResult = importCublocSourceResult(result, file.name);
+        importResult.file = file;
+        return importResult;
+    } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        window.alert((useKoreanLanguage ? 'CUBLOC2 소스 파일 가져오기에 실패했습니다: ' : 'Failed to import CUBLOC2 source file: ') + message);
+        return null;
+    }
+}
+
+async function openCublocSourceFileHandlePicker() {
+    if (typeof window.showOpenFilePicker !== 'function') {
+        return null;
+    }
+
+    try {
+        const handles = await window.showOpenFilePicker({
+            multiple: false,
+            types: [
+                {
+                    description: 'CUBLOC2 project file',
+                    accept: {
+                        'application/octet-stream': ['.cbproj'],
+                        'application/json': ['.cbproj']
+                    }
+                }
+            ]
+        });
+
+        const handle = handles && handles[0];
+        if (!handle) {
+            return null;
+        }
+
+        const file = await handle.getFile();
+        const result = await importCublocSourceFile(file);
+        if (result) {
+            result.fileHandle = handle;
+        }
+
+        return result;
+    } catch (error) {
+        if (error && error.name === 'AbortError') {
+            return null;
+        }
+
+        console.warn(error);
+        return null;
+    }
+}
+
+function openCublocSourceImportPicker() {
+    return new Promise(resolve => {
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.accept = '.cbproj';
+        picker.style.display = 'none';
+        picker.addEventListener('change', async () => {
+            const file = picker.files && picker.files[0];
+            picker.remove();
+            if (!file) {
+                resolve(null);
+                return;
+            }
+
+            resolve(await importCublocSourceFile(file));
+        }, { once: true });
+
+        document.body.appendChild(picker);
+        picker.click();
+    });
+}
+
+window.importCublocSourceFile = importCublocSourceFile;
+window.openCublocSourceFileHandlePicker = openCublocSourceFileHandlePicker;
+window.openCublocSourceImportPicker = openCublocSourceImportPicker;
+
 function openCbprojAliasImportPicker(backdrop, state, button) {
     const picker = document.createElement('input');
     picker.type = 'file';
@@ -834,12 +942,8 @@ function openCbprojAliasImportPicker(backdrop, state, button) {
 
         try {
             const result = parseCbprojAddressMetadata(await file.arrayBuffer());
-            const entries = Array.isArray(result) ? result : (result.entries || []);
-            setImportedAddressMetadata(entries, file.name);
-            setLdMonitorDocument(result.ldMonitorDocument || null, file.name);
-            if (typeof notifyVisualizationDirty === 'function') {
-                notifyVisualizationDirty();
-            }
+            const importResult = importCublocSourceResult(result, file.name);
+            const entries = importResult.entries;
             renderAddressPickerRows(backdrop, state);
             if (button) {
                 button.textContent = useKoreanLanguage ? `가져옴 ${entries.length}` : `Imported ${entries.length}`;

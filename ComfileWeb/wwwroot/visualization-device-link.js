@@ -94,9 +94,6 @@ function updateLinkWizardStepState() {
     if (usbConnectButton) {
         usbConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
     }
-    if (toolbarDeviceConnectButton) {
-        toolbarDeviceConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
-    }
 
     updateDeviceConnectionStatusBar();
 }
@@ -111,26 +108,34 @@ function updateDeviceConnectionStatusBar() {
     const transport = String(linkTransportSelect?.value || '').trim();
     const portName = device ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
     const isConnected = !!usbCdcConnectionState.isConnected;
+    const lastTestOk = !!usbCdcConnectionState.testOk && !!portName && portName === usbCdcConnectionState.testPortName;
     const hasConfiguration = !!device && (!!transport || !!portName);
 
     deviceConnectionStatusButton.classList.toggle('is-connected', isConnected);
-    deviceConnectionStatusButton.classList.toggle('is-configured', !isConnected && hasConfiguration);
+    deviceConnectionStatusButton.classList.toggle('is-configured', !isConnected && (lastTestOk || hasConfiguration));
     deviceConnectionStatusButton.classList.remove('is-error');
 
+    let statusText = '';
+    let titleText = '';
+
     if (isConnected) {
-        deviceConnectionStatusText.textContent = [device || 'Device', portName || usbCdcConnectionState.portName, useKorean ? '연결됨' : 'Connected']
-            .filter(Boolean)
-            .join(' / ');
+        const activePort = portName || usbCdcConnectionState.portName;
+        statusText = [activePort, useKorean ? '실행 중 연결됨' : 'Connected while running'].filter(Boolean).join(' · ');
+        titleText = [device || 'Device', transport, activePort, useKorean ? '실행 중 연결됨' : 'Connected while running'].filter(Boolean).join(' / ');
+    } else if (lastTestOk) {
+        statusText = [portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' · ');
+        titleText = [device || 'Device', transport, portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' / ');
     } else if (hasConfiguration) {
-        deviceConnectionStatusText.textContent = [
-            [device || (useKorean ? '디바이스' : 'Device'), transport, portName].filter(Boolean).join(' / '),
-            useKorean ? '연결 안됨' : 'Not connected'
-        ]
-            .filter(Boolean)
-            .join(' - ');
+        statusText = [portName || transport, useKorean ? '실행 시 연결' : 'Connects on run'].filter(Boolean).join(' · ');
+        titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '실행 시 연결' : 'Connects on run'].filter(Boolean).join(' / ');
     } else {
-        deviceConnectionStatusText.textContent = useKorean ? '디바이스 미연결' : 'Device not connected';
+        statusText = useKorean ? '디바이스 미설정' : 'Device not set';
+        titleText = useKorean ? '디바이스 연결 설정' : 'Device connection settings';
     }
+
+    deviceConnectionStatusText.textContent = statusText;
+    deviceConnectionStatusButton.title = titleText;
+    deviceConnectionStatusButton.setAttribute('aria-label', titleText);
 }
 
 function updateUsbConnectionUi(connectionState) {
@@ -140,8 +145,12 @@ function updateUsbConnectionUi(connectionState) {
     const reportedPort = connectionState && connectionState.portName ? String(connectionState.portName) : '';
     const isConnected = !!(connectionState && connectionState.isConnected && selectedDevice && selectedPort && selectedPort === reportedPort);
     const portName = isConnected ? reportedPort : '';
-    usbCdcConnectionState = { isConnected, portName };
-    const disconnectedText = useKorean ? '연결 안됨' : 'Disconnected';
+    const testOk = !!(connectionState && connectionState.testOk && selectedPort && selectedPort === String(connectionState.testPortName || '').trim());
+    const testPortName = testOk ? selectedPort : '';
+    usbCdcConnectionState = { isConnected, portName, testOk, testPortName };
+    const disconnectedText = testOk
+        ? (useKorean ? '연결 이상없음' : 'Connection OK')
+        : (useKorean ? '실행 시 연결됩니다' : 'Connects when runtime starts');
     const connectedText = useKorean
         ? `연결됨${portName ? ` (${portName})` : ''}`
         : `Connected${portName ? ` (${portName})` : ''}`;
@@ -150,15 +159,7 @@ function updateUsbConnectionUi(connectionState) {
         usbConnectionState.textContent = isConnected ? connectedText : disconnectedText;
     }
     if (usbConnectButton) {
-        usbConnectButton.textContent = isConnected
-            ? (useKorean ? '연결 해제' : 'Disconnect')
-            : (useKorean ? '연결' : 'Connect');
-    }
-    if (toolbarDeviceConnectButton) {
-        toolbarDeviceConnectButton.textContent = isConnected
-            ? (useKorean ? '연결 해제' : 'Disconnect')
-            : (useKorean ? '연결' : 'Connect');
-        toolbarDeviceConnectButton.classList.toggle('is-connected', isConnected);
+        usbConnectButton.textContent = useKorean ? '연결 테스트' : 'Connection test';
     }
 
     updateDeviceConnectionStatusBar();
@@ -304,7 +305,9 @@ async function loadUsbCdcPorts(preferredPortName) {
         fillComPortOptionsWithInfo(payload?.portInfos, preferredPortName || '');
         updateUsbConnectionUi({
             isConnected: !!payload?.isConnected,
-            portName: payload?.portName || ''
+            portName: payload?.portName || '',
+            testOk: usbCdcConnectionState.testOk,
+            testPortName: usbCdcConnectionState.testPortName
         });
     } catch (error) {
         fillComPortOptions([], '');
@@ -314,17 +317,6 @@ async function loadUsbCdcPorts(preferredPortName) {
 }
 
 async function toggleUsbCdcConnection() {
-    const currentlyConnected = !!usbCdcConnectionState.isConnected;
-    if (currentlyConnected) {
-        try {
-            await fetch('/api/usb-cdc/disconnect', { method: 'POST' });
-        } catch (error) {
-            console.warn(error);
-        }
-        await loadUsbCdcPorts('');
-        return;
-    }
-
     const selectedPortName = String(linkComPortSelect?.value || '').trim();
     if (!selectedPortName) {
         await loadUsbCdcPorts('');
@@ -333,7 +325,8 @@ async function toggleUsbCdcConnection() {
     }
 
     try {
-        const response = await fetch('/api/usb-cdc/connect', {
+        updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
+        const response = await fetch('/api/usb-cdc/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -344,14 +337,15 @@ async function toggleUsbCdcConnection() {
         });
 
         if (!response.ok) {
-            throw new Error(`USB-CDC connect failed: ${response.status}`);
+            throw new Error(`USB-CDC test failed: ${response.status}`);
         }
 
-        const payload = await response.json();
-        await loadUsbCdcPorts(payload?.portName || selectedPortName);
+        await response.json();
+        updateUsbConnectionUi({ isConnected: false, portName: '', testOk: true, testPortName: selectedPortName });
     } catch (error) {
         console.warn(error);
-        alert(useKoreanLanguage ? 'USB-CDC 연결에 실패했습니다.' : 'Failed to connect USB-CDC.');
+        updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
+        alert(useKoreanLanguage ? 'USB-CDC 연결 테스트에 실패했습니다.' : 'USB-CDC connection test failed.');
         await loadUsbCdcPorts(selectedPortName);
     }
 }

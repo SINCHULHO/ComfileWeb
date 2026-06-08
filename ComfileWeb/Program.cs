@@ -145,6 +145,37 @@ usbApi.MapPost("/connect", (UsbCdcConnectRequest request, UsbCdcService usbCdc) 
     }
 });
 
+usbApi.MapPost("/test", (UsbCdcConnectRequest request, UsbCdcService usbCdc) =>
+{
+    if (request is null || string.IsNullOrWhiteSpace(request.PortName))
+    {
+        return Results.BadRequest(new { detail = "Port name is required." });
+    }
+
+    int baudRate = request.BaudRate is > 0 ? request.BaudRate.Value : 115200;
+
+    try
+    {
+        bool ok = usbCdc.Test(request.PortName, baudRate);
+        if (!ok)
+        {
+            return Results.BadRequest(new { detail = "Unable to open selected USB-CDC port." });
+        }
+
+        return Results.Ok(new
+        {
+            ok,
+            isConnected = usbCdc.IsConnected,
+            portName = request.PortName,
+            baudRate
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { detail = ex.Message });
+    }
+});
+
 usbApi.MapPost("/disconnect", (UsbCdcService usbCdc) =>
 {
     usbCdc.Disconnect();

@@ -60,8 +60,19 @@ const designSurface = document.getElementById('designSurface');
         const canvasShell = document.querySelector('.canvas-shell');
         const settingsGeneralTab = document.getElementById('settingsGeneralTab');
         const settingsLinkTab = document.getElementById('settingsLinkTab');
+        const settingsSourceSyncTab = document.getElementById('settingsSourceSyncTab');
         const settingsScreenTab = document.getElementById('settingsScreenTab');
         const settingsCloseButton = document.getElementById('settingsCloseButton');
+        const sourceSyncUnsupportedMessage = document.getElementById('sourceSyncUnsupportedMessage');
+        const sourceSyncContent = document.getElementById('sourceSyncContent');
+        const cublocSourceFileName = document.getElementById('cublocSourceFileName');
+        const cublocSourceConnectionState = document.getElementById('cublocSourceConnectionState');
+        const cublocSourceLastSyncTime = document.getElementById('cublocSourceLastSyncTime');
+        const cublocSourceModifiedTime = document.getElementById('cublocSourceModifiedTime');
+        const cublocSourceFileBrowseButton = document.getElementById('cublocSourceFileBrowseButton');
+        const cublocSourceFileChooseButton = document.getElementById('cublocSourceFileChooseButton');
+        const cublocSourceAutoSyncCheckbox = document.getElementById('cublocSourceAutoSyncCheckbox');
+        const cublocSourceSummary = document.getElementById('cublocSourceSummary');
 
         const documentModel = {
             version: 1,
@@ -128,6 +139,13 @@ const designSurface = document.getElementById('designSurface');
         let visualizationAddressAliasSelectionKey = '';
         let settingsPanelVisible = false;
         let settingsReturnPageName = '';
+        let cublocSourceFileHandle = null;
+        let cublocSourceFileObject = null;
+        let cublocSourceLastSyncTimestamp = 0;
+        let cublocSourceLastModifiedTimestamp = 0;
+        let cublocSourceAutoSyncEnabled = false;
+        let cublocSourceAutoSyncTimerId = 0;
+        let cublocSourceSyncInProgress = false;
         const ldMonitor = typeof createVisualizationLdMonitor === 'function'
             ? createVisualizationLdMonitor({
                 getMainLayout: () => mainLayout,
@@ -204,6 +222,18 @@ const designSurface = document.getElementById('designSurface');
                 screenSetup: '화면 셋업 (Setup)',
                 projectSaveLocation: '프로젝트 저장 위치',
                 projectSaveLocationHelp: '경로를 직접 입력하거나 [...] 버튼으로 폴더를 선택한 뒤 적용을 누르세요.',
+                addressLadderSync: '주소/래더 동기화',
+                cubloc2SourceFile: 'CUBLOC2 소스 파일',
+                importSourceFile: '불러오기',
+                importOtherSourceFile: '다른 파일 불러오기',
+                sourceSyncState: '상태',
+                lastSyncTime: '마지막 동기화',
+                sourceFileModifiedTime: '파일 수정 시간',
+                syncNow: '지금 동기화',
+                connectOrChangeSourceFile: '소스 파일 연결/변경',
+                autoSyncSourceFile: '파일 변경 시 자동 동기화',
+                sourceSyncUnsupported: 'CUBLOC2 장치를 선택하면 소스 파일 동기화를 사용할 수 있습니다.',
+                sourceSyncHelp: 'CUBLOC2 Studio 프로젝트 파일에서 Alias, Comment, Ladder 정보를 가져와 주소 테이블과 LD 모니터링에 사용합니다.',
                 linkStep1: '1. 대상 장치 선택',
                 linkStep2: '2. 연결 방식 선택',
                 linkStep3: '3. 포트/주소 설정',
@@ -268,6 +298,18 @@ const designSurface = document.getElementById('designSurface');
                 screenSetup: 'Screen Setup',
                 projectSaveLocation: 'Project save location',
                 projectSaveLocationHelp: 'Enter a path directly or choose a folder with [...], then click Apply.',
+                addressLadderSync: 'Address/Ladder Sync',
+                cubloc2SourceFile: 'CUBLOC2 source file',
+                importSourceFile: 'Import',
+                importOtherSourceFile: 'Import Other File',
+                sourceSyncState: 'State',
+                lastSyncTime: 'Last sync',
+                sourceFileModifiedTime: 'File modified time',
+                syncNow: 'Sync Now',
+                connectOrChangeSourceFile: 'Connect/Change Source File',
+                autoSyncSourceFile: 'Auto sync when file changes',
+                sourceSyncUnsupported: 'Select CUBLOC2 as the target device to use source file synchronization.',
+                sourceSyncHelp: 'Imports Alias, Comment, and Ladder information from a CUBLOC2 Studio project file for the address table and LD monitoring.',
                 linkStep1: '1. Select Target Device',
                 linkStep2: '2. Select Connection Type',
                 linkStep3: '3. Set Port/Address',
@@ -485,6 +527,19 @@ const designSurface = document.getElementById('designSurface');
                 ethernetPort: Number.isFinite(ethernetPort) ? ethernetPort : 502,
                 lastConnected: !!usbCdcConnectionState.isConnected
             });
+        }
+
+        function getRuntimeUsbCdcSettings() {
+            const connection = getDeviceConnectionState();
+            if (connection.transport === 'Ethernet' || !connection.portName) {
+                return null;
+            }
+
+            return {
+                device: connection.device || 'CUBLOC2',
+                portName: connection.portName,
+                baudRate: connection.baudRate || 115200
+            };
         }
 
         function captureDeviceConnectionState() {
@@ -6116,7 +6171,8 @@ const designSurface = document.getElementById('designSurface');
                 const state = await withRuntimeTimeout(
                     connection.invoke('Start', {
                         addresses: collectRuntimeAddresses(),
-                        pollingIntervalMs: 100
+                        pollingIntervalMs: 100,
+                        usbCdc: getRuntimeUsbCdcSettings()
                     }),
                     8000,
                     useKoreanLanguage ? '시각화 실행 시작 시간이 초과되었습니다.' : 'Visualization runtime start timed out.'
@@ -6749,9 +6805,16 @@ const designSurface = document.getElementById('designSurface');
             documentModel.ldMonitorDocument = nextDocumentModel.ldMonitorDocument && typeof nextDocumentModel.ldMonitorDocument === 'object' ? nextDocumentModel.ldMonitorDocument : null;
             documentModel.ldMonitorSourceFileName = String(nextDocumentModel.ldMonitorSourceFileName || '');
             documentModel.pages = nextDocumentModel.pages;
+            cublocSourceFileHandle = null;
+            cublocSourceFileObject = null;
+            cublocSourceLastSyncTimestamp = 0;
+            cublocSourceLastModifiedTimestamp = 0;
+            cublocSourceAutoSyncEnabled = false;
+            updateCublocSourceAutoSyncTimer();
             if (typeof window.importSavedAddressMetadata === 'function') {
                 window.importSavedAddressMetadata(documentModel.addressMetadata, documentModel.addressMetadataSourceFileName);
             }
+            updateSourceSyncSettingsUi();
             normalizeVisualizationDocumentPages();
             applyThemeLinkedColors('light', currentThemeMode);
             applyThemeLinkedColors('dark', currentThemeMode);
@@ -7456,6 +7519,167 @@ const designSurface = document.getElementById('designSurface');
             }
         }
 
+        function formatSourceSyncSummary() {
+            const metadata = Array.isArray(documentModel.addressMetadata) ? documentModel.addressMetadata : [];
+            const aliasCount = metadata.filter(item => String(item?.alias || '').trim()).length;
+            const commentCount = metadata.filter(item => String(item?.comment || '').trim()).length;
+            const ladderCount = Array.isArray(documentModel.ldMonitorDocument?.cells) ? documentModel.ldMonitorDocument.cells.length : 0;
+            return `Alias: ${aliasCount} / Comment: ${commentCount} / Ladder: ${ladderCount}`;
+        }
+
+        function formatSourceSyncTime(timestamp) {
+            const value = Number(timestamp || 0);
+            if (!Number.isFinite(value) || value <= 0) {
+                return '-';
+            }
+
+            return new Date(value).toLocaleTimeString(useKoreanLanguage ? 'ko-KR' : 'en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function hasConnectedCublocSourceFile() {
+            return !!(cublocSourceFileHandle || cublocSourceFileObject);
+        }
+
+        function getCublocSourceDisplayName() {
+            return String(cublocSourceFileObject?.name || documentModel.ldMonitorSourceFileName || documentModel.addressMetadataSourceFileName || '').trim();
+        }
+
+        function updateCublocSourceAutoSyncTimer() {
+            if (cublocSourceAutoSyncTimerId) {
+                window.clearInterval(cublocSourceAutoSyncTimerId);
+                cublocSourceAutoSyncTimerId = 0;
+            }
+
+            if (!cublocSourceAutoSyncEnabled || !hasConnectedCublocSourceFile()) {
+                return;
+            }
+
+            cublocSourceAutoSyncTimerId = window.setInterval(() => {
+                syncCublocSourceFile({ onlyIfChanged: true });
+            }, 2000);
+        }
+
+        async function getConnectedCublocSourceFile() {
+            if (cublocSourceFileHandle && typeof cublocSourceFileHandle.getFile === 'function') {
+                return cublocSourceFileHandle.getFile();
+            }
+
+            return cublocSourceFileObject || null;
+        }
+
+        async function syncCublocSourceFile(options = {}) {
+            if (cublocSourceSyncInProgress || String(linkModelSelect?.value || '').trim() !== 'CUBLOC2') {
+                return null;
+            }
+
+            const file = await getConnectedCublocSourceFile();
+            if (!file || typeof window.importCublocSourceFile !== 'function') {
+                updateSourceSyncSettingsUi();
+                return null;
+            }
+
+            const modifiedTime = Number(file.lastModified || 0);
+            if (options.onlyIfChanged && modifiedTime > 0 && modifiedTime === cublocSourceLastModifiedTimestamp) {
+                return null;
+            }
+
+            cublocSourceSyncInProgress = true;
+            updateSourceSyncSettingsUi();
+            try {
+                const result = await window.importCublocSourceFile(file);
+                if (!result) {
+                    return null;
+                }
+
+                cublocSourceFileObject = file;
+                cublocSourceLastModifiedTimestamp = modifiedTime;
+                cublocSourceLastSyncTimestamp = Date.now();
+                updateSourceSyncSettingsUi();
+                return result;
+            } finally {
+                cublocSourceSyncInProgress = false;
+                updateSourceSyncSettingsUi();
+            }
+        }
+
+        async function connectOrChangeCublocSourceFile() {
+            if (String(linkModelSelect?.value || '').trim() !== 'CUBLOC2') {
+                updateSourceSyncSettingsUi();
+                return null;
+            }
+
+            let result = null;
+            if (typeof window.openCublocSourceFileHandlePicker === 'function') {
+                result = await window.openCublocSourceFileHandlePicker();
+            }
+            if (!result && typeof window.showOpenFilePicker !== 'function' && typeof window.openCublocSourceImportPicker === 'function') {
+                result = await window.openCublocSourceImportPicker();
+            }
+
+            if (!result) {
+                updateSourceSyncSettingsUi();
+                return null;
+            }
+
+            cublocSourceFileHandle = result.fileHandle || null;
+            cublocSourceFileObject = result.file || cublocSourceFileObject;
+            cublocSourceLastModifiedTimestamp = Number(cublocSourceFileObject?.lastModified || 0);
+            cublocSourceLastSyncTimestamp = Date.now();
+            updateSourceSyncSettingsUi();
+            updateCublocSourceAutoSyncTimer();
+            return result;
+        }
+
+        function updateSourceSyncSettingsUi() {
+            const isCubloc2 = String(linkModelSelect?.value || '').trim() === 'CUBLOC2';
+            const hasSourceAccess = hasConnectedCublocSourceFile();
+            const displayName = getCublocSourceDisplayName();
+            if (sourceSyncUnsupportedMessage) {
+                sourceSyncUnsupportedMessage.style.display = isCubloc2 ? 'none' : '';
+            }
+            if (sourceSyncContent) {
+                sourceSyncContent.classList.toggle('is-disabled', !isCubloc2);
+            }
+            if (cublocSourceFileName) {
+                cublocSourceFileName.textContent = displayName || (useKoreanLanguage ? '선택된 파일 없음' : 'No file selected');
+            }
+            if (cublocSourceConnectionState) {
+                if (hasSourceAccess) {
+                    cublocSourceConnectionState.textContent = useKoreanLanguage ? '연결됨' : 'Connected';
+                    cublocSourceConnectionState.className = 'source-sync-status-value is-connected';
+                } else if (displayName) {
+                    cublocSourceConnectionState.textContent = useKoreanLanguage ? '저장된 스냅샷만 있음 - 파일을 다시 연결하세요' : 'Snapshot only - reconnect the file';
+                    cublocSourceConnectionState.className = 'source-sync-status-value is-warning';
+                } else {
+                    cublocSourceConnectionState.textContent = useKoreanLanguage ? '연결 안됨' : 'Not connected';
+                    cublocSourceConnectionState.className = 'source-sync-status-value';
+                }
+            }
+            if (cublocSourceLastSyncTime) {
+                cublocSourceLastSyncTime.textContent = formatSourceSyncTime(cublocSourceLastSyncTimestamp);
+            }
+            if (cublocSourceModifiedTime) {
+                cublocSourceModifiedTime.textContent = formatSourceSyncTime(cublocSourceLastModifiedTimestamp);
+            }
+            if (cublocSourceFileBrowseButton) {
+                cublocSourceFileBrowseButton.disabled = !isCubloc2 || !hasSourceAccess || cublocSourceSyncInProgress;
+            }
+            if (cublocSourceFileChooseButton) {
+                cublocSourceFileChooseButton.disabled = !isCubloc2 || cublocSourceSyncInProgress;
+            }
+            if (cublocSourceAutoSyncCheckbox) {
+                cublocSourceAutoSyncCheckbox.checked = cublocSourceAutoSyncEnabled;
+                cublocSourceAutoSyncCheckbox.disabled = !isCubloc2 || !hasSourceAccess;
+            }
+            if (cublocSourceSummary) {
+                cublocSourceSummary.textContent = formatSourceSyncSummary();
+            }
+        }
+
         function setSettingsPanelVisible(visible) {
             settingsPanelVisible = !!visible;
             if (canvasShell) {
@@ -7469,6 +7693,7 @@ const designSurface = document.getElementById('designSurface');
                 settingsReturnPageName = activePageName;
                 activateSettingsTab('link');
                 loadProjectStorageSettings();
+                updateSourceSyncSettingsUi();
             } else {
                 const returnPage = settingsReturnPageName && getPageByName(settingsReturnPageName)
                     ? settingsReturnPageName
@@ -7482,7 +7707,7 @@ const designSurface = document.getElementById('designSurface');
 
         function activateSettingsTab(tabName) {
             const requestedTab = String(tabName || 'general').trim().toLowerCase();
-            const nextTab = requestedTab === 'link' || requestedTab === 'screen' ? requestedTab : 'general';
+            const nextTab = requestedTab === 'link' || requestedTab === 'source' || requestedTab === 'screen' ? requestedTab : 'general';
             document.querySelectorAll('.app-settings-tab').forEach(button => {
                 const isActive = button.dataset.settingsTab === nextTab;
                 button.classList.toggle('active', isActive);
@@ -7492,6 +7717,9 @@ const designSurface = document.getElementById('designSurface');
             document.querySelectorAll('.app-settings-tab-panel').forEach(panel => {
                 panel.classList.toggle('active', panel.dataset.settingsPanel === nextTab);
             });
+            if (nextTab === 'source') {
+                updateSourceSyncSettingsUi();
+            }
         }
 
         async function applyProjectStorageSettings() {
@@ -7517,6 +7745,7 @@ const designSurface = document.getElementById('designSurface');
                 if (projectSaveDirectoryInput) {
                     projectSaveDirectoryInput.value = String(payload?.projectsDirectory || nextDirectory);
                 }
+                notifyVisualizationDirty();
                 alert(useKoreanLanguage ? '프로젝트 저장 위치가 변경되었습니다.' : 'Project save location has been updated.');
             } catch (error) {
                 const message = error && error.message ? error.message : String(error);
@@ -7556,6 +7785,8 @@ const designSurface = document.getElementById('designSurface');
                 } else {
                     projectSaveDirectoryInput.value = folderName;
                 }
+
+                notifyVisualizationDirty();
 
                 picker.remove();
             }, { once: true });
@@ -8188,12 +8419,14 @@ const designSurface = document.getElementById('designSurface');
             themeModeSelect.addEventListener('change', () => {
                 const nextTheme = themeModeSelect.value === 'light' ? 'light' : 'dark';
                 applyVisualizationTheme({ useDarkTheme: nextTheme !== 'light' });
+                notifyVisualizationDirty();
             });
         }
         if (languageModeSelect) {
             languageModeSelect.addEventListener('change', () => {
                 const useKorean = languageModeSelect.value !== 'en';
                 applyVisualizationLanguage({ useKorean });
+                notifyVisualizationDirty();
             });
         }
         if (projectAddPageButton) {
@@ -8228,6 +8461,9 @@ const designSurface = document.getElementById('designSurface');
         if (settingsLinkTab) {
             settingsLinkTab.addEventListener('click', () => activateSettingsTab('link'));
         }
+        if (settingsSourceSyncTab) {
+            settingsSourceSyncTab.addEventListener('click', () => activateSettingsTab('source'));
+        }
         if (settingsScreenTab) {
             settingsScreenTab.addEventListener('click', () => activateSettingsTab('screen'));
         }
@@ -8257,13 +8493,32 @@ const designSurface = document.getElementById('designSurface');
                 openProjectDirectoryPicker();
             });
         }
+        if (cublocSourceFileBrowseButton) {
+            cublocSourceFileBrowseButton.addEventListener('click', async () => {
+                await syncCublocSourceFile();
+            });
+        }
+        if (cublocSourceFileChooseButton) {
+            cublocSourceFileChooseButton.addEventListener('click', async () => {
+                await connectOrChangeCublocSourceFile();
+            });
+        }
+        if (cublocSourceAutoSyncCheckbox) {
+            cublocSourceAutoSyncCheckbox.addEventListener('change', () => {
+                cublocSourceAutoSyncEnabled = !!cublocSourceAutoSyncCheckbox.checked;
+                updateCublocSourceAutoSyncTimer();
+                updateSourceSyncSettingsUi();
+            });
+        }
         if (linkTransportSelect) {
             linkTransportSelect.addEventListener('change', async () => {
                 updateLinkTransportRows();
                 captureDeviceConnectionState();
+                notifyVisualizationDirty();
                 if (getLinkTransportMode() !== 'Ethernet') {
                     await loadUsbCdcPorts('');
                     captureDeviceConnectionState();
+                    notifyVisualizationDirty();
                 }
             });
         }
@@ -8276,24 +8531,30 @@ const designSurface = document.getElementById('designSurface');
                 }
                 updateLinkWizardStepState();
                 captureDeviceConnectionState();
+                notifyVisualizationDirty();
+                updateSourceSyncSettingsUi();
+                updateCublocSourceAutoSyncTimer();
             });
         }
         if (linkComPortSelect) {
             linkComPortSelect.addEventListener('change', () => {
                 updateLinkWizardStepState();
                 captureDeviceConnectionState();
+                notifyVisualizationDirty();
             });
         }
         if (linkEthernetIpInput) {
             linkEthernetIpInput.addEventListener('input', () => {
                 updateLinkWizardStepState();
                 captureDeviceConnectionState();
+                notifyVisualizationDirty();
             });
         }
         if (linkEthernetPortInput) {
             linkEthernetPortInput.addEventListener('input', () => {
                 updateLinkWizardStepState();
                 captureDeviceConnectionState();
+                notifyVisualizationDirty();
             });
         }
         if (usbConnectButton) {

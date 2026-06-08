@@ -214,6 +214,8 @@ public sealed class VisualizationRuntimeService
                     _pollingCts = null;
                 }
 
+                _usbCdc.Disconnect();
+
                 _logger.LogInformation("CUBLOC runtime stopped.");
 
                 var runtimeState = new { running = false, error = (string?)null };
