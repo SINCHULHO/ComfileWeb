@@ -76,6 +76,8 @@ const designSurface = document.getElementById('designSurface');
             },
             addressMetadata: [],
             addressMetadataSourceFileName: '',
+            ldMonitorDocument: null,
+            ldMonitorSourceFileName: '',
             pages: [
                 {
                     name: 'Page1',
@@ -126,6 +128,21 @@ const designSurface = document.getElementById('designSurface');
         let visualizationAddressAliasSelectionKey = '';
         let settingsPanelVisible = false;
         let settingsReturnPageName = '';
+        const ldMonitor = typeof createVisualizationLdMonitor === 'function'
+            ? createVisualizationLdMonitor({
+                getMainLayout: () => mainLayout,
+                getWorkArea: () => workArea,
+                getDesignSurface: () => designSurface,
+                renderWidgets: () => renderWidgets(),
+                getRuntimeRunning: () => runtimeRunning,
+                ensureRuntimeConnection: () => ensureRuntimeConnection(),
+                getUseKoreanLanguage: () => useKoreanLanguage,
+                toNumber: (value, fallback) => toNumber(value, fallback),
+                getCurrentThemeMode: () => currentThemeMode,
+                getRuntimeValues: () => runtimeValues,
+                getLdMonitorDocument: () => typeof window.getVisualizationLdMonitorDocument === 'function' ? window.getVisualizationLdMonitorDocument() : documentModel.ldMonitorDocument
+            })
+            : null;
         const languagePreferenceStorageKey = 'comfileweb.languageMode';
         const runtimeServerOrigin = window.location.protocol === 'file:' ? 'http://127.0.0.1:5129' : window.location.origin;
         const defaultColorPalette = [
@@ -2021,6 +2038,38 @@ const designSurface = document.getElementById('designSurface');
             }
 
             const resources = useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
+            if (ldMonitor && ldMonitor.isFeatureEnabled()) {
+                const monitorButton = document.createElement('button');
+                monitorButton.type = 'button';
+                monitorButton.className = 'runtime-page-button runtime-monitor-button';
+                const monitorLabel = ldMonitor.isSplitMode()
+                    ? (useKoreanLanguage ? '모니터링 중지' : 'Stop monitoring')
+                    : (useKoreanLanguage ? '모니터링 시작' : 'Start monitoring');
+                monitorButton.setAttribute('aria-label', monitorLabel);
+                monitorButton.title = monitorLabel;
+                monitorButton.setAttribute('aria-pressed', ldMonitor.isSplitMode() ? 'true' : 'false');
+                if (ldMonitor.isSplitMode()) {
+                    monitorButton.classList.add('active');
+                }
+
+                const monitorIcon = document.createElement('span');
+                monitorIcon.className = 'runtime-monitor-icon';
+                monitorIcon.setAttribute('aria-hidden', 'true');
+                monitorButton.appendChild(monitorIcon);
+                monitorButton.addEventListener('pointerdown', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (runtimeRunning || runtimeStarting) {
+                        ldMonitor.setSplitMode(!ldMonitor.isSplitMode());
+                    }
+                });
+                monitorButton.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+                navigation.appendChild(monitorButton);
+            }
+
             if (!deployedRuntimeMode) {
                 const exitButton = document.createElement('button');
                 exitButton.type = 'button';
@@ -5979,6 +6028,9 @@ const designSurface = document.getElementById('designSurface');
             if (runtimeDraggingSliderIds.size === 0 && !activeNumberInputPopup) {
                 renderWidgets();
             }
+            if (ldMonitor && ldMonitor.isSplitMode()) {
+                ldMonitor.renderDiagram();
+            }
         }
 
         function applyRuntimeState(payload) {
@@ -5994,6 +6046,9 @@ const designSurface = document.getElementById('designSurface');
             }
             document.body.classList.toggle('runtime-running', runtimeRunning);
             designSurface.classList.toggle('runtime-running', runtimeRunning);
+            if (ldMonitor) {
+                ldMonitor.syncLayout();
+            }
             applyGridVisibility();
             if (runtimeRunning) {
                 selectedCell = null;
@@ -6067,6 +6122,9 @@ const designSurface = document.getElementById('designSurface');
                     useKoreanLanguage ? '시각화 실행 시작 시간이 초과되었습니다.' : 'Visualization runtime start timed out.'
                 );
                 applyRuntimeState(state);
+                if (ldMonitor) {
+                    ldMonitor.subscribeAddresses();
+                }
             } catch (error) {
                 runtimeStarting = false;
                 const message = error && error.message ? error.message : String(error);
@@ -6113,6 +6171,9 @@ const designSurface = document.getElementById('designSurface');
 
             runtimeRunning = false;
             runtimeValues = new Map();
+            if (ldMonitor) {
+                ldMonitor.stop();
+            }
             runtimeLocalValueOverrides.clear();
             runtimePressedWidgetIds.clear();
             document.body.classList.remove('runtime-running');
@@ -6685,6 +6746,8 @@ const designSurface = document.getElementById('designSurface');
             documentModel.deviceConnection = normalizeDeviceConnection(nextDocumentModel.deviceConnection);
             documentModel.addressMetadata = Array.isArray(nextDocumentModel.addressMetadata) ? nextDocumentModel.addressMetadata : [];
             documentModel.addressMetadataSourceFileName = String(nextDocumentModel.addressMetadataSourceFileName || '');
+            documentModel.ldMonitorDocument = nextDocumentModel.ldMonitorDocument && typeof nextDocumentModel.ldMonitorDocument === 'object' ? nextDocumentModel.ldMonitorDocument : null;
+            documentModel.ldMonitorSourceFileName = String(nextDocumentModel.ldMonitorSourceFileName || '');
             documentModel.pages = nextDocumentModel.pages;
             if (typeof window.importSavedAddressMetadata === 'function') {
                 window.importSavedAddressMetadata(documentModel.addressMetadata, documentModel.addressMetadataSourceFileName);

@@ -1602,6 +1602,141 @@
             font-weight: 700;
         }
 
+        .runtime-page-button.runtime-monitor-button {
+            margin-left: auto;
+            align-self: stretch;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: clamp(28px, 2.7vw, 34px);
+            min-width: clamp(28px, 2.7vw, 34px);
+            height: clamp(28px, 2.7vw, 34px);
+            padding: 0;
+            position: relative;
+        }
+
+        .runtime-page-button.runtime-monitor-button .runtime-monitor-icon {
+            width: 14px;
+            height: 12px;
+            position: relative;
+            display: inline-block;
+            color: color-mix(in srgb, var(--text) 90%, transparent);
+        }
+
+        .runtime-page-button.runtime-monitor-button .runtime-monitor-icon::before {
+            content: '';
+            position: absolute;
+            left: 1px;
+            top: 1px;
+            width: 12px;
+            height: 8px;
+            border: 1.6px solid currentColor;
+            border-radius: 1px;
+            box-sizing: border-box;
+        }
+
+        .runtime-page-button.runtime-monitor-button .runtime-monitor-icon::after {
+            content: '';
+            position: absolute;
+            left: 3px;
+            top: 10px;
+            width: 8px;
+            height: 1.6px;
+            background: currentColor;
+            border-radius: 1px;
+        }
+
+        .runtime-page-button.runtime-monitor-button.active .runtime-monitor-icon {
+            color: #ff4a4a;
+        }
+
+        .runtime-monitor-layout {
+            flex: 1 1 auto;
+            min-height: 0;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 40% 8px minmax(0, 1fr);
+            background: var(--panel-bg);
+            border: 1px solid var(--surface-border);
+            overflow: hidden;
+        }
+
+        .runtime-monitor-pane {
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface-bg);
+        }
+
+        .runtime-monitor-pane-left {
+            border-right: 1px solid var(--surface-border);
+        }
+
+        .runtime-monitor-content {
+            flex: 1 1 auto;
+            min-height: 0;
+            background: var(--surface-bg);
+            overflow: hidden;
+        }
+
+        .runtime-monitor-ld-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: var(--surface-bg);
+        }
+
+        .runtime-monitor-pane-right {
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            padding: 0;
+            background: var(--panel-bg);
+        }
+
+        .runtime-monitor-pane-right .design-surface {
+            flex: 1 1 auto;
+            width: 100%;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            min-height: 0;
+            box-shadow: none;
+            border: none;
+        }
+
+        .runtime-monitor-pane-right.runtime-pages-visible .design-surface {
+            flex: 1 1 auto;
+        }
+
+        .runtime-monitor-pane-right .runtime-page-navigation {
+            width: 100%;
+            margin-top: 0;
+            padding-top: clamp(8px, 1.2vh, 14px);
+            flex: 0 0 auto;
+        }
+
+        .runtime-monitor-splitter {
+            width: 8px;
+            cursor: col-resize;
+            background: color-mix(in srgb, var(--toolbar-border) 65%, var(--panel-bg));
+            border-left: 1px solid var(--surface-border);
+            border-right: 1px solid var(--surface-border);
+        }
+
+        .runtime-monitor-splitter:hover {
+            background: color-mix(in srgb, var(--focus) 35%, var(--toolbar-border));
+        }
+
+        body.runtime-monitor-resizing,
+        body.runtime-monitor-resizing * {
+            cursor: col-resize !important;
+        }
+
         body.runtime-running .cell-cursor,
         body.runtime-running .selection-marquee,
         body.runtime-running .selection-outline,

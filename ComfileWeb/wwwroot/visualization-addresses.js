@@ -39,6 +39,53 @@ const addressTableProviders = {
 let importedAddressMetadata = new Map();
 let importedAddressMetadataSourceFileName = '';
 
+const cublocMonitorTypePrefixes = {
+    1: 'I',
+    2: 'Q',
+    3: 'X',
+    4: 'Y',
+    5: 'M',
+    6: 'S',
+    7: 'D',
+    8: 'T',
+    9: 'C',
+    10: 'DD',
+    11: 'DF',
+    12: 'R',
+    13: 'RD',
+    16: 'RDD',
+    17: 'RDF',
+    18: 'TS',
+    19: 'CS',
+    20: 'SD'
+};
+
+function getAddressFromMonitorInfo(monType, monIndex, fallbackText) {
+    const prefix = cublocMonitorTypePrefixes[Number(monType)];
+    if (prefix && Number.isFinite(Number(monIndex))) {
+        return `${prefix}${Number(monIndex)}`;
+    }
+
+    return normalizeVisualizationAddressKey(fallbackText || '');
+}
+
+function setLdMonitorDocument(document, sourceFileName) {
+    const model = window.visualizationDocumentModel;
+    if (!model) {
+        return;
+    }
+
+    model.ldMonitorDocument = document || null;
+    model.ldMonitorSourceFileName = String(sourceFileName || '').trim();
+}
+
+function getSavedLdMonitorDocument() {
+    const model = window.visualizationDocumentModel;
+    return model && model.ldMonitorDocument ? model.ldMonitorDocument : null;
+}
+
+window.getVisualizationLdMonitorDocument = getSavedLdMonitorDocument;
+
 function getAliasImportButtonText() {
     const baseText = useKoreanLanguage ? 'Alias 가져오기' : 'Import Alias';
     if (importedAddressMetadataSourceFileName) {
@@ -662,26 +709,57 @@ function parseCbprojAddressMetadata(arrayBuffer) {
     if (ldCount < 0) {
         throw new Error('Invalid ladder entry count.');
     }
+
+    const ldEntries = [];
     for (let entryIndex = 0; entryIndex < ldCount; entryIndex += 1) {
-        reader.readByte();
-        reader.readString8();
+        const kind = reader.readByte();
+        const name = reader.readString8();
         const columnCount = reader.readInt32();
         const lmax = reader.readInt32();
         if (columnCount < 0 || columnCount > 1000 || lmax < 0 || lmax > 100000) {
             throw new Error('Invalid ladder document size.');
         }
 
+        const rows = [];
+        const cells = [];
         for (let y = 0; y <= lmax; y += 1) {
-            reader.readBoolean();
-            reader.readString8();
+            const disabled = reader.readBoolean();
+            const rowComment = reader.readString8();
+            if (disabled || rowComment) {
+                rows.push({ y, disabled, comment: rowComment, rungLabel: '' });
+            }
             for (let x = 0; x < columnCount; x += 1) {
-                reader.readByte();
-                reader.readByte();
-                reader.readUInt16();
-                reader.readByte();
-                reader.readString8();
+                const sym = reader.readByte();
+                const join = reader.readByte();
+                const monIndex = reader.readUInt16();
+                const monType = reader.readByte();
+                const text = reader.readString8();
+                if (sym !== 0 || join !== 0 || text) {
+                    const runtimeAddress = getAddressFromMonitorInfo(monType, monIndex, text);
+                    cells.push({
+                        x,
+                        y,
+                        sym,
+                        join,
+                        text,
+                        monType,
+                        monIndex,
+                        runtimeAddress,
+                        alias: '',
+                        comment: ''
+                    });
+                }
             }
         }
+
+        ldEntries.push({
+            kind,
+            name,
+            columnCount,
+            rowCount: lmax + 1,
+            rows,
+            cells
+        });
     }
 
     const entryCount = reader.readInt32();
@@ -699,7 +777,42 @@ function parseCbprojAddressMetadata(arrayBuffer) {
         });
     }
 
-    return entries;
+    const metadataByAddress = new Map();
+    entries.forEach(entry => {
+        const key = normalizeVisualizationAddressKey(`${entry.prefix}${entry.index}`);
+        if (key) {
+            metadataByAddress.set(key, {
+                alias: String(entry.alias || '').trim(),
+                comment: String(entry.comment || '').trim()
+            });
+        }
+    });
+
+    ldEntries.forEach(ldEntry => {
+        ldEntry.cells.forEach(cell => {
+            const key = normalizeVisualizationAddressKey(cell.runtimeAddress || cell.text || '');
+            const metadata = key ? metadataByAddress.get(key) : null;
+            if (metadata) {
+                cell.alias = metadata.alias;
+                cell.comment = metadata.comment;
+            }
+        });
+    });
+
+    const primaryLdEntry = ldEntries.find(entry => entry.cells.length > 0) || ldEntries[0] || null;
+    const ldMonitorDocument = primaryLdEntry
+        ? {
+            success: true,
+            name: primaryLdEntry.name,
+            kind: primaryLdEntry.kind,
+            columnCount: primaryLdEntry.columnCount,
+            rowCount: primaryLdEntry.rowCount,
+            rows: primaryLdEntry.rows,
+            cells: primaryLdEntry.cells
+        }
+        : null;
+
+    return { entries, ldMonitorDocument, ldEntries };
 }
 
 function openCbprojAliasImportPicker(backdrop, state, button) {
@@ -720,8 +833,10 @@ function openCbprojAliasImportPicker(backdrop, state, button) {
         }
 
         try {
-            const entries = parseCbprojAddressMetadata(await file.arrayBuffer());
+            const result = parseCbprojAddressMetadata(await file.arrayBuffer());
+            const entries = Array.isArray(result) ? result : (result.entries || []);
             setImportedAddressMetadata(entries, file.name);
+            setLdMonitorDocument(result.ldMonitorDocument || null, file.name);
             if (typeof notifyVisualizationDirty === 'function') {
                 notifyVisualizationDirty();
             }
