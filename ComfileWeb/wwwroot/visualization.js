@@ -4032,7 +4032,8 @@ const designSurface = document.getElementById('designSurface');
                     : `${resources.properties} - ${widget.kind || 'Widget'}`;
             }
 
-            const rows = getWidgetPropertyRows(widget);
+            const rows = getWidgetPropertyRows(widget)
+                .filter(row => row.key !== 'Display Address' || normalizeWidgetDisplayMode(widget.properties.Display) === 'Address');
 
             propertyGridBody.innerHTML = rows
                 .map(row => {

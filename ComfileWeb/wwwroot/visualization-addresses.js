@@ -87,7 +87,7 @@ function getSavedLdMonitorDocument() {
 window.getVisualizationLdMonitorDocument = getSavedLdMonitorDocument;
 
 function getAliasImportButtonText() {
-    const baseText = useKoreanLanguage ? 'Alias 가져오기' : 'Import Alias';
+    const baseText = useKoreanLanguage ? '주소/래더 가져오기' : 'Import Address/Ladder';
     if (importedAddressMetadataSourceFileName) {
         return useKoreanLanguage
             ? `${baseText} (현재: ${importedAddressMetadataSourceFileName})`
@@ -1020,6 +1020,7 @@ function bindAddressPickerEvents(backdrop, state) {
         if (aliasRefreshButton) {
             openCbprojAliasImportPicker(backdrop, state, aliasRefreshButton);
         }
+
     });
 
     const searchInput = backdrop.querySelector('.address-picker-search');
