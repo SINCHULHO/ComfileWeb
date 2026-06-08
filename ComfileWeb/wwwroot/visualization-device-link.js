@@ -126,8 +126,8 @@ function updateDeviceConnectionStatusBar() {
         statusText = [portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' · ');
         titleText = [device || 'Device', transport, portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' / ');
     } else if (hasConfiguration) {
-        statusText = [portName || transport, useKorean ? '실행 시 연결' : 'Connects on run'].filter(Boolean).join(' · ');
-        titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '실행 시 연결' : 'Connects on run'].filter(Boolean).join(' / ');
+        statusText = [portName || transport, useKorean ? '준비됨' : 'Ready'].filter(Boolean).join(' · ');
+        titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '준비됨 - 실행하면 연결됩니다' : 'Ready - connects when running'].filter(Boolean).join(' / ');
     } else {
         statusText = useKorean ? '디바이스 미설정' : 'Device not set';
         titleText = useKorean ? '디바이스 연결 설정' : 'Device connection settings';
@@ -150,7 +150,7 @@ function updateUsbConnectionUi(connectionState) {
     usbCdcConnectionState = { isConnected, portName, testOk, testPortName };
     const disconnectedText = testOk
         ? (useKorean ? '연결 이상없음' : 'Connection OK')
-        : (useKorean ? '실행 시 연결됩니다' : 'Connects when runtime starts');
+        : (useKorean ? '준비됨' : 'Ready');
     const connectedText = useKorean
         ? `연결됨${portName ? ` (${portName})` : ''}`
         : `Connected${portName ? ` (${portName})` : ''}`;
