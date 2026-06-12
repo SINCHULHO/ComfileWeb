@@ -49,20 +49,22 @@ window.addEventListener('visualization-language-changed', () => {
 window.setTimeout(syncDeviceLinkLanguageUi, 0);
 
 function getLinkTransportMode() {
-    return String(linkTransportSelect?.value || 'USB').trim();
+    return String(linkTransportSelect?.value || '').trim();
 }
 
 function updateLinkTransportRows() {
+    const hasDevice = !!String(linkModelSelect?.value || '').trim();
     const transport = getLinkTransportMode();
+    const hasTransport = !!transport;
     const showEthernet = transport === 'Ethernet';
     if (linkComPortRow) {
-        linkComPortRow.style.display = showEthernet ? 'none' : '';
+        linkComPortRow.style.display = (!hasDevice || !hasTransport || showEthernet) ? 'none' : '';
     }
     if (linkEthernetIpRow) {
-        linkEthernetIpRow.style.display = showEthernet ? '' : 'none';
+        linkEthernetIpRow.style.display = (hasDevice && hasTransport && showEthernet) ? '' : 'none';
     }
     if (linkEthernetPortRow) {
-        linkEthernetPortRow.style.display = showEthernet ? '' : 'none';
+        linkEthernetPortRow.style.display = (hasDevice && hasTransport && showEthernet) ? '' : 'none';
     }
 
     updateLinkWizardStepState();
@@ -73,7 +75,7 @@ function updateLinkWizardStepState() {
     const hasTransport = !!String(linkTransportSelect?.value || '').trim();
     const transport = getLinkTransportMode();
     let hasPortDetail = false;
-    if (!hasDevice) {
+    if (!hasDevice || !hasTransport) {
         hasPortDetail = false;
     } else if (transport === 'Ethernet') {
         hasPortDetail = !!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim();
@@ -106,10 +108,16 @@ function updateDeviceConnectionStatusBar() {
     const useKorean = isCurrentVisualizationLanguageKorean();
     const device = String(linkModelSelect?.value || '').trim();
     const transport = String(linkTransportSelect?.value || '').trim();
-    const portName = device ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
+    const hasTransport = !!transport;
+    const portName = (device && hasTransport) ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
+    const hasPortDetail = hasTransport
+        ? (transport === 'Ethernet'
+            ? (!!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim())
+            : !!String(linkComPortSelect?.value || '').trim())
+        : false;
     const isConnected = !!usbCdcConnectionState.isConnected;
     const lastTestOk = !!usbCdcConnectionState.testOk && !!portName && portName === usbCdcConnectionState.testPortName;
-    const hasConfiguration = !!device && (!!transport || !!portName);
+    const hasConfiguration = !!device && hasTransport && hasPortDetail;
 
     deviceConnectionStatusButton.classList.toggle('is-connected', isConnected);
     deviceConnectionStatusButton.classList.toggle('is-configured', !isConnected && (lastTestOk || hasConfiguration));
@@ -126,8 +134,8 @@ function updateDeviceConnectionStatusBar() {
         statusText = [portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' · ');
         titleText = [device || 'Device', transport, portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' / ');
     } else if (hasConfiguration) {
-        statusText = [portName || transport, useKorean ? '준비됨' : 'Ready'].filter(Boolean).join(' · ');
-        titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '준비됨 - 실행하면 연결됩니다' : 'Ready - connects when running'].filter(Boolean).join(' / ');
+        statusText = [portName || transport, useKorean ? '연결 테스트 필요' : 'Test required'].filter(Boolean).join(' · ');
+        titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '연결 테스트를 먼저 수행하세요' : 'Run connection test first'].filter(Boolean).join(' / ');
     } else {
         statusText = useKorean ? '디바이스 미설정' : 'Device not set';
         titleText = useKorean ? '디바이스 연결 설정' : 'Device connection settings';
@@ -148,9 +156,18 @@ function updateUsbConnectionUi(connectionState) {
     const testOk = !!(connectionState && connectionState.testOk && selectedPort && selectedPort === String(connectionState.testPortName || '').trim());
     const testPortName = testOk ? selectedPort : '';
     usbCdcConnectionState = { isConnected, portName, testOk, testPortName };
+    const hasDevice = !!selectedDevice;
+    const hasTransport = !!String(linkTransportSelect?.value || '').trim();
+    const hasPortDetail = hasTransport
+        ? (String(linkTransportSelect?.value || '').trim() === 'Ethernet'
+            ? (!!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim())
+            : !!selectedPort)
+        : false;
     const disconnectedText = testOk
         ? (useKorean ? '연결 이상없음' : 'Connection OK')
-        : (useKorean ? '준비됨' : 'Ready');
+        : (hasDevice && hasTransport && hasPortDetail
+            ? (useKorean ? '연결 테스트 필요' : 'Connection test required')
+            : (useKorean ? '디바이스 미설정' : 'Device not set'));
     const connectedText = useKorean
         ? `연결됨${portName ? ` (${portName})` : ''}`
         : `Connected${portName ? ` (${portName})` : ''}`;
