@@ -589,6 +589,8 @@ public sealed class VisualizationRuntimeService
                 cfheader0.Open();
             }
 
+            cfheader0.Sync();
+
             foreach (CfnetEntry entry in _cfnetEntries)
             {
                 if (!CfnetAddressing.TryParseAddress(entry.Address, out bool isOutput, out int moduleIndex, out int bitIndex))

@@ -2097,7 +2097,8 @@ const designSurface = document.getElementById('designSurface');
             }
 
             const resources = useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
-            if (ldMonitor && ldMonitor.isFeatureEnabled()) {
+            const selectedDevice = String(documentModel.deviceConnection?.device || linkModelSelect?.value || '').trim().toUpperCase();
+            if (ldMonitor && ldMonitor.isFeatureEnabled() && selectedDevice !== 'CFNET') {
                 const monitorButton = document.createElement('button');
                 monitorButton.type = 'button';
                 monitorButton.className = 'runtime-page-button runtime-monitor-button';

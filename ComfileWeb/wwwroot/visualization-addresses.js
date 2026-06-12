@@ -662,6 +662,18 @@ function getCfnetSelectedModule(state, allowedAreas) {
     return getCfnetAreaModule(allowedAreas[0]) || '';
 }
 
+function getCfnetAreaHint(area) {
+    const moduleName = getCfnetAreaModule(area);
+    if (moduleName === 'ADC') {
+        return '0~26,666';
+    }
+    if (moduleName === 'DAC') {
+        return '0~4094';
+    }
+
+    return String(area?.type || '');
+}
+
 function renderAddressPickerSidebarMarkup(state, allowedAreas) {
     if (state.provider?.metadataMode === 'commentOnly') {
         const modules = Array.from(new Set(allowedAreas.map(area => getCfnetAreaModule(area)).filter(Boolean)));
@@ -669,12 +681,14 @@ function renderAddressPickerSidebarMarkup(state, allowedAreas) {
             const moduleType = moduleName === 'DI' || moduleName === 'DO' ? 'Bit' : 'Channel';
             const moduleLabel = moduleName === 'DI'
                 ? 'Digital Input'
-                : (moduleName === 'DO' ? 'Digital Output' : moduleType);
+                : (moduleName === 'DO'
+                    ? 'Digital Output'
+                    : (moduleName === 'ADC' ? 'Analog to Digital' : (moduleName === 'DAC' ? 'Digital to Analog' : moduleType)));
             const adrButtons = allowedAreas
                 .filter(area => getCfnetAreaModule(area) === moduleName)
                 .map(area => `<button class="address-picker-area address-picker-area-child${area.prefix === state.selectedAreaPrefix ? ' is-selected' : ''}" type="button" data-address-area="${escapeHtml(area.prefix)}">
                         <span>${escapeHtml(`${getCfnetAreaModule(area)}.${getCfnetAreaAdr(area)}`)}</span>
-                        <small>${escapeHtml(area.type)}</small>
+                        <small>${escapeHtml(getCfnetAreaHint(area))}</small>
                     </button>`)
                 .join('');
             return `<div class="address-picker-area-group">
