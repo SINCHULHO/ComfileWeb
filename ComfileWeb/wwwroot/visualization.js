@@ -13,6 +13,7 @@ const designSurface = document.getElementById('designSurface');
         const gridXValue = document.getElementById('gridXValue');
         const gridYValue = document.getElementById('gridYValue');
         const gridVisibleCheckbox = document.getElementById('gridVisibleCheckbox');
+        const toolbarDarkThemeCheckbox = document.getElementById('toolbarDarkThemeCheckbox');
         const alignTopButton = document.getElementById('alignTopButton');
         const alignBottomButton = document.getElementById('alignBottomButton');
         const alignLeftButton = document.getElementById('alignLeftButton');
@@ -179,6 +180,7 @@ const designSurface = document.getElementById('designSurface');
                 exit: '종료',
                 color: '배경색',
                 grid: '격자',
+                dark: '다크',
                 theme: '테마',
                 language: '언어(Language)',
                 widgets: '위젯',
@@ -255,6 +257,7 @@ const designSurface = document.getElementById('designSurface');
                 exit: 'Exit',
                 color: 'Background',
                 grid: 'Grid',
+                dark: 'Dark',
                 theme: 'Theme',
                 language: 'Language',
                 widgets: 'Widgets',
@@ -6711,6 +6714,9 @@ const designSurface = document.getElementById('designSurface');
             if (themeModeSelect) {
                 themeModeSelect.value = nextThemeMode;
             }
+            if (toolbarDarkThemeCheckbox) {
+                toolbarDarkThemeCheckbox.checked = useDarkTheme;
+            }
             updateGridControlsFromCurrentPage();
             renderWidgets();
         }
@@ -8420,6 +8426,12 @@ const designSurface = document.getElementById('designSurface');
             themeModeSelect.addEventListener('change', () => {
                 const nextTheme = themeModeSelect.value === 'light' ? 'light' : 'dark';
                 applyVisualizationTheme({ useDarkTheme: nextTheme !== 'light' });
+                notifyVisualizationDirty();
+            });
+        }
+        if (toolbarDarkThemeCheckbox) {
+            toolbarDarkThemeCheckbox.addEventListener('change', () => {
+                applyVisualizationTheme({ useDarkTheme: !!toolbarDarkThemeCheckbox.checked });
                 notifyVisualizationDirty();
             });
         }
