@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
+using ComfileTech.Cfnet.Cfheader;
 using ComfileWeb.Models;
 using ComfileWeb.Services;
 
@@ -186,4 +188,53 @@ usbApi.MapPost("/disconnect", (UsbCdcService usbCdc) =>
     });
 });
 
+TryTurnOnCfdo0Port0AtStartup(app.Logger);
+
 app.Run();
+
+static void TryTurnOnCfdo0Port0AtStartup(ILogger logger)
+{
+    EnsureCfnetNativeLibraries(logger);
+
+    try
+    {
+        var cfheader0 = Cfheader.Instances[0];
+        var cfdo0 = cfheader0.DigitalOutputModules[0];
+
+        cfheader0.Open();
+        cfdo0.Channels[0].State = true;
+        cfheader0.Sync();
+
+        logger.LogInformation("CFDO[0] Port[0] ON completed at startup.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Startup CFDO[0] Port[0] ON failed.");
+    }
+}
+
+static void EnsureCfnetNativeLibraries(ILogger logger)
+{
+    try
+    {
+        var nativeDirectory = Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native");
+        if (!Directory.Exists(nativeDirectory))
+        {
+            return;
+        }
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        if (!path.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                 .Any(entry => string.Equals(entry.Trim(), nativeDirectory, StringComparison.OrdinalIgnoreCase)))
+        {
+            Environment.SetEnvironmentVariable("PATH", nativeDirectory + ";" + path);
+        }
+
+        NativeLibrary.Load(Path.Combine(nativeDirectory, "libusb-1.0.dll"));
+        NativeLibrary.Load(Path.Combine(nativeDirectory, "ComfileTech.Cfnet.Cfheader.Native.dll"));
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Cfnet native library preload failed.");
+    }
+}
