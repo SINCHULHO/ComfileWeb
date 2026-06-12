@@ -317,7 +317,7 @@ function createVisualizationLdMonitor(context) {
 			return '';
 		}
 
-		const match = text.match(/\b(?:I|O|Q|M|D|T|C|X|Y)[A-Za-z0-9_.]+\b/i);
+		const match = text.match(/\b(?:DI|DO)\.\d+\.\d+\b|\b(?:I|O|Q|M|D|T|C|X|Y)[A-Za-z0-9_.]+\b/i);
 		return match ? match[0].toUpperCase() : '';
 	}
 

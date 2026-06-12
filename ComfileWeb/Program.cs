@@ -17,6 +17,8 @@ app.UseStaticFiles();
 
 var projectApi = app.MapGroup("/api/project");
 var usbApi = app.MapGroup("/api/usb-cdc");
+var cfnetApi = app.MapGroup("/api/cfnet");
+var cfnetSync = new object();
 
 projectApi.MapGet("/settings", (ProjectStorageService storage) =>
     Results.Ok(new
@@ -186,6 +188,112 @@ usbApi.MapPost("/disconnect", (UsbCdcService usbCdc) =>
         isConnected = usbCdc.IsConnected,
         portName = usbCdc.ConnectedPortName
     });
+});
+
+cfnetApi.MapGet("/status", (ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("CfnetApi");
+    lock (cfnetSync)
+    {
+        EnsureCfnetNativeLibraries(logger);
+        try
+        {
+            if (Cfheader.Instances.Count == 0)
+            {
+                return Results.Ok(new
+                {
+                    isConnected = false,
+                    detail = "CFHEADER instance not found."
+                });
+            }
+
+            var cfheader0 = Cfheader.Instances[0];
+            return Results.Ok(new
+            {
+                isConnected = cfheader0.IsOpen,
+                address = cfheader0.Address
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "CFNET status check failed.");
+            return Results.Ok(new
+            {
+                isConnected = false,
+                detail = ex.Message
+            });
+        }
+    }
+});
+
+cfnetApi.MapPost("/connect", (ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("CfnetApi");
+    lock (cfnetSync)
+    {
+        EnsureCfnetNativeLibraries(logger);
+        try
+        {
+            if (Cfheader.Instances.Count == 0)
+            {
+                return Results.BadRequest(new { detail = "CFHEADER instance not found." });
+            }
+
+            var cfheader0 = Cfheader.Instances[0];
+            if (!cfheader0.IsOpen)
+            {
+                cfheader0.Open();
+            }
+
+            return Results.Ok(new
+            {
+                isConnected = cfheader0.IsOpen,
+                address = cfheader0.Address
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "CFNET connect failed.");
+            return Results.BadRequest(new { detail = ex.Message });
+        }
+    }
+});
+
+cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("CfnetApi");
+    lock (cfnetSync)
+    {
+        EnsureCfnetNativeLibraries(logger);
+        try
+        {
+            if (Cfheader.Instances.Count == 0)
+            {
+                return Results.Ok(new
+                {
+                    isConnected = false,
+                    detail = "CFHEADER instance not found."
+                });
+            }
+
+            var cfheader0 = Cfheader.Instances[0];
+            if (cfheader0.IsOpen)
+            {
+                cfheader0.Close();
+            }
+
+            return Results.Ok(new
+            {
+                isConnected = cfheader0.IsOpen,
+                address = cfheader0.Address
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "CFNET disconnect failed.");
+            return Results.BadRequest(new { detail = ex.Message });
+        }
+    }
 });
 
 TryTurnOnCfdo0Port0AtStartup(app.Logger);

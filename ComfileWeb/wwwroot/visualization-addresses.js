@@ -33,11 +33,48 @@ const addressTableProviders = {
                 4: 'S_SCANCOUNT_L', 5: 'S_SCANCOUNT_H', 6: 'S_RETAIN'
             }
         }
+    },
+    CFNET: {
+        device: 'CFNET',
+        displayName: 'CFNET Field I/O',
+        metadataMode: 'commentOnly',
+        areas: [
+            { prefix: 'DI.0.', size: 16, type: 'Bit', labelKo: 'DI ADR 0', labelEn: 'DI ADR 0' },
+            { prefix: 'DI.1.', size: 16, type: 'Bit', labelKo: 'DI ADR 1', labelEn: 'DI ADR 1' },
+            { prefix: 'DI.2.', size: 16, type: 'Bit', labelKo: 'DI ADR 2', labelEn: 'DI ADR 2' },
+            { prefix: 'DI.3.', size: 16, type: 'Bit', labelKo: 'DI ADR 3', labelEn: 'DI ADR 3' },
+            { prefix: 'DI.4.', size: 16, type: 'Bit', labelKo: 'DI ADR 4', labelEn: 'DI ADR 4' },
+            { prefix: 'DI.5.', size: 16, type: 'Bit', labelKo: 'DI ADR 5', labelEn: 'DI ADR 5' },
+            { prefix: 'DI.6.', size: 16, type: 'Bit', labelKo: 'DI ADR 6', labelEn: 'DI ADR 6' },
+            { prefix: 'DI.7.', size: 16, type: 'Bit', labelKo: 'DI ADR 7', labelEn: 'DI ADR 7' },
+            { prefix: 'DO.0.', size: 16, type: 'Bit', labelKo: 'DO ADR 0', labelEn: 'DO ADR 0' },
+            { prefix: 'DO.1.', size: 16, type: 'Bit', labelKo: 'DO ADR 1', labelEn: 'DO ADR 1' },
+            { prefix: 'DO.2.', size: 16, type: 'Bit', labelKo: 'DO ADR 2', labelEn: 'DO ADR 2' },
+            { prefix: 'DO.3.', size: 16, type: 'Bit', labelKo: 'DO ADR 3', labelEn: 'DO ADR 3' },
+            { prefix: 'DO.4.', size: 16, type: 'Bit', labelKo: 'DO ADR 4', labelEn: 'DO ADR 4' },
+            { prefix: 'DO.5.', size: 16, type: 'Bit', labelKo: 'DO ADR 5', labelEn: 'DO ADR 5' },
+            { prefix: 'DO.6.', size: 16, type: 'Bit', labelKo: 'DO ADR 6', labelEn: 'DO ADR 6' },
+            { prefix: 'DO.7.', size: 16, type: 'Bit', labelKo: 'DO ADR 7', labelEn: 'DO ADR 7' },
+            { prefix: 'ADC.0.', size: 4, type: 'Channel', labelKo: 'ADC ADR 0', labelEn: 'ADC ADR 0' },
+            { prefix: 'ADC.1.', size: 4, type: 'Channel', labelKo: 'ADC ADR 1', labelEn: 'ADC ADR 1' },
+            { prefix: 'ADC.2.', size: 4, type: 'Channel', labelKo: 'ADC ADR 2', labelEn: 'ADC ADR 2' },
+            { prefix: 'ADC.3.', size: 4, type: 'Channel', labelKo: 'ADC ADR 3', labelEn: 'ADC ADR 3' },
+            { prefix: 'DAC.0.', size: 2, type: 'Channel', labelKo: 'DAC ADR 0', labelEn: 'DAC ADR 0' },
+            { prefix: 'DAC.1.', size: 2, type: 'Channel', labelKo: 'DAC ADR 1', labelEn: 'DAC ADR 1' },
+            { prefix: 'DAC.2.', size: 2, type: 'Channel', labelKo: 'DAC ADR 2', labelEn: 'DAC ADR 2' },
+            { prefix: 'DAC.3.', size: 2, type: 'Channel', labelKo: 'DAC ADR 3', labelEn: 'DAC ADR 3' },
+            { prefix: 'DAC.4.', size: 2, type: 'Channel', labelKo: 'DAC ADR 4', labelEn: 'DAC ADR 4' },
+            { prefix: 'DAC.5.', size: 2, type: 'Channel', labelKo: 'DAC ADR 5', labelEn: 'DAC ADR 5' },
+            { prefix: 'DAC.6.', size: 2, type: 'Channel', labelKo: 'DAC ADR 6', labelEn: 'DAC ADR 6' },
+            { prefix: 'DAC.7.', size: 2, type: 'Channel', labelKo: 'DAC ADR 7', labelEn: 'DAC ADR 7' }
+        ],
+        aliases: {}
     }
 };
 
 let importedAddressMetadata = new Map();
 let importedAddressMetadataSourceFileName = '';
+let cfnetAddressComments = new Map();
 
 const cublocMonitorTypePrefixes = {
     1: 'I',
@@ -67,6 +104,42 @@ function getAddressFromMonitorInfo(monType, monIndex, fallbackText) {
     }
 
     return normalizeVisualizationAddressKey(fallbackText || '');
+}
+
+function getCfnetAddressComment(address) {
+    const key = normalizeVisualizationAddressKey(address);
+    return key ? String(cfnetAddressComments.get(key) || '') : '';
+}
+
+function setCfnetAddressComment(address, comment) {
+    const key = normalizeVisualizationAddressKey(address);
+    if (!key) {
+        return;
+    }
+
+    const text = String(comment || '').trim();
+    if (text) {
+        cfnetAddressComments.set(key, text);
+    } else {
+        cfnetAddressComments.delete(key);
+    }
+}
+
+function exportCfnetAddressComments() {
+    return Array.from(cfnetAddressComments.entries())
+        .map(([address, comment]) => ({ address, comment: String(comment || '') }))
+        .filter(entry => entry.address && entry.comment);
+}
+
+function importSavedCfnetAddressComments(entries) {
+    cfnetAddressComments = new Map();
+    (entries || []).forEach(entry => {
+        const key = normalizeVisualizationAddressKey(entry?.address || '');
+        const comment = String(entry?.comment || '').trim();
+        if (key && comment) {
+            cfnetAddressComments.set(key, comment);
+        }
+    });
 }
 
 function setLdMonitorDocument(document, sourceFileName) {
@@ -191,6 +264,9 @@ function syncImportedAddressMetadataFromDocumentModel() {
 window.exportImportedAddressMetadata = exportImportedAddressMetadata;
 window.exportImportedAddressMetadataSourceFileName = exportImportedAddressMetadataSourceFileName;
 window.importSavedAddressMetadata = importSavedAddressMetadata;
+window.getCfnetAddressComment = getCfnetAddressComment;
+window.exportCfnetAddressComments = exportCfnetAddressComments;
+window.importSavedCfnetAddressComments = importSavedCfnetAddressComments;
 
 if (Array.isArray(window.visualizationDocumentModel?.addressMetadata)) {
     importSavedAddressMetadata(
@@ -262,7 +338,9 @@ function getAddressAreaEntries(provider, area, searchText, jumpStart) {
 
     for (let index = start; index <= end; index += 1) {
         const address = `${area.prefix}${index}`;
-        const importedMetadata = getImportedAddressMetadata(address);
+        const importedMetadata = provider.metadataMode === 'commentOnly'
+            ? { alias: '', comment: getCfnetAddressComment(address) }
+            : getImportedAddressMetadata(address);
         const alias = String(importedMetadata?.alias || aliases[index] || '');
         const comment = String(importedMetadata?.comment || '');
         if (normalizedSearch &&
@@ -307,11 +385,14 @@ function parseAddressEntry(provider, address) {
             continue;
         }
 
-        const importedMetadata = getImportedAddressMetadata(`${prefix}${index}`);
+        const normalizedAddress = `${prefix}${index}`;
+        const importedMetadata = provider.metadataMode === 'commentOnly'
+            ? { alias: '', comment: getCfnetAddressComment(normalizedAddress) }
+            : getImportedAddressMetadata(normalizedAddress);
         const alias = String(importedMetadata?.alias || provider.aliases?.[prefix]?.[index] || '');
         const comment = String(importedMetadata?.comment || '');
         return {
-            address: `${prefix}${index}`,
+            address: normalizedAddress,
             alias,
             comment,
             type: String(area?.type || ''),
@@ -433,13 +514,11 @@ function findAddressAreaPrefix(provider, address, allowedAreas) {
         return '';
     }
 
-    const match = key.match(/^([A-Z]+)\d+$/);
-    if (!match) {
-        return '';
-    }
-
-    const prefix = match[1];
-    return allowedAreas.some(area => area.prefix === prefix) ? prefix : '';
+    const normalizedAllowed = allowedAreas.map(area => String(area?.prefix || '').toUpperCase());
+    const matched = normalizedAllowed
+        .sort((left, right) => right.length - left.length)
+        .find(prefix => key.startsWith(prefix));
+    return matched || '';
 }
 
 function getAddressAreaRange(area) {
@@ -455,7 +534,12 @@ function getAddressIndexForArea(area, address) {
         return null;
     }
 
-    const value = Number.parseInt(key.slice(prefix.length), 10);
+    const suffix = key.slice(prefix.length);
+    if (!/^\d+$/.test(suffix)) {
+        return null;
+    }
+
+    const value = Number.parseInt(suffix, 10);
     return Number.isFinite(value) ? value : null;
 }
 
@@ -553,12 +637,93 @@ function renderAddressJumpPanel(backdrop, state) {
     }
 }
 
+function getCfnetAreaModule(areaOrPrefix) {
+    const prefix = typeof areaOrPrefix === 'string'
+        ? areaOrPrefix
+        : String(areaOrPrefix?.prefix || '');
+    const match = String(prefix || '').toUpperCase().match(/^([A-Z]+)\./);
+    return match ? match[1] : '';
+}
+
+function getCfnetAreaAdr(areaOrPrefix) {
+    const prefix = typeof areaOrPrefix === 'string'
+        ? areaOrPrefix
+        : String(areaOrPrefix?.prefix || '');
+    const match = String(prefix || '').toUpperCase().match(/^[A-Z]+\.(\d+)\./);
+    return match ? match[1] : '';
+}
+
+function getCfnetSelectedModule(state, allowedAreas) {
+    const selectedModule = getCfnetAreaModule(state.selectedAreaPrefix);
+    if (selectedModule && allowedAreas.some(area => getCfnetAreaModule(area) === selectedModule)) {
+        return selectedModule;
+    }
+
+    return getCfnetAreaModule(allowedAreas[0]) || '';
+}
+
+function renderAddressPickerSidebarMarkup(state, allowedAreas) {
+    if (state.provider?.metadataMode === 'commentOnly') {
+        const modules = Array.from(new Set(allowedAreas.map(area => getCfnetAreaModule(area)).filter(Boolean)));
+        return modules.map(moduleName => {
+            const moduleType = moduleName === 'DI' || moduleName === 'DO' ? 'Bit' : 'Channel';
+            const moduleLabel = moduleName === 'DI'
+                ? 'Digital Input'
+                : (moduleName === 'DO' ? 'Digital Output' : moduleType);
+            const adrButtons = allowedAreas
+                .filter(area => getCfnetAreaModule(area) === moduleName)
+                .map(area => `<button class="address-picker-area address-picker-area-child${area.prefix === state.selectedAreaPrefix ? ' is-selected' : ''}" type="button" data-address-area="${escapeHtml(area.prefix)}">
+                        <span>${escapeHtml(`${getCfnetAreaModule(area)}.${getCfnetAreaAdr(area)}`)}</span>
+                        <small>${escapeHtml(area.type)}</small>
+                    </button>`)
+                .join('');
+            return `<div class="address-picker-area-group">
+                    <div class="address-picker-area-group-label">
+                        <span>${escapeHtml(moduleName)}</span>
+                        <small>${escapeHtml(moduleLabel)}</small>
+                    </div>
+                    <div class="address-picker-area-children">${adrButtons}</div>
+                </div>`;
+        }).join('');
+    }
+
+    return `<button class="address-picker-area${state.selectedAreaPrefix === '__ACTIVE__' ? ' is-selected' : ''}" type="button" data-address-area="__ACTIVE__">
+            <span>${useKoreanLanguage ? '활성주소' : 'Active'}</span>
+            <small>${useKoreanLanguage ? '비트/데이터' : 'Bit/Data'}</small>
+        </button>
+        ${allowedAreas.map(area => `<button class="address-picker-area${area.prefix === state.selectedAreaPrefix ? ' is-selected' : ''}" type="button" data-address-area="${escapeHtml(area.prefix)}">
+            <span>${escapeHtml(area.prefix)}</span>
+            <small>${escapeHtml(useKoreanLanguage ? area.labelKo : (area.labelEn || area.type))}</small>
+        </button>`).join('')}
+        <div class="address-picker-jump-host"></div>`;
+}
+
+function renderAddressPickerSidebar(backdrop, state) {
+    const sidebar = backdrop.querySelector('.address-picker-sidebar');
+    if (!sidebar) {
+        return;
+    }
+
+    const allowedAreas = state.provider.areas.filter(area => isAddressAreaAllowedForMode(area, state.mode));
+    sidebar.innerHTML = renderAddressPickerSidebarMarkup(state, allowedAreas);
+}
+
 function renderAddressPickerMarkup(state, allowedAreas) {
     const resources = getVisualizationResources();
     const title = useKoreanLanguage ? '주소 테이블' : 'Address Table';
     const modeText = state.mode === 'BitOnly'
         ? (useKoreanLanguage ? '비트 주소' : 'Bit addresses')
         : (state.mode === 'DataOnly' ? (useKoreanLanguage ? '데이터 주소' : 'Data addresses') : (useKoreanLanguage ? '전체 주소' : 'All addresses'));
+    const isCommentOnly = state.provider?.metadataMode === 'commentOnly';
+    const searchPlaceholder = isCommentOnly
+        ? (useKoreanLanguage ? '주소 또는 Comment 검색' : 'Search address or comment')
+        : (useKoreanLanguage ? '주소 또는 별칭 검색' : 'Search address or alias');
+    const tableHeader = isCommentOnly
+        ? `<thead><tr><th class="address-picker-check-header"></th><th>${useKoreanLanguage ? '주소' : 'Address'}</th><th>Comment</th><th>Type</th></tr></thead>`
+        : `<thead><tr><th class="address-picker-check-header"></th><th>${useKoreanLanguage ? '주소' : 'Address'}</th><th>Alias</th><th>Comment</th><th>Type</th></tr></thead>`;
+    const aliasImportButton = isCommentOnly
+        ? ''
+        : `<button class="address-picker-alias-refresh" type="button">${escapeHtml(getAliasImportButtonText())}</button>`;
     return `<div class="address-picker-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
         <div class="address-picker-header">
             <div>
@@ -569,31 +734,23 @@ function renderAddressPickerMarkup(state, allowedAreas) {
         </div>
         <div class="address-picker-body">
             <div class="address-picker-sidebar">
-                <button class="address-picker-area${state.selectedAreaPrefix === '__ACTIVE__' ? ' is-selected' : ''}" type="button" data-address-area="__ACTIVE__">
-                    <span>${useKoreanLanguage ? '활성주소' : 'Active'}</span>
-                    <small>${useKoreanLanguage ? '비트/데이터' : 'Bit/Data'}</small>
-                </button>
-                ${allowedAreas.map(area => `<button class="address-picker-area${area.prefix === state.selectedAreaPrefix ? ' is-selected' : ''}" type="button" data-address-area="${escapeHtml(area.prefix)}">
-                    <span>${escapeHtml(area.prefix)}</span>
-                    <small>${escapeHtml(useKoreanLanguage ? area.labelKo : area.type)}</small>
-                </button>`).join('')}
-                <div class="address-picker-jump-host"></div>
+                ${renderAddressPickerSidebarMarkup(state, allowedAreas)}
             </div>
             <div class="address-picker-content">
                 <div class="address-picker-toolbar">
-                    <input class="address-picker-search" type="search" placeholder="${useKoreanLanguage ? '주소 또는 별칭 검색' : 'Search address or alias'}" />
+                    <input class="address-picker-search" type="search" placeholder="${escapeHtml(searchPlaceholder)}" />
                     <span class="address-picker-current">${escapeHtml(state.selectedAddress || '-')}</span>
                 </div>
                 <div class="address-picker-table-wrap">
                     <table class="address-picker-table">
-                        <thead><tr><th class="address-picker-check-header"></th><th>${useKoreanLanguage ? '주소' : 'Address'}</th><th>Alias</th><th>Comment</th><th>Type</th></tr></thead>
+                        ${tableHeader}
                         <tbody></tbody>
                     </table>
                 </div>
             </div>
         </div>
         <div class="address-picker-footer">
-            <button class="address-picker-alias-refresh" type="button">${escapeHtml(getAliasImportButtonText())}</button>
+            ${aliasImportButton}
             <div class="address-picker-footer-actions">
                 <button class="address-picker-cancel" type="button">${escapeHtml(resources.cancel || 'Cancel')}</button>
                 <button class="address-picker-apply" type="button" disabled>${useKoreanLanguage ? '선택' : 'Select'}</button>
@@ -976,8 +1133,12 @@ function bindAddressPickerEvents(backdrop, state) {
             state.selectedAreaPrefix = areaButton.dataset.addressArea;
             state.selectedAddress = '';
             initializeAddressJumpState(state);
-            backdrop.querySelectorAll('.address-picker-area').forEach(button => button.classList.toggle('is-selected', button === areaButton));
-            renderAddressJumpPanel(backdrop, state);
+            if (state.provider?.metadataMode === 'commentOnly') {
+                renderAddressPickerSidebar(backdrop, state);
+            } else {
+                backdrop.querySelectorAll('.address-picker-area').forEach(button => button.classList.toggle('is-selected', button === areaButton));
+                renderAddressJumpPanel(backdrop, state);
+            }
             renderAddressPickerRows(backdrop, state);
             return;
         }
@@ -1001,6 +1162,10 @@ function bindAddressPickerEvents(backdrop, state) {
 
         const row = event.target.closest('.address-picker-row');
         if (row) {
+            if (event.target.closest('.address-picker-comment-input')) {
+                return;
+            }
+
             state.selectedAddress = row.dataset.address || '';
             updateAddressPickerSelection(backdrop, state);
             if (event.detail >= 2) {
@@ -1018,6 +1183,9 @@ function bindAddressPickerEvents(backdrop, state) {
 
         const aliasRefreshButton = event.target.closest('.address-picker-alias-refresh');
         if (aliasRefreshButton) {
+            if (state.provider?.metadataMode === 'commentOnly') {
+                return;
+            }
             openCbprojAliasImportPicker(backdrop, state, aliasRefreshButton);
         }
 
@@ -1028,10 +1196,31 @@ function bindAddressPickerEvents(backdrop, state) {
         state.searchText = searchInput.value;
         renderAddressPickerRows(backdrop, state);
     });
+
+    backdrop.addEventListener('change', event => {
+        const input = event.target.closest('.address-picker-comment-input');
+        if (!input) {
+            return;
+        }
+
+        setCfnetAddressComment(input.dataset.addressComment || '', input.value || '');
+        if (window.visualizationDocumentModel) {
+            window.visualizationDocumentModel.cfnetAddressComments = exportCfnetAddressComments();
+        }
+        if (typeof notifyVisualizationDirty === 'function') {
+            notifyVisualizationDirty();
+        }
+    });
 }
 
 function renderAddressPickerRows(backdrop, state) {
-    const area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+    let area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+    if (!area && state.provider?.metadataMode === 'commentOnly') {
+        const allowedAreas = state.provider.areas.filter(item => isAddressAreaAllowedForMode(item, state.mode));
+        area = allowedAreas[0] || null;
+        state.selectedAreaPrefix = area?.prefix || '';
+        renderAddressPickerSidebar(backdrop, state);
+    }
     renderAddressJumpPanel(backdrop, state);
     const rows = state.selectedAreaPrefix === '__ACTIVE__'
         ? getActiveAddressEntries(state.provider, state.usedAddressKeys, state.currentAddress, state.searchText)
@@ -1039,16 +1228,24 @@ function renderAddressPickerRows(backdrop, state) {
     const tbody = backdrop.querySelector('.address-picker-table tbody');
     const selectedKey = normalizeVisualizationAddressKey(state.selectedAddress);
     const currentKey = normalizeVisualizationAddressKey(state.currentAddress);
+    const isCommentOnly = state.provider?.metadataMode === 'commentOnly';
     tbody.innerHTML = rows.length > 0
         ? rows.map(row => {
             const isSelected = normalizeVisualizationAddressKey(row.address) === selectedKey;
             const isCurrent = normalizeVisualizationAddressKey(row.address) === currentKey;
             const isUsed = state.usedAddressKeys instanceof Set && state.usedAddressKeys.has(normalizeVisualizationAddressKey(row.address));
+            const displayAddress = row.address;
+            const commentCell = isCommentOnly
+                ? `<td><input class="address-picker-comment-input" type="text" value="${escapeHtml(row.comment)}" data-address-comment="${escapeHtml(row.address)}" /></td>`
+                : `<td>${escapeHtml(row.comment)}</td>`;
+            const dataCells = isCommentOnly
+                ? `<td class="address-picker-check-cell" aria-label="${isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : ''}">${isCurrent ? '✓' : ''}</td><td>${escapeHtml(displayAddress)}</td>${commentCell}<td>${escapeHtml(row.type)}</td>`
+                : `<td class="address-picker-check-cell" aria-label="${isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : ''}">${isCurrent ? '✓' : ''}</td><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.alias)}</td>${commentCell}<td>${escapeHtml(row.type)}</td>`;
             return `<tr class="address-picker-row${isSelected ? ' is-selected' : ''}${isUsed ? ' is-used' : ''}" data-address="${escapeHtml(row.address)}" aria-label="${isUsed ? (useKoreanLanguage ? '사용 중인 주소' : 'Used address') : ''}">
-                <td class="address-picker-check-cell" aria-label="${isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : ''}">${isCurrent ? '✓' : ''}</td><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.alias)}</td><td>${escapeHtml(row.comment)}</td><td>${escapeHtml(row.type)}</td>
+                ${dataCells}
             </tr>`;
         }).join('')
-        : `<tr><td colspan="5" class="address-picker-empty">${useKoreanLanguage ? '표시할 주소가 없습니다.' : 'No addresses to display.'}</td></tr>`;
+        : `<tr><td colspan="${isCommentOnly ? 4 : 5}" class="address-picker-empty">${useKoreanLanguage ? '표시할 주소가 없습니다.' : 'No addresses to display.'}</td></tr>`;
     updateAddressPickerSelection(backdrop, state);
 }
 

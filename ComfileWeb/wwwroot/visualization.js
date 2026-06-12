@@ -88,6 +88,7 @@ const designSurface = document.getElementById('designSurface');
             },
             addressMetadata: [],
             addressMetadataSourceFileName: '',
+            cfnetAddressComments: [],
             ldMonitorDocument: null,
             ldMonitorSourceFileName: '',
             pages: [
@@ -5199,6 +5200,13 @@ const designSurface = document.getElementById('designSurface');
 
         function getVisualizationAddressType(address) {
             const key = normalizeVisualizationAddressKey(address);
+            if (/^(DI|DO)\.\d+\.\d+$/i.test(key)) {
+                return 'Bit';
+            }
+            if (/^(ADC|DAC)\.\d+\.\d+$/i.test(key)) {
+                return 'Channel';
+            }
+
             const match = key.match(/^([A-Z]+)\d+$/);
             if (!match) {
                 return '';
@@ -5236,6 +5244,25 @@ const designSurface = document.getElementById('designSurface');
             return [item.address, item.alias, item.type].filter(value => String(value || '').trim()).join(' · ');
         }
 
+        function lookupVisualizationAddressComment(address) {
+            if (typeof window.getCfnetAddressComment === 'function') {
+                const cfnetComment = String(window.getCfnetAddressComment(address) || '').trim();
+                if (cfnetComment) {
+                    return cfnetComment;
+                }
+            }
+
+            if (typeof getImportedAddressMetadata === 'function') {
+                const importedMetadata = getImportedAddressMetadata(address);
+                const importedComment = String(importedMetadata?.comment || '').trim();
+                if (importedComment) {
+                    return importedComment;
+                }
+            }
+
+            return '';
+        }
+
         function collectSelectedWidgetAddressInfo(widget) {
             if (!widget || !widget.properties) {
                 return [];
@@ -5254,7 +5281,8 @@ const designSurface = document.getElementById('designSurface');
                 items.push({
                     address: normalizedAddress,
                     alias: lookupVisualizationAddressAlias(normalizedAddress),
-                    type: getVisualizationAddressType(normalizedAddress)
+                    type: getVisualizationAddressType(normalizedAddress),
+                    comment: lookupVisualizationAddressComment(normalizedAddress)
                 });
             };
 
@@ -5305,6 +5333,16 @@ const designSurface = document.getElementById('designSurface');
                 row.appendChild(value);
 
                 popup.appendChild(row);
+
+                if (item.comment) {
+                    const commentRow = document.createElement('div');
+                    commentRow.className = 'selected-widget-address-popup-row';
+                    const commentValue = document.createElement('span');
+                    commentValue.className = 'selected-widget-address-popup-value';
+                    commentValue.textContent = item.comment;
+                    commentRow.appendChild(commentValue);
+                    popup.appendChild(commentRow);
+                }
             });
 
             designSurface.appendChild(popup);
@@ -6175,7 +6213,7 @@ const designSurface = document.getElementById('designSurface');
                 const state = await withRuntimeTimeout(
                     connection.invoke('Start', {
                         addresses: collectRuntimeAddresses(),
-                        pollingIntervalMs: 100,
+                        pollingIntervalMs: 50,
                         usbCdc: getRuntimeUsbCdcSettings()
                     }),
                     8000,
@@ -6792,6 +6830,9 @@ const designSurface = document.getElementById('designSurface');
             if (typeof window.exportImportedAddressMetadataSourceFileName === 'function') {
                 documentModel.addressMetadataSourceFileName = window.exportImportedAddressMetadataSourceFileName();
             }
+            if (typeof window.exportCfnetAddressComments === 'function') {
+                documentModel.cfnetAddressComments = window.exportCfnetAddressComments();
+            }
             return JSON.stringify(documentModel);
         }
 
@@ -6809,6 +6850,7 @@ const designSurface = document.getElementById('designSurface');
             documentModel.deviceConnection = normalizeDeviceConnection(nextDocumentModel.deviceConnection);
             documentModel.addressMetadata = Array.isArray(nextDocumentModel.addressMetadata) ? nextDocumentModel.addressMetadata : [];
             documentModel.addressMetadataSourceFileName = String(nextDocumentModel.addressMetadataSourceFileName || '');
+            documentModel.cfnetAddressComments = Array.isArray(nextDocumentModel.cfnetAddressComments) ? nextDocumentModel.cfnetAddressComments : [];
             documentModel.ldMonitorDocument = nextDocumentModel.ldMonitorDocument && typeof nextDocumentModel.ldMonitorDocument === 'object' ? nextDocumentModel.ldMonitorDocument : null;
             documentModel.ldMonitorSourceFileName = String(nextDocumentModel.ldMonitorSourceFileName || '');
             documentModel.pages = nextDocumentModel.pages;
@@ -6820,6 +6862,9 @@ const designSurface = document.getElementById('designSurface');
             updateCublocSourceAutoSyncTimer();
             if (typeof window.importSavedAddressMetadata === 'function') {
                 window.importSavedAddressMetadata(documentModel.addressMetadata, documentModel.addressMetadataSourceFileName);
+            }
+            if (typeof window.importSavedCfnetAddressComments === 'function') {
+                window.importSavedCfnetAddressComments(documentModel.cfnetAddressComments);
             }
             updateSourceSyncSettingsUi();
             normalizeVisualizationDocumentPages();

@@ -3595,11 +3595,61 @@
             font-weight: 700;
         }
 
+        .address-picker-area-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .address-picker-area-group-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2px 4px 0;
+            color: var(--property-muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .address-picker-area-group-label small {
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .address-picker-area-children {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-left: 12px;
+        }
+
+        .address-picker-area-child {
+            min-height: 28px;
+        }
+
         .address-picker-table th:nth-child(5),
         .address-picker-table td:nth-child(5) {
             width: 70px;
             min-width: 70px;
             max-width: 70px;
+        }
+
+        .address-picker-comment-input {
+            width: 100%;
+            height: 23px;
+            box-sizing: border-box;
+            border: 1px solid var(--property-border);
+            border-radius: 3px;
+            background: var(--property-value-bg);
+            color: var(--text);
+            padding: 0 6px;
+            font: inherit;
+        }
+
+        .address-picker-comment-input:focus {
+            outline: 1px solid var(--focus);
+            border-color: var(--focus);
         }
 
         .address-picker-row:hover,

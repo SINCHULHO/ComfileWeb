@@ -3,6 +3,7 @@ using System.IO.Ports;
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using ComfileTech.Cfnet.Cfheader;
 
 namespace ComfileWeb.Services;
 
@@ -18,10 +19,11 @@ public sealed class VisualizationRuntimeService
     private readonly ConcurrentDictionary<Guid, WebSocket> _clients = new();
     private readonly Dictionary<string, PendingWrite> _pendingWrites = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _addressByEntryKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<CfnetEntry> _cfnetEntries = [];
     private List<MonitorEntry> _entries = [];
     private CancellationTokenSource? _pollingCts;
     private Task? _pollingTask;
-    private int _pollingIntervalMs = 100;
+    private int _pollingIntervalMs = 50;
     private string? _lastError;
     private bool _running;
 
@@ -126,6 +128,7 @@ public sealed class VisualizationRuntimeService
                     _values.Clear();
                     _pendingWrites.Clear();
                     _addressByEntryKey.Clear();
+                    _cfnetEntries.Clear();
                     _entries = [];
                     if (argument is { ValueKind: JsonValueKind.Object } startArg
                         && startArg.TryGetProperty("addresses", out JsonElement addresses)
@@ -174,8 +177,30 @@ public sealed class VisualizationRuntimeService
 
                     if (_entries.Count == 0)
                     {
+                        if (_cfnetEntries.Count > 0)
+                        {
+                            _running = true;
+                            _lastError = null;
+                            _pollingCts?.Cancel();
+                            _pollingCts?.Dispose();
+                            _pollingCts = new CancellationTokenSource();
+                            _pollingTask = Task.Run(() => PollLoopAsync(_pollingCts.Token), CancellationToken.None);
+                            runtimeState = new { running = true, error = (string?)null };
+                            snapshot = new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
+                            _logger.LogInformation("CFNET runtime started. Entries={EntryCount}, Polling={PollingInterval}ms", _cfnetEntries.Count, _pollingIntervalMs);
+                        }
+                        else
+                        {
+                            _running = false;
+                            _lastError = "No runtime addresses.";
+                            runtimeState = new { running = false, error = _lastError };
+                            snapshot = new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
+                        }
+                    }
+                    else if (_cfnetEntries.Count > 0)
+                    {
                         _running = false;
-                        _lastError = "No runtime addresses.";
+                        _lastError = "CUBLOC2 and CFNET addresses cannot be mixed.";
                         runtimeState = new { running = false, error = _lastError };
                         snapshot = new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
                     }
@@ -254,6 +279,13 @@ public sealed class VisualizationRuntimeService
                     {
                         _pendingWrites[address] = new PendingWrite(address, monType, monIndex, value);
                         _logger.LogInformation("Queued write: Address={Address}, MonType={MonType}, MonIndex={MonIndex}, Value={Value}", address, monType, monIndex, value);
+                    }
+                    else if (_running && !string.IsNullOrWhiteSpace(address)
+                        && CfnetAddressing.TryParseAddress(address, out bool isOutput, out int moduleIndex, out int bitIndex)
+                        && isOutput)
+                    {
+                        _pendingWrites[address] = new PendingWrite(address, 0, 0, value);
+                        _logger.LogInformation("Queued CFNET write: Address={Address}, Value={Value}", address, value);
                     }
 
                     snapshot = new Dictionary<string, double>(_values.ToDictionary(pair => pair.Key, pair => (double)pair.Value, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
@@ -351,7 +383,20 @@ public sealed class VisualizationRuntimeService
 
         lock (_sync)
         {
-            if (!_running || !_usbCdc.TryGetOpenPort(out SerialPort? port) || port is null || _entries.Count == 0)
+            if (!_running)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (_cfnetEntries.Count > 0)
+            {
+                snapshot = PollCfnetValues();
+                return snapshot is not null
+                    ? BroadcastInvocationAsync("RuntimeValuesChanged", new { values = snapshot }, cancellationToken)
+                    : Task.CompletedTask;
+            }
+
+            if (!_usbCdc.TryGetOpenPort(out SerialPort? port) || port is null || _entries.Count == 0)
             {
                 return Task.CompletedTask;
             }
@@ -464,6 +509,23 @@ public sealed class VisualizationRuntimeService
             }
 
             string runtimeAddress = (addressElement.GetString() ?? string.Empty).Trim();
+            if (CfnetAddressing.TryParseAddress(runtimeAddress, out bool _, out int _, out int _))
+            {
+                string cfnetKey = runtimeAddress.ToUpperInvariant();
+                if (_cfnetEntries.Any(entry => string.Equals(entry.Key, cfnetKey, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                _cfnetEntries.Add(new CfnetEntry(runtimeAddress));
+                if (!_values.ContainsKey(runtimeAddress))
+                {
+                    _values[runtimeAddress] = 0;
+                }
+
+                continue;
+            }
+
             if (!CublocAddressing.TryParseMonitorAddress(runtimeAddress, out int monType, out int monIndex))
             {
                 continue;
@@ -505,4 +567,141 @@ public sealed class VisualizationRuntimeService
     }
 
     private sealed record PendingWrite(string Address, int MonType, int MonIndex, int Value);
+
+    private Dictionary<string, int>? PollCfnetValues()
+    {
+        try
+        {
+            ApplyPendingCfnetWrites();
+
+            if (Cfheader.Instances.Count == 0)
+            {
+                if (_lastError != "CFHEADER instance not found.")
+                {
+                    _lastError = "CFHEADER instance not found.";
+                }
+                return null;
+            }
+
+            var cfheader0 = Cfheader.Instances[0];
+            if (!cfheader0.IsOpen)
+            {
+                cfheader0.Open();
+            }
+
+            foreach (CfnetEntry entry in _cfnetEntries)
+            {
+                if (!CfnetAddressing.TryParseAddress(entry.Address, out bool isOutput, out int moduleIndex, out int bitIndex))
+                {
+                    continue;
+                }
+
+                if (isOutput)
+                {
+                    if (moduleIndex >= cfheader0.DigitalOutputModules.Count)
+                    {
+                        continue;
+                    }
+
+                    var doModule = cfheader0.DigitalOutputModules[moduleIndex];
+                    if (bitIndex >= doModule.Channels.Count)
+                    {
+                        continue;
+                    }
+
+                    _values[entry.Address] = doModule.Channels[bitIndex].State ? 1 : 0;
+                }
+                else
+                {
+                    if (moduleIndex >= cfheader0.DigitalInputModules.Count)
+                    {
+                        continue;
+                    }
+
+                    var diModule = cfheader0.DigitalInputModules[moduleIndex];
+                    if (bitIndex >= diModule.Channels.Count)
+                    {
+                        continue;
+                    }
+
+                    _values[entry.Address] = diModule.Channels[bitIndex].State ? 1 : 0;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(_lastError))
+            {
+                _lastError = null;
+            }
+
+            return new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            _lastError = ex.Message;
+            _logger.LogWarning(ex, "CFNET runtime polling failed.");
+            return null;
+        }
+    }
+
+    private void ApplyPendingCfnetWrites()
+    {
+        if (_pendingWrites.Count == 0)
+        {
+            return;
+        }
+
+        List<PendingWrite> writes = _pendingWrites.Values
+            .Where(write => CfnetAddressing.TryParseAddress(write.Address, out bool isOutput, out int _, out int _) && isOutput)
+            .ToList();
+
+        foreach (PendingWrite write in writes)
+        {
+            _pendingWrites.Remove(write.Address);
+            if (!CfnetAddressing.TryParseAddress(write.Address, out bool isOutput, out int moduleIndex, out int bitIndex) || !isOutput)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (Cfheader.Instances.Count == 0)
+                {
+                    _lastError = "CFHEADER instance not found.";
+                    continue;
+                }
+
+                var cfheader0 = Cfheader.Instances[0];
+                if (!cfheader0.IsOpen)
+                {
+                    cfheader0.Open();
+                }
+
+                if (moduleIndex >= cfheader0.DigitalOutputModules.Count)
+                {
+                    _lastError = $"CFNET DO module not found: {moduleIndex}";
+                    continue;
+                }
+
+                var module = cfheader0.DigitalOutputModules[moduleIndex];
+                if (bitIndex >= module.Channels.Count)
+                {
+                    _lastError = $"CFNET DO bit out of range: {bitIndex}";
+                    continue;
+                }
+
+                module.Channels[bitIndex].State = write.Value != 0;
+                cfheader0.Sync();
+            }
+            catch (Exception ex)
+            {
+                _lastError = ex.Message;
+                _logger.LogWarning(ex, "CFNET write failed: Address={Address}", write.Address);
+            }
+        }
+    }
+
+    private sealed record CfnetEntry(string Address)
+    {
+        public string Key { get; } = (Address ?? string.Empty).Trim().ToUpperInvariant();
+    }
 }

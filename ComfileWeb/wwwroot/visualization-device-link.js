@@ -52,11 +52,61 @@ function getLinkTransportMode() {
     return String(linkTransportSelect?.value || '').trim();
 }
 
+function isCfnetFieldIoSelected() {
+    return String(linkModelSelect?.value || '').trim().toUpperCase() === 'CFNET';
+}
+
+function getLinkStepConnectTitle() {
+    return isCurrentVisualizationLanguageKorean() ? '2. 연결' : '2. Connect';
+}
+
+function syncCfnetStepLayout() {
+    const isCfnet = isCfnetFieldIoSelected();
+    const step4Title = linkStep4?.querySelector('.link-step-title');
+    if (step4Title) {
+        step4Title.textContent = isCfnet
+            ? getLinkStepConnectTitle()
+            : (isCurrentVisualizationLanguageKorean() ? '4. 연결 테스트' : '4. Connection test');
+    }
+
+    if (linkStep2) {
+        linkStep2.style.display = isCfnet ? 'none' : '';
+    }
+    if (linkStep3) {
+        linkStep3.style.display = isCfnet ? 'none' : '';
+    }
+    if (linkStep4) {
+        linkStep4.style.display = '';
+    }
+}
+
 function updateLinkTransportRows() {
+    const isCfnet = isCfnetFieldIoSelected();
     const hasDevice = !!String(linkModelSelect?.value || '').trim();
     const transport = getLinkTransportMode();
     const hasTransport = !!transport;
     const showEthernet = transport === 'Ethernet';
+
+    syncCfnetStepLayout();
+
+    if (isCfnet) {
+        if (linkComPortRow) {
+            linkComPortRow.style.display = 'none';
+        }
+        if (linkEthernetIpRow) {
+            linkEthernetIpRow.style.display = 'none';
+        }
+        if (linkEthernetPortRow) {
+            linkEthernetPortRow.style.display = 'none';
+        }
+        if (linkTransportSelect) {
+            linkTransportSelect.value = '';
+        }
+
+        updateLinkWizardStepState();
+        return;
+    }
+
     if (linkComPortRow) {
         linkComPortRow.style.display = (!hasDevice || !hasTransport || showEthernet) ? 'none' : '';
     }
@@ -71,11 +121,16 @@ function updateLinkTransportRows() {
 }
 
 function updateLinkWizardStepState() {
+    syncCfnetStepLayout();
+
+    const isCfnet = isCfnetFieldIoSelected();
     const hasDevice = !!String(linkModelSelect?.value || '').trim();
     const hasTransport = !!String(linkTransportSelect?.value || '').trim();
     const transport = getLinkTransportMode();
     let hasPortDetail = false;
-    if (!hasDevice || !hasTransport) {
+    if (isCfnet) {
+        hasPortDetail = hasDevice;
+    } else if (!hasDevice || !hasTransport) {
         hasPortDetail = false;
     } else if (transport === 'Ethernet') {
         hasPortDetail = !!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim();
@@ -84,17 +139,17 @@ function updateLinkWizardStepState() {
     }
 
     if (linkStep2) {
-        linkStep2.classList.toggle('is-disabled', !hasDevice);
+        linkStep2.classList.toggle('is-disabled', !hasDevice && !isCfnet);
     }
     if (linkStep3) {
-        linkStep3.classList.toggle('is-disabled', !(hasDevice && hasTransport));
+        linkStep3.classList.toggle('is-disabled', isCfnet || !(hasDevice && hasTransport));
     }
     if (linkStep4) {
-        linkStep4.classList.toggle('is-disabled', !(hasDevice && hasTransport && hasPortDetail));
+        linkStep4.classList.toggle('is-disabled', isCfnet ? !hasDevice : !(hasDevice && hasTransport && hasPortDetail));
     }
 
     if (usbConnectButton) {
-        usbConnectButton.disabled = !(hasDevice && hasTransport && hasPortDetail);
+        usbConnectButton.disabled = isCfnet ? !hasDevice : !(hasDevice && hasTransport && hasPortDetail);
     }
 
     updateDeviceConnectionStatusBar();
@@ -107,16 +162,21 @@ function updateDeviceConnectionStatusBar() {
 
     const useKorean = isCurrentVisualizationLanguageKorean();
     const device = String(linkModelSelect?.value || '').trim();
+    const isCfnet = isCfnetFieldIoSelected();
     const transport = String(linkTransportSelect?.value || '').trim();
-    const hasTransport = !!transport;
+    const hasTransport = isCfnet ? true : !!transport;
     const portName = (device && hasTransport) ? String(linkComPortSelect?.value || usbCdcConnectionState.portName || '').trim() : '';
     const hasPortDetail = hasTransport
-        ? (transport === 'Ethernet'
+        ? (isCfnet
+            ? true
+            : (transport === 'Ethernet'
             ? (!!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim())
-            : !!String(linkComPortSelect?.value || '').trim())
+            : !!String(linkComPortSelect?.value || '').trim()))
         : false;
     const isConnected = !!usbCdcConnectionState.isConnected;
-    const lastTestOk = !!usbCdcConnectionState.testOk && !!portName && portName === usbCdcConnectionState.testPortName;
+    const lastTestOk = isCfnet
+        ? false
+        : (!!usbCdcConnectionState.testOk && !!portName && portName === usbCdcConnectionState.testPortName);
     const hasConfiguration = !!device && hasTransport && hasPortDetail;
 
     deviceConnectionStatusButton.classList.toggle('is-connected', isConnected);
@@ -127,15 +187,20 @@ function updateDeviceConnectionStatusBar() {
     let titleText = '';
 
     if (isConnected) {
-        const activePort = portName || usbCdcConnectionState.portName;
+        const activePort = isCfnet ? 'CFNET' : (portName || usbCdcConnectionState.portName);
         statusText = [activePort, useKorean ? '실행 중 연결됨' : 'Connected while running'].filter(Boolean).join(' · ');
         titleText = [device || 'Device', transport, activePort, useKorean ? '실행 중 연결됨' : 'Connected while running'].filter(Boolean).join(' / ');
     } else if (lastTestOk) {
         statusText = [portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' · ');
         titleText = [device || 'Device', transport, portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' / ');
     } else if (hasConfiguration) {
-        statusText = [portName || transport, useKorean ? '연결 테스트 필요' : 'Test required'].filter(Boolean).join(' · ');
-        titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '연결 테스트를 먼저 수행하세요' : 'Run connection test first'].filter(Boolean).join(' / ');
+        if (isCfnet) {
+            statusText = useKorean ? '연결 필요' : 'Connection required';
+            titleText = [device || (useKorean ? '디바이스' : 'Device'), useKorean ? '연결 필요' : 'Connection required'].filter(Boolean).join(' / ');
+        } else {
+            statusText = [portName || transport, useKorean ? '연결 테스트 필요' : 'Test required'].filter(Boolean).join(' · ');
+            titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '연결 테스트를 먼저 수행하세요' : 'Run connection test first'].filter(Boolean).join(' / ');
+        }
     } else {
         statusText = useKorean ? '디바이스 미설정' : 'Device not set';
         titleText = useKorean ? '디바이스 연결 설정' : 'Device connection settings';
@@ -149,19 +214,22 @@ function updateDeviceConnectionStatusBar() {
 function updateUsbConnectionUi(connectionState) {
     const useKorean = isCurrentVisualizationLanguageKorean();
     const selectedDevice = String(linkModelSelect?.value || '').trim();
+    const isCfnet = isCfnetFieldIoSelected();
     const selectedPort = String(linkComPortSelect?.value || '').trim();
     const reportedPort = connectionState && connectionState.portName ? String(connectionState.portName) : '';
-    const isConnected = !!(connectionState && connectionState.isConnected && selectedDevice && selectedPort && selectedPort === reportedPort);
-    const portName = isConnected ? reportedPort : '';
+    const isConnected = !!(connectionState && connectionState.isConnected && selectedDevice && (isCfnet || (selectedPort && selectedPort === reportedPort)));
+    const portName = isConnected ? (isCfnet ? 'CFNET' : reportedPort) : '';
     const testOk = !!(connectionState && connectionState.testOk && selectedPort && selectedPort === String(connectionState.testPortName || '').trim());
     const testPortName = testOk ? selectedPort : '';
     usbCdcConnectionState = { isConnected, portName, testOk, testPortName };
     const hasDevice = !!selectedDevice;
-    const hasTransport = !!String(linkTransportSelect?.value || '').trim();
+    const hasTransport = isCfnet ? true : !!String(linkTransportSelect?.value || '').trim();
     const hasPortDetail = hasTransport
-        ? (String(linkTransportSelect?.value || '').trim() === 'Ethernet'
+        ? (isCfnet
+            ? true
+            : (String(linkTransportSelect?.value || '').trim() === 'Ethernet'
             ? (!!String(linkEthernetIpInput?.value || '').trim() && !!String(linkEthernetPortInput?.value || '').trim())
-            : !!selectedPort)
+            : !!selectedPort))
         : false;
     const disconnectedText = testOk
         ? (useKorean ? '연결 이상없음' : 'Connection OK')
@@ -176,7 +244,11 @@ function updateUsbConnectionUi(connectionState) {
         usbConnectionState.textContent = isConnected ? connectedText : disconnectedText;
     }
     if (usbConnectButton) {
-        usbConnectButton.textContent = useKorean ? '연결 테스트' : 'Connection test';
+        usbConnectButton.textContent = isCfnet
+            ? (isConnected
+                ? (useKorean ? '연결 해제' : 'Disconnect')
+                : (useKorean ? '연결' : 'Connect'))
+            : (useKorean ? '연결 테스트' : 'Connection test');
     }
 
     updateDeviceConnectionStatusBar();
@@ -312,6 +384,29 @@ async function applyDeviceConnectionState(state) {
 }
 
 async function loadUsbCdcPorts(preferredPortName) {
+    if (isCfnetFieldIoSelected()) {
+        try {
+            const response = await fetch('/api/cfnet/status', { method: 'GET' });
+            if (!response.ok) {
+                throw new Error(`CFNET status request failed: ${response.status}`);
+            }
+
+            const payload = await response.json();
+            fillComPortOptions([], '');
+            updateUsbConnectionUi({
+                isConnected: !!payload?.isConnected,
+                portName: 'CFNET',
+                testOk: false,
+                testPortName: ''
+            });
+        } catch (error) {
+            fillComPortOptions([], '');
+            updateUsbConnectionUi({ isConnected: false, portName: 'CFNET', testOk: false, testPortName: '' });
+            console.warn(error);
+        }
+        return;
+    }
+
     try {
         const response = await fetch('/api/usb-cdc/ports', { method: 'GET' });
         if (!response.ok) {
@@ -334,6 +429,37 @@ async function loadUsbCdcPorts(preferredPortName) {
 }
 
 async function toggleUsbCdcConnection() {
+    if (isCfnetFieldIoSelected()) {
+        try {
+            const currentlyConnected = !!usbCdcConnectionState?.isConnected;
+            const response = await fetch(currentlyConnected ? '/api/cfnet/disconnect' : '/api/cfnet/connect', {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error(`CFNET ${currentlyConnected ? 'disconnect' : 'connect'} failed: ${response.status}`);
+            }
+
+            const payload = await response.json();
+            updateUsbConnectionUi({
+                isConnected: !!payload?.isConnected,
+                portName: 'CFNET',
+                testOk: false,
+                testPortName: ''
+            });
+        } catch (error) {
+            console.warn(error);
+            updateUsbConnectionUi({
+                isConnected: false,
+                portName: 'CFNET',
+                testOk: false,
+                testPortName: ''
+            });
+            alert(useKoreanLanguage ? 'CFNET 연결에 실패했습니다.' : 'CFNET connection failed.');
+            await loadUsbCdcPorts('');
+        }
+        return;
+    }
+
     const selectedPortName = String(linkComPortSelect?.value || '').trim();
     if (!selectedPortName) {
         await loadUsbCdcPorts('');
