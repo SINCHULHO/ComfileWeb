@@ -6185,6 +6185,21 @@ const designSurface = document.getElementById('designSurface');
                 setSettingsPanelVisible(false);
             }
 
+            if (String(linkModelSelect?.value || documentModel.deviceConnection?.device || '').trim().toUpperCase() === 'CFNET'
+                && !(usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk)) {
+                const shouldConnect = confirm(useKoreanLanguage ? 'CFNET에 연결하시겠습니까?' : 'Connect to CFNET?');
+                if (!shouldConnect) {
+                    return;
+                }
+
+                if (typeof window.connectCfnetAndScanModules === 'function') {
+                    const connected = await window.connectCfnetAndScanModules();
+                    if (!connected) {
+                        return;
+                    }
+                }
+            }
+
             runtimeStarting = true;
             runtimeRunning = false;
             runtimeStartPageName = activePageName;

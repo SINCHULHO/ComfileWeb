@@ -505,51 +505,7 @@ async function loadUsbCdcPorts(preferredPortName) {
 
 async function toggleUsbCdcConnection() {
     if (isCfnetFieldIoSelected()) {
-        try {
-            if (usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk) {
-                const response = await fetch('/api/cfnet/disconnect', { method: 'POST' });
-                if (!response.ok) {
-                    throw new Error(`CFNET disconnect failed: ${response.status}`);
-                }
-            }
-
-            cfnetConnectionInProgress = true;
-            clearCfnetDetectedModules();
-            updateUsbConnectionUi({
-                isConnected: false,
-                portName: usbCdcConnectionState.portName || 'CFNET',
-                testOk: false,
-                testPortName: ''
-            });
-            const response = await fetch('/api/cfnet/scan-modules', {
-                method: 'POST'
-            });
-            if (!response.ok) {
-                throw new Error(`CFNET module scan failed: ${response.status}`);
-            }
-
-            const payload = await response.json();
-            cfnetConnectionInProgress = false;
-            renderCfnetDetectedModules(payload?.modules);
-            updateUsbConnectionUi({
-                isConnected: true,
-                portName: 'CFNET',
-                testOk: true,
-                testPortName: 'CFNET'
-            });
-        } catch (error) {
-            console.warn(error);
-            cfnetConnectionInProgress = false;
-            clearCfnetDetectedModules();
-            updateUsbConnectionUi({
-                isConnected: false,
-                portName: 'CFNET',
-                testOk: false,
-                testPortName: ''
-            });
-            alert(useKoreanLanguage ? 'CFNET 모듈 감지에 실패했습니다.' : 'CFNET module scan failed.');
-            await loadUsbCdcPorts('');
-        }
+        await connectCfnetAndScanModules();
         return;
     }
 
@@ -585,3 +541,59 @@ async function toggleUsbCdcConnection() {
         await loadUsbCdcPorts(selectedPortName);
     }
 }
+
+async function connectCfnetAndScanModules() {
+    if (!isCfnetFieldIoSelected()) {
+        return false;
+    }
+
+    try {
+        if (usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk) {
+            const response = await fetch('/api/cfnet/disconnect', { method: 'POST' });
+            if (!response.ok) {
+                throw new Error(`CFNET disconnect failed: ${response.status}`);
+            }
+        }
+
+        cfnetConnectionInProgress = true;
+        clearCfnetDetectedModules();
+        updateUsbConnectionUi({
+            isConnected: false,
+            portName: usbCdcConnectionState.portName || 'CFNET',
+            testOk: false,
+            testPortName: ''
+        });
+        const response = await fetch('/api/cfnet/scan-modules', {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            throw new Error(`CFNET module scan failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        cfnetConnectionInProgress = false;
+        renderCfnetDetectedModules(payload?.modules);
+        updateUsbConnectionUi({
+            isConnected: true,
+            portName: 'CFNET',
+            testOk: true,
+            testPortName: 'CFNET'
+        });
+        return true;
+    } catch (error) {
+        console.warn(error);
+        cfnetConnectionInProgress = false;
+        clearCfnetDetectedModules();
+        updateUsbConnectionUi({
+            isConnected: false,
+            portName: 'CFNET',
+            testOk: false,
+            testPortName: ''
+        });
+        alert(useKoreanLanguage ? 'CFNET 모듈 감지에 실패했습니다.' : 'CFNET module scan failed.');
+        await loadUsbCdcPorts('');
+        return false;
+    }
+}
+
+window.connectCfnetAndScanModules = connectCfnetAndScanModules;
