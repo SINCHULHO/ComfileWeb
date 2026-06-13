@@ -204,12 +204,27 @@ public sealed class UsbCdcService
         {
             if (_port is { IsOpen: true })
             {
-                return string.Equals(_port.PortName, normalizedPort, StringComparison.OrdinalIgnoreCase);
+                return string.Equals(_port.PortName, normalizedPort, StringComparison.OrdinalIgnoreCase)
+                    && TestCublocProtocol(_port);
             }
 
             using var serialPort = CreateSerialPort(normalizedPort, baudRate);
             serialPort.Open();
-            return serialPort.IsOpen;
+            return serialPort.IsOpen && TestCublocProtocol(serialPort);
+        }
+    }
+
+    private static bool TestCublocProtocol(SerialPort serialPort)
+    {
+        try
+        {
+            MonitorEntry[] entries = [new((byte)CublocAddressing.MonTypeM, 0)];
+            Dictionary<string, int>? values = CublocCdcProtocol.ReadMonitorValues(serialPort, entries);
+            return values is not null && values.ContainsKey(entries[0].Key);
+        }
+        catch
+        {
+            return false;
         }
     }
 

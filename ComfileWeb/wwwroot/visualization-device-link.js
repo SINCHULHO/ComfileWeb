@@ -49,6 +49,10 @@ window.addEventListener('visualization-language-changed', () => {
 window.setTimeout(syncDeviceLinkLanguageUi, 0);
 
 function getLinkTransportMode() {
+    if (String(linkModelSelect?.value || '').trim().toUpperCase() === 'CUBLOC2') {
+        return 'USB';
+    }
+
     return String(linkTransportSelect?.value || '').trim();
 }
 
@@ -63,24 +67,48 @@ function getLinkStepConnectTitle() {
 }
 
 function getLinkStepCheckTitle() {
+    return isCurrentVisualizationLanguageKorean() ? '3. 연결 체크' : '3. Connection check';
+}
+
+function getDefaultLinkStepCheckTitle() {
     return isCurrentVisualizationLanguageKorean() ? '4. 연결 체크' : '4. Connection check';
+}
+
+function getLinkStepPortTitle() {
+    return isCurrentVisualizationLanguageKorean() ? '2. 포트 설정' : '2. Port settings';
+}
+
+function getDefaultLinkStepPortTitle() {
+    return isCurrentVisualizationLanguageKorean() ? '3. 포트/주소 설정' : '3. Port/address settings';
 }
 
 function syncCfnetStepLayout() {
     const isCfnet = isCfnetFieldIoSelected();
+    const hasDevice = !!String(linkModelSelect?.value || '').trim();
+    const isCubloc2 = String(linkModelSelect?.value || '').trim().toUpperCase() === 'CUBLOC2';
+    const linkWizard = linkStep1?.parentElement;
+    const step3Title = linkStep3?.querySelector('.link-step-title');
     const step4Title = linkStep4?.querySelector('.link-step-title');
+    if (linkWizard) {
+        linkWizard.classList.toggle('is-cubloc2-link', isCubloc2);
+    }
+    if (step3Title) {
+        step3Title.textContent = isCubloc2 ? getLinkStepPortTitle() : getDefaultLinkStepPortTitle();
+    }
     if (step4Title) {
-        step4Title.textContent = isCfnet ? getLinkStepConnectTitle() : getLinkStepCheckTitle();
+        step4Title.textContent = isCfnet
+            ? getLinkStepConnectTitle()
+            : (isCubloc2 ? getLinkStepCheckTitle() : getDefaultLinkStepCheckTitle());
     }
 
     if (linkStep2) {
-        linkStep2.style.display = isCfnet ? 'none' : '';
+        linkStep2.style.display = (!hasDevice || isCfnet || isCubloc2) ? 'none' : '';
     }
     if (linkStep3) {
-        linkStep3.style.display = isCfnet ? 'none' : '';
+        linkStep3.style.display = (!hasDevice || isCfnet) ? 'none' : '';
     }
     if (linkStep4) {
-        linkStep4.style.display = '';
+        linkStep4.style.display = hasDevice ? '' : 'none';
     }
 }
 
@@ -92,6 +120,24 @@ function updateLinkTransportRows() {
     const showEthernet = transport === 'Ethernet';
 
     syncCfnetStepLayout();
+
+    if (!hasDevice) {
+        if (linkTransportSelect) {
+            linkTransportSelect.value = '';
+        }
+        if (linkComPortRow) {
+            linkComPortRow.style.display = 'none';
+        }
+        if (linkEthernetIpRow) {
+            linkEthernetIpRow.style.display = 'none';
+        }
+        if (linkEthernetPortRow) {
+            linkEthernetPortRow.style.display = 'none';
+        }
+
+        updateLinkWizardStepState();
+        return;
+    }
 
     if (isCfnet) {
         if (linkComPortRow) {
@@ -109,6 +155,10 @@ function updateLinkTransportRows() {
 
         updateLinkWizardStepState();
         return;
+    }
+
+    if (linkTransportSelect) {
+        linkTransportSelect.value = hasDevice ? 'USB' : '';
     }
 
     if (linkComPortRow) {
@@ -129,7 +179,7 @@ function updateLinkWizardStepState() {
 
     const isCfnet = isCfnetFieldIoSelected();
     const hasDevice = !!String(linkModelSelect?.value || '').trim();
-    const hasTransport = !!String(linkTransportSelect?.value || '').trim();
+    const hasTransport = isCfnet ? true : !!getLinkTransportMode();
     const transport = getLinkTransportMode();
     let hasPortDetail = false;
     if (isCfnet) {
@@ -143,7 +193,7 @@ function updateLinkWizardStepState() {
     }
 
     if (linkStep2) {
-        linkStep2.classList.toggle('is-disabled', !hasDevice && !isCfnet);
+        linkStep2.classList.toggle('is-disabled', !hasDevice || isCfnet);
     }
     if (linkStep3) {
         linkStep3.classList.toggle('is-disabled', isCfnet || !(hasDevice && hasTransport));
@@ -239,7 +289,7 @@ function updateUsbConnectionUi(connectionState) {
         ? (useKorean ? '연결 이상없음' : 'Connection OK')
         : (hasDevice && hasTransport && hasPortDetail
             ? ''
-            : (useKorean ? '디바이스 미설정' : 'Device not set'));
+            : '');
     const connectedText = useKorean
         ? `연결됨${portName ? ` (${portName})` : ''}`
         : `Connected${portName ? ` (${portName})` : ''}`;

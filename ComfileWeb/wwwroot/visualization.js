@@ -522,9 +522,10 @@ const designSurface = document.getElementById('designSurface');
 
         function getDeviceConnectionState() {
             const ethernetPort = Number(linkEthernetPortInput?.value || 502);
+            const selectedDevice = String(linkModelSelect?.value || '').trim();
             return normalizeDeviceConnection({
-                device: String(linkModelSelect?.value || '').trim(),
-                transport: String(linkTransportSelect?.value || '').trim(),
+                device: selectedDevice,
+                transport: selectedDevice.toUpperCase() === 'CUBLOC2' ? 'USB' : String(linkTransportSelect?.value || '').trim(),
                 portName: String(linkComPortSelect?.value || '').trim(),
                 baudRate: 115200,
                 ethernetIpAddress: String(linkEthernetIpInput?.value || '192.168.0.100').trim(),
@@ -585,6 +586,9 @@ const designSurface = document.getElementById('designSurface');
             updateActivePageLabel();
             renderProjectTree();
             renderWidgets();
+            if (runtimeRunning && !wasRuntimeRunning && typeof loadUsbCdcPorts === 'function') {
+                loadUsbCdcPorts(String(linkComPortSelect?.value || '').trim()).catch(error => console.warn(error));
+            }
         }
 
         function createNewVisualizationProject() {
@@ -8585,6 +8589,7 @@ const designSurface = document.getElementById('designSurface');
             linkModelSelect.addEventListener('change', async () => {
                 if (!String(linkModelSelect.value || '').trim()) {
                     fillComPortOptions([], '');
+                    updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
                 } else if (getLinkTransportMode() !== 'Ethernet') {
                     await loadUsbCdcPorts('');
                 }
@@ -8597,6 +8602,7 @@ const designSurface = document.getElementById('designSurface');
         }
         if (linkComPortSelect) {
             linkComPortSelect.addEventListener('change', () => {
+                updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
                 updateLinkWizardStepState();
                 captureDeviceConnectionState();
                 notifyVisualizationDirty();
