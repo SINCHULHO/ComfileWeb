@@ -29,6 +29,7 @@ public sealed class VisualizationRuntimeService
     private bool _cfnetDisconnectAlertSent;
     private DateTimeOffset? _cfnetRetryAt;
     private DateTimeOffset? _cublocReconnectAt;
+    private int _cfheaderAddress;
     private bool _running;
 
     public VisualizationRuntimeService(UsbCdcService usbCdc, ILogger<VisualizationRuntimeService> logger)
@@ -159,6 +160,10 @@ public sealed class VisualizationRuntimeService
                             && baudElement.ValueKind == JsonValueKind.Number
                             ? baudElement.GetInt32()
                             : 115200;
+                        _cfheaderAddress = usbCdc.TryGetProperty("cfheaderAddress", out JsonElement cfheaderAddressElement)
+                            && cfheaderAddressElement.ValueKind == JsonValueKind.Number
+                            ? Math.Clamp(cfheaderAddressElement.GetInt32(), 0, 7)
+                            : 0;
 
                         if (!_usbCdc.IsConnected)
                         {
@@ -661,12 +666,7 @@ public sealed class VisualizationRuntimeService
         {
             ApplyPendingCfnetWrites();
 
-            if (Cfheader.Instances.Count == 0)
-            {
-                return HandleCfnetPollFailure("CFHEADER instance not found.");
-            }
-
-            var cfheader0 = Cfheader.Instances[0];
+            var cfheader0 = GetCfheader();
             if (!cfheader0.IsOpen)
             {
                 cfheader0.Open();
@@ -756,12 +756,7 @@ public sealed class VisualizationRuntimeService
     {
         try
         {
-            if (Cfheader.Instances.Count == 0)
-            {
-                return;
-            }
-
-            var cfheader0 = Cfheader.Instances[0];
+            var cfheader0 = GetCfheader();
             if (cfheader0.IsOpen)
             {
                 cfheader0.Close();
@@ -794,13 +789,7 @@ public sealed class VisualizationRuntimeService
 
             try
             {
-                if (Cfheader.Instances.Count == 0)
-                {
-                    _lastError = "CFHEADER instance not found.";
-                    continue;
-                }
-
-                var cfheader0 = Cfheader.Instances[0];
+                var cfheader0 = GetCfheader();
                 if (!cfheader0.IsOpen)
                 {
                     cfheader0.Open();
@@ -828,6 +817,17 @@ public sealed class VisualizationRuntimeService
                 _logger.LogWarning(ex, "CFNET write failed: Address={Address}", write.Address);
             }
         }
+    }
+
+    private Cfheader GetCfheader()
+    {
+        int address = Math.Clamp(_cfheaderAddress, 0, 7);
+        if (Cfheader.Instances.Count <= address)
+        {
+            throw new InvalidOperationException($"CFHEADER address {address} is not available.");
+        }
+
+        return Cfheader.Instances[address];
     }
 
     private sealed record CfnetPollOutcome(Dictionary<string, int>? Snapshot, string? StateError, bool StateChanged);

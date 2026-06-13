@@ -94,7 +94,11 @@ function isCfnetFieldIoSelected() {
 }
 
 function getLinkStepConnectTitle() {
-    return isCurrentVisualizationLanguageKorean() ? '2. 연결' : '2. Connect';
+    return isCurrentVisualizationLanguageKorean() ? '3. 연결' : '3. Connect';
+}
+
+function getCfheaderAddressStepTitle() {
+    return isCurrentVisualizationLanguageKorean() ? '2. CFHDR-8U 주소 선택' : '2. Select CFHDR-8U address';
 }
 
 function getLinkStepCheckTitle() {
@@ -126,6 +130,7 @@ function syncCfnetStepLayout() {
         setElementVisible(linkStep2, false);
         setElementVisible(linkStep3, false);
         setElementVisible(linkStep4, false);
+        setElementVisible(cfheaderAddressSelect, false);
         setElementVisible(linkTransportSelect, false);
         clearCfnetDetectedModules();
         return;
@@ -139,6 +144,11 @@ function clearCfnetDetectedModules() {
     if (listElement) {
         listElement.innerHTML = '';
     }
+}
+
+function getSelectedCfheaderAddress() {
+    const value = Number(cfheaderAddressSelect?.value ?? 0);
+    return Number.isInteger(value) && value >= 0 && value <= 7 ? value : 0;
 }
 
 function renderCfnetDetectedModules(modules) {
@@ -166,10 +176,12 @@ function renderCfnetDetectedModules(modules) {
 
 deviceLinkHandlers.CFNET = {
     syncLayout() {
-        setStepTitle(linkStep2, getLinkStepConnectTitle());
+        setStepTitle(linkStep2, getCfheaderAddressStepTitle());
+        setStepTitle(linkStep3, getLinkStepConnectTitle());
         setElementVisible(linkStep2, true);
-        setElementVisible(linkStep3, false);
+        setElementVisible(linkStep3, true);
         setElementVisible(linkStep4, false);
+        setElementVisible(cfheaderAddressSelect, true);
         setElementVisible(linkTransportSelect, false);
         setElementVisible(linkComPortRow, false);
         setElementVisible(linkEthernetIpRow, false);
@@ -177,9 +189,9 @@ deviceLinkHandlers.CFNET = {
         if (linkTransportSelect) {
             linkTransportSelect.value = '';
         }
-        moveElement(usbConnectButton, linkStep2);
-        moveElement(usbConnectionState, linkStep2);
-        moveElement(document.getElementById('cfnetDetectedModules'), linkStep2);
+        moveElement(usbConnectButton, linkStep3);
+        moveElement(usbConnectionState, linkStep3);
+        moveElement(document.getElementById('cfnetDetectedModules'), linkStep3);
         setElementVisible(usbConnectButton, true);
         setElementVisible(usbConnectionState, true);
         setElementVisible(document.getElementById('cfnetDetectedModules'), true);
@@ -214,6 +226,7 @@ deviceLinkHandlers.CUBLOC2 = {
         setElementVisible(linkStep2, true);
         setElementVisible(linkStep3, false);
         setElementVisible(linkStep4, false);
+        setElementVisible(cfheaderAddressSelect, false);
         setElementVisible(linkTransportSelect, false);
         setElementVisible(linkEthernetIpRow, false);
         setElementVisible(linkEthernetPortRow, false);
@@ -304,7 +317,7 @@ function updateLinkWizardStepState() {
         linkStep2.classList.toggle('is-disabled', !hasDevice);
     }
     if (linkStep3) {
-        linkStep3.classList.toggle('is-disabled', true);
+        linkStep3.classList.toggle('is-disabled', isCfnet ? !hasDevice : true);
     }
     if (linkStep4) {
         linkStep4.classList.toggle('is-disabled', true);
@@ -530,6 +543,9 @@ async function applyDeviceConnectionState(state) {
     if (linkTransportSelect) {
         linkTransportSelect.value = deviceConnection.transport;
     }
+    if (cfheaderAddressSelect) {
+        cfheaderAddressSelect.value = String(deviceConnection.cfheaderAddress);
+    }
     if (linkEthernetIpInput) {
         linkEthernetIpInput.value = deviceConnection.ethernetIpAddress;
     }
@@ -614,7 +630,11 @@ async function connectCfnetAndScanModules() {
 
     try {
         if (usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk) {
-            const response = await fetch('/api/cfnet/disconnect', { method: 'POST' });
+            const response = await fetch('/api/cfnet/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: getSelectedCfheaderAddress() })
+            });
             if (!response.ok) {
                 throw new Error(`CFNET disconnect failed: ${response.status}`);
             }
@@ -629,7 +649,9 @@ async function connectCfnetAndScanModules() {
             testPortName: ''
         });
         const response = await fetch('/api/cfnet/scan-modules', {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: getSelectedCfheaderAddress() })
         });
         if (!response.ok) {
             throw new Error(`CFNET module scan failed: ${response.status}`);

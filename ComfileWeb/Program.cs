@@ -191,7 +191,7 @@ usbApi.MapPost("/disconnect", (UsbCdcService usbCdc) =>
     });
 });
 
-cfnetApi.MapGet("/status", (ILoggerFactory loggerFactory) =>
+cfnetApi.MapGet("/status", (int? address, ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
@@ -199,16 +199,7 @@ cfnetApi.MapGet("/status", (ILoggerFactory loggerFactory) =>
         EnsureCfnetNativeLibraries(logger);
         try
         {
-            if (Cfheader.Instances.Count == 0)
-            {
-                return Results.Ok(new
-                {
-                    isConnected = false,
-                    detail = "CFHEADER instance not found."
-                });
-            }
-
-            var cfheader0 = Cfheader.Instances[0];
+            var cfheader0 = GetCfheader(address);
             return Results.Ok(new
             {
                 isConnected = cfheader0.IsOpen,
@@ -227,7 +218,7 @@ cfnetApi.MapGet("/status", (ILoggerFactory loggerFactory) =>
     }
 });
 
-cfnetApi.MapPost("/connect", (ILoggerFactory loggerFactory) =>
+cfnetApi.MapPost("/connect", (CfnetAddressRequest? request, ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
@@ -235,12 +226,7 @@ cfnetApi.MapPost("/connect", (ILoggerFactory loggerFactory) =>
         EnsureCfnetNativeLibraries(logger);
         try
         {
-            if (Cfheader.Instances.Count == 0)
-            {
-                return Results.BadRequest(new { detail = "CFHEADER instance not found." });
-            }
-
-            var cfheader0 = Cfheader.Instances[0];
+            var cfheader0 = GetCfheader(request?.Address);
             if (!cfheader0.IsOpen)
             {
                 cfheader0.Open();
@@ -260,7 +246,7 @@ cfnetApi.MapPost("/connect", (ILoggerFactory loggerFactory) =>
     }
 });
 
-cfnetApi.MapPost("/scan-modules", (ILoggerFactory loggerFactory) =>
+cfnetApi.MapPost("/scan-modules", (CfnetAddressRequest? request, ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
@@ -268,12 +254,7 @@ cfnetApi.MapPost("/scan-modules", (ILoggerFactory loggerFactory) =>
         EnsureCfnetNativeLibraries(logger);
         try
         {
-            if (Cfheader.Instances.Count == 0)
-            {
-                return Results.BadRequest(new { detail = "CFHEADER instance not found." });
-            }
-
-            var cfheader0 = Cfheader.Instances[0];
+            var cfheader0 = GetCfheader(request?.Address);
             bool wasOpen = cfheader0.IsOpen;
             if (!cfheader0.IsOpen)
             {
@@ -324,7 +305,7 @@ cfnetApi.MapPost("/scan-modules", (ILoggerFactory loggerFactory) =>
     }
 });
 
-cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
+cfnetApi.MapPost("/disconnect", (CfnetAddressRequest? request, ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
@@ -332,16 +313,7 @@ cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
         EnsureCfnetNativeLibraries(logger);
         try
         {
-            if (Cfheader.Instances.Count == 0)
-            {
-                return Results.Ok(new
-                {
-                    isConnected = false,
-                    detail = "CFHEADER instance not found."
-                });
-            }
-
-            var cfheader0 = Cfheader.Instances[0];
+            var cfheader0 = GetCfheader(request?.Address);
             if (cfheader0.IsOpen)
             {
                 cfheader0.Close();
@@ -391,6 +363,17 @@ else
     app.Run(applicationUrl);
 }
 
+static Cfheader GetCfheader(int? requestedAddress)
+{
+    int address = requestedAddress is >= 0 and <= 7 ? requestedAddress.Value : 0;
+    if (Cfheader.Instances.Count <= address)
+    {
+        throw new InvalidOperationException($"CFHEADER address {address} is not available.");
+    }
+
+    return Cfheader.Instances[address];
+}
+
 static void EnsureCfnetNativeLibraries(ILogger logger)
 {
     try
@@ -415,4 +398,9 @@ static void EnsureCfnetNativeLibraries(ILogger logger)
     {
         logger.LogWarning(ex, "Cfnet native library preload failed.");
     }
+}
+
+sealed class CfnetAddressRequest
+{
+    public int? Address { get; set; }
 }

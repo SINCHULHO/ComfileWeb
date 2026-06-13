@@ -41,6 +41,7 @@ const designSurface = document.getElementById('designSurface');
         const projectAddPageButton = document.getElementById('projectAddPageButton');
         const linkModelSelect = document.getElementById('linkModelSelect');
         const linkTransportSelect = document.getElementById('linkTransportSelect');
+        const cfheaderAddressSelect = document.getElementById('cfheaderAddressSelect');
         const linkComPortSelect = document.getElementById('linkComPortSelect');
         const linkComPortRow = document.getElementById('linkComPortRow');
         const linkEthernetIpRow = document.getElementById('linkEthernetIpRow');
@@ -80,6 +81,7 @@ const designSurface = document.getElementById('designSurface');
             deviceConnection: {
                 device: '',
                 transport: '',
+                cfheaderAddress: 0,
                 portName: '',
                 baudRate: 115200,
                 ethernetIpAddress: '192.168.0.100',
@@ -495,6 +497,7 @@ const designSurface = document.getElementById('designSurface');
             return {
                 device: '',
                 transport: '',
+                cfheaderAddress: 0,
                 portName: '',
                 baudRate: 115200,
                 ethernetIpAddress: '192.168.0.100',
@@ -508,10 +511,12 @@ const designSurface = document.getElementById('designSurface');
             const defaults = createDefaultDeviceConnection();
             const baudRate = Number(source.baudRate ?? defaults.baudRate);
             const ethernetPort = Number(source.ethernetPort ?? defaults.ethernetPort);
+            const cfheaderAddress = Number(source.cfheaderAddress);
 
             return {
                 device: String(source.device ?? defaults.device).trim(),
                 transport: String(source.transport ?? defaults.transport).trim(),
+                cfheaderAddress: Number.isInteger(cfheaderAddress) && cfheaderAddress >= 0 && cfheaderAddress <= 7 ? cfheaderAddress : 0,
                 portName: String(source.portName ?? defaults.portName).trim(),
                 baudRate: Number.isFinite(baudRate) && baudRate > 0 ? Math.round(baudRate) : defaults.baudRate,
                 ethernetIpAddress: String(source.ethernetIpAddress ?? defaults.ethernetIpAddress).trim() || defaults.ethernetIpAddress,
@@ -526,6 +531,7 @@ const designSurface = document.getElementById('designSurface');
             return normalizeDeviceConnection({
                 device: selectedDevice,
                 transport: selectedDevice.toUpperCase() === 'CUBLOC2' ? 'USB' : String(linkTransportSelect?.value || '').trim(),
+                cfheaderAddress: Number(cfheaderAddressSelect?.value ?? 0),
                 portName: String(linkComPortSelect?.value || '').trim(),
                 baudRate: 115200,
                 ethernetIpAddress: String(linkEthernetIpInput?.value || '192.168.0.100').trim(),
@@ -542,6 +548,7 @@ const designSurface = document.getElementById('designSurface');
 
             return {
                 device: connection.device || 'CUBLOC2',
+                cfheaderAddress: connection.cfheaderAddress,
                 portName: connection.portName,
                 baudRate: connection.baudRate || 115200
             };
@@ -8622,6 +8629,17 @@ const designSurface = document.getElementById('designSurface');
         if (linkComPortSelect) {
             linkComPortSelect.addEventListener('change', () => {
                 updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
+                updateLinkWizardStepState();
+                captureDeviceConnectionState();
+                notifyVisualizationDirty();
+            });
+        }
+        if (cfheaderAddressSelect) {
+            cfheaderAddressSelect.addEventListener('change', () => {
+                if (typeof clearCfnetDetectedModules === 'function') {
+                    clearCfnetDetectedModules();
+                }
+                updateUsbConnectionUi({ isConnected: false, portName: 'CFNET', testOk: false, testPortName: '' });
                 updateLinkWizardStepState();
                 captureDeviceConnectionState();
                 notifyVisualizationDirty();
