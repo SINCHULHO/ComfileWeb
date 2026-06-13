@@ -148,6 +148,12 @@ public sealed class UsbCdcService
 
             var serialPort = CreateSerialPort(normalizedPort, normalizedBaudRate);
             serialPort.Open();
+            if (!TestCublocProtocol(serialPort))
+            {
+                serialPort.Dispose();
+                return false;
+            }
+
             _port = serialPort;
             return _port.IsOpen;
         }

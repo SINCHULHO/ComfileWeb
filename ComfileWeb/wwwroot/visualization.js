@@ -8602,9 +8602,13 @@ const designSurface = document.getElementById('designSurface');
         }
         if (linkModelSelect) {
             linkModelSelect.addEventListener('change', async () => {
+                const currentHandler = typeof getDeviceLinkHandler === 'function' ? getDeviceLinkHandler() : null;
+                if (currentHandler?.resetOtherDeviceState) {
+                    currentHandler.resetOtherDeviceState();
+                }
+                updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
                 if (!String(linkModelSelect.value || '').trim()) {
                     fillComPortOptions([], '');
-                    updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
                 } else if (getLinkTransportMode() !== 'Ethernet') {
                     await loadUsbCdcPorts('');
                 }

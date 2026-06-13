@@ -58,8 +58,39 @@ function getLinkTransportMode() {
 
 let cfnetConnectionInProgress = false;
 
+function getSelectedDeviceKey() {
+    return String(linkModelSelect?.value || '').trim().toUpperCase();
+}
+
+function getDeviceLinkHandler() {
+    return deviceLinkHandlers[getSelectedDeviceKey()] || null;
+}
+
+window.getDeviceLinkHandler = getDeviceLinkHandler;
+
+function setElementVisible(element, visible) {
+    if (element) {
+        element.style.display = visible ? '' : 'none';
+    }
+}
+
+function setStepTitle(stepElement, title) {
+    const titleElement = stepElement?.querySelector('.link-step-title');
+    if (titleElement) {
+        titleElement.textContent = title;
+    }
+}
+
+function moveElement(element, parentElement) {
+    if (element && parentElement && element.parentElement !== parentElement) {
+        parentElement.appendChild(element);
+    }
+}
+
+const deviceLinkHandlers = {};
+
 function isCfnetFieldIoSelected() {
-    return String(linkModelSelect?.value || '').trim().toUpperCase() === 'CFNET';
+    return getSelectedDeviceKey() === 'CFNET';
 }
 
 function getLinkStepConnectTitle() {
@@ -83,33 +114,24 @@ function getDefaultLinkStepPortTitle() {
 }
 
 function syncCfnetStepLayout() {
-    const isCfnet = isCfnetFieldIoSelected();
     const hasDevice = !!String(linkModelSelect?.value || '').trim();
-    const isCubloc2 = String(linkModelSelect?.value || '').trim().toUpperCase() === 'CUBLOC2';
     const linkWizard = linkStep1?.parentElement;
-    const step3Title = linkStep3?.querySelector('.link-step-title');
-    const step4Title = linkStep4?.querySelector('.link-step-title');
+    const selectedDevice = getSelectedDeviceKey();
+    const handler = getDeviceLinkHandler();
     if (linkWizard) {
-        linkWizard.classList.toggle('is-cubloc2-link', isCubloc2);
-    }
-    if (step3Title) {
-        step3Title.textContent = isCubloc2 ? getLinkStepPortTitle() : getDefaultLinkStepPortTitle();
-    }
-    if (step4Title) {
-        step4Title.textContent = isCfnet
-            ? getLinkStepConnectTitle()
-            : (isCubloc2 ? getLinkStepCheckTitle() : getDefaultLinkStepCheckTitle());
+        linkWizard.classList.toggle('is-cubloc2-link', selectedDevice === 'CUBLOC2');
     }
 
-    if (linkStep2) {
-        linkStep2.style.display = (!hasDevice || isCfnet || isCubloc2) ? 'none' : '';
+    if (!hasDevice || !handler) {
+        setElementVisible(linkStep2, false);
+        setElementVisible(linkStep3, false);
+        setElementVisible(linkStep4, false);
+        setElementVisible(linkTransportSelect, false);
+        clearCfnetDetectedModules();
+        return;
     }
-    if (linkStep3) {
-        linkStep3.style.display = (!hasDevice || isCfnet) ? 'none' : '';
-    }
-    if (linkStep4) {
-        linkStep4.style.display = hasDevice ? '' : 'none';
-    }
+
+    handler.syncLayout();
 }
 
 function clearCfnetDetectedModules() {
@@ -142,63 +164,119 @@ function renderCfnetDetectedModules(modules) {
     listElement.innerHTML = `<div class="cfnet-detected-modules-title">${title}</div><ul>${items}</ul>`;
 }
 
+deviceLinkHandlers.CFNET = {
+    syncLayout() {
+        setStepTitle(linkStep2, getLinkStepConnectTitle());
+        setElementVisible(linkStep2, true);
+        setElementVisible(linkStep3, false);
+        setElementVisible(linkStep4, false);
+        setElementVisible(linkTransportSelect, false);
+        setElementVisible(linkComPortRow, false);
+        setElementVisible(linkEthernetIpRow, false);
+        setElementVisible(linkEthernetPortRow, false);
+        if (linkTransportSelect) {
+            linkTransportSelect.value = '';
+        }
+        moveElement(usbConnectButton, linkStep2);
+        moveElement(usbConnectionState, linkStep2);
+        moveElement(document.getElementById('cfnetDetectedModules'), linkStep2);
+        setElementVisible(usbConnectButton, true);
+        setElementVisible(usbConnectionState, true);
+        setElementVisible(document.getElementById('cfnetDetectedModules'), true);
+    },
+    resetOtherDeviceState() {
+    },
+    loadPorts() {
+        fillComPortOptions([], '');
+        clearCfnetDetectedModules();
+        updateUsbConnectionUi({ isConnected: false, portName: 'CFNET', testOk: false, testPortName: '' });
+    },
+    updateButton({ useKorean, connectingText, isConnected, testOk, baseDisabled }) {
+        if (!usbConnectButton) {
+            return;
+        }
+        usbConnectButton.textContent = cfnetConnectionInProgress
+            ? connectingText
+            : (isConnected || testOk
+                ? (useKorean ? '재연결' : 'Reconnect')
+                : (useKorean ? '연결' : 'Connect'));
+        usbConnectButton.disabled = cfnetConnectionInProgress || baseDisabled;
+    },
+    async handleAction() {
+        return connectCfnetAndScanModules();
+    }
+};
+
+deviceLinkHandlers.CUBLOC2 = {
+    syncLayout() {
+        clearCfnetDetectedModules();
+        setStepTitle(linkStep2, getLinkStepPortTitle());
+        setElementVisible(linkStep2, true);
+        setElementVisible(linkStep3, false);
+        setElementVisible(linkStep4, false);
+        setElementVisible(linkTransportSelect, false);
+        setElementVisible(linkEthernetIpRow, false);
+        setElementVisible(linkEthernetPortRow, false);
+        if (linkTransportSelect) {
+            linkTransportSelect.value = 'USB';
+        }
+        moveElement(linkComPortRow, linkStep2);
+        setElementVisible(linkComPortRow, true);
+        setElementVisible(usbConnectButton, false);
+        setElementVisible(usbConnectionState, false);
+    },
+    resetOtherDeviceState() {
+        clearCfnetDetectedModules();
+    },
+    async loadPorts(preferredPortName) {
+        try {
+            const response = await fetch('/api/usb-cdc/ports', { method: 'GET' });
+            if (!response.ok) {
+                throw new Error(`USB-CDC ports request failed: ${response.status}`);
+            }
+
+            const payload = await response.json();
+            fillComPortOptionsWithInfo(payload?.portInfos, preferredPortName || '');
+            updateUsbConnectionUi({
+                isConnected: !!payload?.isConnected,
+                portName: payload?.portName || '',
+                testOk: usbCdcConnectionState.testOk,
+                testPortName: usbCdcConnectionState.testPortName
+            });
+        } catch (error) {
+            fillComPortOptions([], '');
+            updateUsbConnectionUi({ isConnected: false, portName: '' });
+            console.warn(error);
+        }
+    },
+    updateButton({ useKorean, baseDisabled }) {
+        if (!usbConnectButton) {
+            return;
+        }
+        usbConnectButton.textContent = useKorean ? '연결 체크' : 'Connection check';
+        usbConnectButton.disabled = baseDisabled;
+    },
+    async handleAction() {
+        return checkCubloc2Connection();
+    }
+};
+
 function updateLinkTransportRows() {
-    const isCfnet = isCfnetFieldIoSelected();
     const hasDevice = !!String(linkModelSelect?.value || '').trim();
-    const transport = getLinkTransportMode();
-    const hasTransport = !!transport;
-    const showEthernet = transport === 'Ethernet';
+    const handler = getDeviceLinkHandler();
 
     syncCfnetStepLayout();
 
-    if (!hasDevice) {
+    if (!hasDevice || !handler) {
         if (linkTransportSelect) {
             linkTransportSelect.value = '';
         }
-        if (linkComPortRow) {
-            linkComPortRow.style.display = 'none';
-        }
-        if (linkEthernetIpRow) {
-            linkEthernetIpRow.style.display = 'none';
-        }
-        if (linkEthernetPortRow) {
-            linkEthernetPortRow.style.display = 'none';
-        }
+        setElementVisible(linkComPortRow, false);
+        setElementVisible(linkEthernetIpRow, false);
+        setElementVisible(linkEthernetPortRow, false);
 
         updateLinkWizardStepState();
         return;
-    }
-
-    if (isCfnet) {
-        if (linkComPortRow) {
-            linkComPortRow.style.display = 'none';
-        }
-        if (linkEthernetIpRow) {
-            linkEthernetIpRow.style.display = 'none';
-        }
-        if (linkEthernetPortRow) {
-            linkEthernetPortRow.style.display = 'none';
-        }
-        if (linkTransportSelect) {
-            linkTransportSelect.value = '';
-        }
-
-        updateLinkWizardStepState();
-        return;
-    }
-
-    if (linkTransportSelect) {
-        linkTransportSelect.value = hasDevice ? 'USB' : '';
-    }
-
-    if (linkComPortRow) {
-        linkComPortRow.style.display = (!hasDevice || !hasTransport || showEthernet) ? 'none' : '';
-    }
-    if (linkEthernetIpRow) {
-        linkEthernetIpRow.style.display = (hasDevice && hasTransport && showEthernet) ? '' : 'none';
-    }
-    if (linkEthernetPortRow) {
-        linkEthernetPortRow.style.display = (hasDevice && hasTransport && showEthernet) ? '' : 'none';
     }
 
     updateLinkWizardStepState();
@@ -223,17 +301,17 @@ function updateLinkWizardStepState() {
     }
 
     if (linkStep2) {
-        linkStep2.classList.toggle('is-disabled', !hasDevice || isCfnet);
+        linkStep2.classList.toggle('is-disabled', !hasDevice);
     }
     if (linkStep3) {
-        linkStep3.classList.toggle('is-disabled', isCfnet || !(hasDevice && hasTransport));
+        linkStep3.classList.toggle('is-disabled', true);
     }
     if (linkStep4) {
-        linkStep4.classList.toggle('is-disabled', isCfnet ? !hasDevice : !(hasDevice && hasTransport && hasPortDetail));
+        linkStep4.classList.toggle('is-disabled', true);
     }
 
     if (usbConnectButton) {
-        usbConnectButton.disabled = isCfnet ? !hasDevice : !(hasDevice && hasTransport && hasPortDetail);
+        usbConnectButton.disabled = !(isCfnet && hasDevice);
     }
 
     updateDeviceConnectionStatusBar();
@@ -332,14 +410,10 @@ function updateUsbConnectionUi(connectionState) {
     }
     if (usbConnectButton) {
         const baseDisabled = isCfnet ? !hasDevice : !(hasDevice && hasTransport && hasPortDetail);
-        usbConnectButton.textContent = isCfnet
-            ? (cfnetConnectionInProgress
-                ? connectingText
-                : (isConnected || testOk
-                    ? (useKorean ? '재연결' : 'Reconnect')
-                    : (useKorean ? '연결' : 'Connect')))
-            : (useKorean ? '연결 체크' : 'Connection check');
-        usbConnectButton.disabled = cfnetConnectionInProgress || baseDisabled;
+        const handler = getDeviceLinkHandler();
+        if (handler?.updateButton) {
+            handler.updateButton({ useKorean, connectingText, isConnected, testOk, baseDisabled });
+        }
     }
 
     updateDeviceConnectionStatusBar();
@@ -475,50 +549,34 @@ async function applyDeviceConnectionState(state) {
 }
 
 async function loadUsbCdcPorts(preferredPortName) {
-    if (isCfnetFieldIoSelected()) {
-        fillComPortOptions([], '');
-        clearCfnetDetectedModules();
-        updateUsbConnectionUi({ isConnected: false, portName: 'CFNET', testOk: false, testPortName: '' });
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/usb-cdc/ports', { method: 'GET' });
-        if (!response.ok) {
-            throw new Error(`USB-CDC ports request failed: ${response.status}`);
-        }
-
-        const payload = await response.json();
-        fillComPortOptionsWithInfo(payload?.portInfos, preferredPortName || '');
-        updateUsbConnectionUi({
-            isConnected: !!payload?.isConnected,
-            portName: payload?.portName || '',
-            testOk: usbCdcConnectionState.testOk,
-            testPortName: usbCdcConnectionState.testPortName
-        });
-    } catch (error) {
-        fillComPortOptions([], '');
-        updateUsbConnectionUi({ isConnected: false, portName: '' });
-        console.warn(error);
+    const handler = getDeviceLinkHandler();
+    if (handler?.loadPorts) {
+        await handler.loadPorts(preferredPortName);
     }
 }
 
 async function toggleUsbCdcConnection() {
-    if (isCfnetFieldIoSelected()) {
-        await connectCfnetAndScanModules();
-        return;
+    const handler = getDeviceLinkHandler();
+    if (handler?.handleAction) {
+        await handler.handleAction();
+    }
+}
+
+async function checkCubloc2Connection() {
+    if (getSelectedDeviceKey() !== 'CUBLOC2') {
+        return false;
     }
 
     const selectedPortName = String(linkComPortSelect?.value || '').trim();
     if (!selectedPortName) {
         await loadUsbCdcPorts('');
         alert(useKoreanLanguage ? '먼저 COM 포트를 선택하세요.' : 'Please select a COM port first.');
-        return;
+        return false;
     }
 
     try {
         updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
-        const response = await fetch('/api/usb-cdc/test', {
+        const response = await fetch('/api/usb-cdc/connect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -532,13 +590,20 @@ async function toggleUsbCdcConnection() {
             throw new Error(`USB-CDC connection check failed: ${response.status}`);
         }
 
-        await response.json();
-        updateUsbConnectionUi({ isConnected: false, portName: '', testOk: true, testPortName: selectedPortName });
+        const payload = await response.json();
+        updateUsbConnectionUi({
+            isConnected: !!payload?.isConnected,
+            portName: payload?.portName || selectedPortName,
+            testOk: true,
+            testPortName: selectedPortName
+        });
+        return true;
     } catch (error) {
         console.warn(error);
         updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
         alert(useKoreanLanguage ? 'USB-CDC 연결 체크에 실패했습니다.' : 'USB-CDC connection check failed.');
         await loadUsbCdcPorts(selectedPortName);
+        return false;
     }
 }
 
