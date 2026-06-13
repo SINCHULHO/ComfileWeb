@@ -112,6 +112,36 @@ function syncCfnetStepLayout() {
     }
 }
 
+function clearCfnetDetectedModules() {
+    const listElement = document.getElementById('cfnetDetectedModules');
+    if (listElement) {
+        listElement.innerHTML = '';
+    }
+}
+
+function renderCfnetDetectedModules(modules) {
+    const listElement = document.getElementById('cfnetDetectedModules');
+    if (!listElement) {
+        return;
+    }
+
+    const normalizedModules = Array.isArray(modules) ? modules : [];
+    if (normalizedModules.length === 0) {
+        listElement.innerHTML = `<div class="cfnet-detected-modules-empty">${isCurrentVisualizationLanguageKorean() ? '감지된 모듈 없음' : 'No modules detected'}</div>`;
+        return;
+    }
+
+    const title = isCurrentVisualizationLanguageKorean() ? '감지된 모듈' : 'Detected modules';
+    const items = normalizedModules
+        .map(module => {
+            const type = String(module?.type || '').trim() || 'I/O Module';
+            const address = String(module?.address ?? '').trim();
+            return `<li>${type}${address ? ` - ${isCurrentVisualizationLanguageKorean() ? '주소' : 'Address'} ${address}` : ''}</li>`;
+        })
+        .join('');
+    listElement.innerHTML = `<div class="cfnet-detected-modules-title">${title}</div><ul>${items}</ul>`;
+}
+
 function updateLinkTransportRows() {
     const isCfnet = isCfnetFieldIoSelected();
     const hasDevice = !!String(linkModelSelect?.value || '').trim();
@@ -229,7 +259,7 @@ function updateDeviceConnectionStatusBar() {
         : false;
     const isConnected = !!usbCdcConnectionState.isConnected;
     const lastTestOk = isCfnet
-        ? false
+        ? !!usbCdcConnectionState.testOk
         : (!!usbCdcConnectionState.testOk && !!portName && portName === usbCdcConnectionState.testPortName);
     const hasConfiguration = !!device && hasTransport && hasPortDetail;
 
@@ -273,8 +303,10 @@ function updateUsbConnectionUi(connectionState) {
     const reportedPort = connectionState && connectionState.portName ? String(connectionState.portName) : '';
     const isConnected = !!(connectionState && connectionState.isConnected && selectedDevice && (isCfnet || (selectedPort && selectedPort === reportedPort)));
     const portName = isConnected ? (isCfnet ? 'CFNET' : reportedPort) : '';
-    const testOk = !!(connectionState && connectionState.testOk && selectedPort && selectedPort === String(connectionState.testPortName || '').trim());
-    const testPortName = testOk ? selectedPort : '';
+    const testOk = isCfnet
+        ? !!(connectionState && connectionState.testOk)
+        : !!(connectionState && connectionState.testOk && selectedPort && selectedPort === String(connectionState.testPortName || '').trim());
+    const testPortName = testOk ? (isCfnet ? 'CFNET' : selectedPort) : '';
     usbCdcConnectionState = { isConnected, portName, testOk, testPortName };
     const hasDevice = !!selectedDevice;
     const hasTransport = isCfnet ? true : !!String(linkTransportSelect?.value || '').trim();
@@ -303,9 +335,9 @@ function updateUsbConnectionUi(connectionState) {
         usbConnectButton.textContent = isCfnet
             ? (cfnetConnectionInProgress
                 ? connectingText
-                : (isConnected
-                ? (useKorean ? '연결 해제' : 'Disconnect')
-                : (useKorean ? '연결' : 'Connect')))
+                : (isConnected || testOk
+                    ? (useKorean ? '재연결' : 'Reconnect')
+                    : (useKorean ? '연결' : 'Connect')))
             : (useKorean ? '연결 체크' : 'Connection check');
         usbConnectButton.disabled = cfnetConnectionInProgress || baseDisabled;
     }
@@ -444,25 +476,9 @@ async function applyDeviceConnectionState(state) {
 
 async function loadUsbCdcPorts(preferredPortName) {
     if (isCfnetFieldIoSelected()) {
-        try {
-            const response = await fetch('/api/cfnet/status', { method: 'GET' });
-            if (!response.ok) {
-                throw new Error(`CFNET status request failed: ${response.status}`);
-            }
-
-            const payload = await response.json();
-            fillComPortOptions([], '');
-            updateUsbConnectionUi({
-                isConnected: !!payload?.isConnected,
-                portName: 'CFNET',
-                testOk: false,
-                testPortName: ''
-            });
-        } catch (error) {
-            fillComPortOptions([], '');
-            updateUsbConnectionUi({ isConnected: false, portName: 'CFNET', testOk: false, testPortName: '' });
-            console.warn(error);
-        }
+        fillComPortOptions([], '');
+        clearCfnetDetectedModules();
+        updateUsbConnectionUi({ isConnected: false, portName: 'CFNET', testOk: false, testPortName: '' });
         return;
     }
 
@@ -490,39 +506,48 @@ async function loadUsbCdcPorts(preferredPortName) {
 async function toggleUsbCdcConnection() {
     if (isCfnetFieldIoSelected()) {
         try {
-            const currentlyConnected = !!usbCdcConnectionState?.isConnected;
+            if (usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk) {
+                const response = await fetch('/api/cfnet/disconnect', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`CFNET disconnect failed: ${response.status}`);
+                }
+            }
+
             cfnetConnectionInProgress = true;
+            clearCfnetDetectedModules();
             updateUsbConnectionUi({
-                isConnected: usbCdcConnectionState.isConnected,
+                isConnected: false,
                 portName: usbCdcConnectionState.portName || 'CFNET',
                 testOk: false,
                 testPortName: ''
             });
-            const response = await fetch(currentlyConnected ? '/api/cfnet/disconnect' : '/api/cfnet/connect', {
+            const response = await fetch('/api/cfnet/scan-modules', {
                 method: 'POST'
             });
             if (!response.ok) {
-                throw new Error(`CFNET ${currentlyConnected ? 'disconnect' : 'connect'} failed: ${response.status}`);
+                throw new Error(`CFNET module scan failed: ${response.status}`);
             }
 
             const payload = await response.json();
             cfnetConnectionInProgress = false;
+            renderCfnetDetectedModules(payload?.modules);
             updateUsbConnectionUi({
-                isConnected: !!payload?.isConnected,
+                isConnected: true,
                 portName: 'CFNET',
-                testOk: false,
-                testPortName: ''
+                testOk: true,
+                testPortName: 'CFNET'
             });
         } catch (error) {
             console.warn(error);
             cfnetConnectionInProgress = false;
+            clearCfnetDetectedModules();
             updateUsbConnectionUi({
                 isConnected: false,
                 portName: 'CFNET',
                 testOk: false,
                 testPortName: ''
             });
-            alert(useKoreanLanguage ? 'CFNET 연결에 실패했습니다.' : 'CFNET connection failed.');
+            alert(useKoreanLanguage ? 'CFNET 모듈 감지에 실패했습니다.' : 'CFNET module scan failed.');
             await loadUsbCdcPorts('');
         }
         return;

@@ -260,6 +260,70 @@ cfnetApi.MapPost("/connect", (ILoggerFactory loggerFactory) =>
     }
 });
 
+cfnetApi.MapPost("/scan-modules", (ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("CfnetApi");
+    lock (cfnetSync)
+    {
+        EnsureCfnetNativeLibraries(logger);
+        try
+        {
+            if (Cfheader.Instances.Count == 0)
+            {
+                return Results.BadRequest(new { detail = "CFHEADER instance not found." });
+            }
+
+            var cfheader0 = Cfheader.Instances[0];
+            bool wasOpen = cfheader0.IsOpen;
+            if (!cfheader0.IsOpen)
+            {
+                cfheader0.Open();
+            }
+
+            var allIOModules = ((IEnumerable<IIOModule>)cfheader0.AnalogInputModules)
+                .Concat(cfheader0.AnalogOutputModules)
+                .Concat(cfheader0.DigitalInputModules)
+                .Concat(cfheader0.DigitalOutputModules)
+                .ToArray();
+
+            foreach (var ioModule in allIOModules)
+            {
+                ioModule.AcknowledgeI2cFailure();
+            }
+
+            cfheader0.Sync();
+
+            var modules = allIOModules
+                .Where(ioModule => ioModule.I2cStatus == I2cResult.Success)
+                .Select(ioModule => new
+                {
+                    type = ioModule.GetType().Name,
+                    address = ioModule.Address
+                })
+                .OrderBy(module => module.address)
+                .ThenBy(module => module.type)
+                .ToArray();
+
+            if (!wasOpen && cfheader0.IsOpen)
+            {
+                cfheader0.Close();
+            }
+
+            return Results.Ok(new
+            {
+                isConnected = true,
+                address = cfheader0.Address,
+                modules
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "CFNET module scan failed.");
+            return Results.BadRequest(new { detail = ex.Message });
+        }
+    }
+});
+
 cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("CfnetApi");

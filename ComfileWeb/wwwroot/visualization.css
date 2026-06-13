@@ -1640,6 +1640,27 @@
             padding: 4px 0;
         }
 
+        .cfnet-detected-modules {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .cfnet-detected-modules-title {
+            color: var(--text);
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .cfnet-detected-modules ul {
+            margin: 4px 0 0;
+            padding-left: 18px;
+        }
+
+        .cfnet-detected-modules-empty {
+            margin-top: 2px;
+        }
+
         .design-surface {
             --grid-x: 10;
             --grid-y: 9;
