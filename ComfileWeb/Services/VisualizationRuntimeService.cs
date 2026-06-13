@@ -28,6 +28,7 @@ public sealed class VisualizationRuntimeService
     private DateTimeOffset? _cfnetDisconnectDetectedAt;
     private bool _cfnetDisconnectAlertSent;
     private DateTimeOffset? _cfnetRetryAt;
+    private DateTimeOffset? _cublocReconnectAt;
     private bool _running;
 
     public VisualizationRuntimeService(UsbCdcService usbCdc, ILogger<VisualizationRuntimeService> logger)
@@ -414,25 +415,47 @@ public sealed class VisualizationRuntimeService
                     : Task.CompletedTask;
             }
 
-            if (!_usbCdc.TryGetOpenPort(out SerialPort? port) || port is null || _entries.Count == 0)
+            if (_entries.Count == 0)
             {
                 return Task.CompletedTask;
             }
 
-            ApplyPendingWrites(port);
-            Dictionary<string, int>? values = CublocCdcProtocol.ReadMonitorValues(port, _entries);
-            if (values is null)
+            if (!_usbCdc.TryGetOpenPort(out SerialPort? port) || port is null)
             {
-                if (_lastError != "Invalid monitor response.")
+                CublocPollOutcome reconnectOutcome = TryReconnectCublocPort();
+                if (reconnectOutcome.StateChanged)
                 {
-                    _lastError = "Invalid monitor response.";
                     stateChanged = true;
-                    stateError = _lastError;
-                    _logger.LogWarning("CUBLOC poll failed: invalid MON response.");
+                    stateError = reconnectOutcome.StateError;
+                }
+
+                if (!_usbCdc.TryGetOpenPort(out port) || port is null)
+                {
+                    return stateChanged
+                        ? BroadcastInvocationAsync("RuntimeStateChanged", new { running = _running, error = stateError }, cancellationToken)
+                        : Task.CompletedTask;
                 }
             }
-            else
+
+            try
             {
+                ApplyPendingWrites(port);
+                Dictionary<string, int>? values = CublocCdcProtocol.ReadMonitorValues(port, _entries);
+                if (values is null)
+                {
+                    if (_lastError != "Invalid monitor response.")
+                    {
+                        _lastError = "Invalid monitor response.";
+                        stateChanged = true;
+                        stateError = _lastError;
+                        _logger.LogWarning("CUBLOC poll failed: invalid MON response.");
+                    }
+
+                    return stateChanged
+                        ? BroadcastInvocationAsync("RuntimeStateChanged", new { running = _running, error = stateError }, cancellationToken)
+                        : Task.CompletedTask;
+                }
+
                 foreach ((string entryKey, int value) in values)
                 {
                     if (_addressByEntryKey.TryGetValue(entryKey, out string? address))
@@ -445,8 +468,15 @@ public sealed class VisualizationRuntimeService
                     stateChanged = true;
                 }
                 _lastError = null;
+                _cublocReconnectAt = null;
                 snapshot = new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
                 _logger.LogDebug("CUBLOC poll OK. ValueCount={Count}", snapshot.Count);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or UnauthorizedAccessException)
+            {
+                CublocPollOutcome failureOutcome = HandleCublocPollFailure(ex.Message);
+                stateChanged = failureOutcome.StateChanged;
+                stateError = failureOutcome.StateError;
             }
         }
 
@@ -468,6 +498,43 @@ public sealed class VisualizationRuntimeService
         }
 
         return Task.CompletedTask;
+    }
+
+    private CublocPollOutcome TryReconnectCublocPort()
+    {
+        if (_cublocReconnectAt is not null && DateTimeOffset.UtcNow < _cublocReconnectAt.Value)
+        {
+            return new CublocPollOutcome(null, false);
+        }
+
+        _cublocReconnectAt = DateTimeOffset.UtcNow.AddMilliseconds(250);
+        bool reconnected = _usbCdc.TryReconnectLast();
+        if (!reconnected)
+        {
+            return new CublocPollOutcome(null, false);
+        }
+
+        _cublocReconnectAt = null;
+        bool stateChanged = !string.IsNullOrWhiteSpace(_lastError);
+        _lastError = null;
+        _logger.LogInformation("CUBLOC USB-CDC reconnected.");
+        return new CublocPollOutcome(null, stateChanged);
+    }
+
+    private CublocPollOutcome HandleCublocPollFailure(string message)
+    {
+        _usbCdc.MarkConnectionLost();
+        _cublocReconnectAt = DateTimeOffset.UtcNow.AddMilliseconds(250);
+
+        string errorText = "CUBLOC2 USB 연결이 끊어졌습니다.";
+        if (_lastError == errorText)
+        {
+            return new CublocPollOutcome(null, false);
+        }
+
+        _lastError = errorText;
+        _logger.LogWarning("CUBLOC USB-CDC disconnected: {Message}", message);
+        return new CublocPollOutcome(errorText, true);
     }
 
     private async Task BroadcastInvocationAsync(string target, object argument, CancellationToken cancellationToken)
@@ -585,6 +652,8 @@ public sealed class VisualizationRuntimeService
     }
 
     private sealed record PendingWrite(string Address, int MonType, int MonIndex, int Value);
+
+    private sealed record CublocPollOutcome(string? StateError, bool StateChanged);
 
     private CfnetPollOutcome PollCfnetValues()
     {

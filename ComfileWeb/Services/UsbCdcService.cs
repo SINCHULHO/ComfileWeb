@@ -10,6 +10,8 @@ public sealed class UsbCdcService
     private static readonly Encoding TextEncoding = Encoding.ASCII;
     private readonly object _sync = new();
     private SerialPort? _port;
+    private string? _lastPortName;
+    private int _lastBaudRate = 115200;
 
     public bool TryGetOpenPort(out SerialPort? serialPort)
     {
@@ -139,12 +141,54 @@ public sealed class UsbCdcService
 
         lock (_sync)
         {
-            DisconnectCore();
+            int normalizedBaudRate = baudRate > 0 ? baudRate : 115200;
+            _lastPortName = normalizedPort;
+            _lastBaudRate = normalizedBaudRate;
+            DisconnectCore(clearReconnectTarget: false);
 
-            var serialPort = CreateSerialPort(normalizedPort, baudRate);
+            var serialPort = CreateSerialPort(normalizedPort, normalizedBaudRate);
             serialPort.Open();
             _port = serialPort;
             return _port.IsOpen;
+        }
+    }
+
+    public bool TryReconnectLast()
+    {
+        lock (_sync)
+        {
+            if (_port is { IsOpen: true })
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(_lastPortName))
+            {
+                return false;
+            }
+
+            DisconnectCore(clearReconnectTarget: false);
+
+            try
+            {
+                var serialPort = CreateSerialPort(_lastPortName, _lastBaudRate);
+                serialPort.Open();
+                _port = serialPort;
+                return _port.IsOpen;
+            }
+            catch
+            {
+                DisconnectCore(clearReconnectTarget: false);
+                return false;
+            }
+        }
+    }
+
+    public void MarkConnectionLost()
+    {
+        lock (_sync)
+        {
+            DisconnectCore(clearReconnectTarget: false);
         }
     }
 
@@ -173,14 +217,20 @@ public sealed class UsbCdcService
     {
         lock (_sync)
         {
-            DisconnectCore();
+            DisconnectCore(clearReconnectTarget: true);
         }
     }
 
-    private void DisconnectCore()
+    private void DisconnectCore(bool clearReconnectTarget)
     {
         if (_port is null)
         {
+            if (clearReconnectTarget)
+            {
+                _lastPortName = null;
+                _lastBaudRate = 115200;
+            }
+
             return;
         }
 
@@ -195,6 +245,11 @@ public sealed class UsbCdcService
         {
             _port.Dispose();
             _port = null;
+            if (clearReconnectTarget)
+            {
+                _lastPortName = null;
+                _lastBaudRate = 115200;
+            }
         }
     }
 
