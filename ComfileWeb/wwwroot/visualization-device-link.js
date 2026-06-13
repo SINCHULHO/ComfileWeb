@@ -108,7 +108,7 @@ function syncCfnetStepLayout() {
         linkStep3.style.display = (!hasDevice || isCfnet) ? 'none' : '';
     }
     if (linkStep4) {
-        linkStep4.style.display = (hasDevice && !isCfnet) ? '' : 'none';
+        linkStep4.style.display = hasDevice ? '' : 'none';
     }
 }
 
@@ -242,19 +242,17 @@ function updateDeviceConnectionStatusBar() {
 
     if (isConnected) {
         const activePort = isCfnet ? 'CFNET' : (portName || usbCdcConnectionState.portName);
-        statusText = isCfnet
-            ? [activePort, useKorean ? '연결됨' : 'Connected'].filter(Boolean).join(' · ')
-            : [device, activePort, useKorean ? '연결됨' : 'Connected'].filter(Boolean).join(' · ');
+        statusText = [activePort, useKorean ? '연결됨' : 'Connected'].filter(Boolean).join(' · ');
         titleText = [device || 'Device', transport, activePort, useKorean ? '연결됨' : 'Connected'].filter(Boolean).join(' / ');
     } else if (lastTestOk) {
-        statusText = [device, portName].filter(Boolean).join(' · ');
+        statusText = portName;
         titleText = [device || 'Device', transport, portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' / ');
     } else if (hasConfiguration) {
         if (isCfnet) {
             statusText = 'CFNET';
             titleText = device || (useKorean ? '디바이스' : 'Device');
         } else {
-            statusText = [device, portName || transport].filter(Boolean).join(' · ');
+            statusText = portName || transport;
             titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName].filter(Boolean).join(' / ');
         }
     } else {
