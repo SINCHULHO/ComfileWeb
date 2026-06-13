@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ComfileTech.Cfnet.Cfheader;
 using ComfileWeb.Models;
@@ -296,7 +297,24 @@ cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
     }
 });
 
-app.Run();
+const string applicationUrl = "http://localhost:5000";
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    try
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = applicationUrl,
+            UseShellExecute = true
+        });
+    }
+    catch
+    {
+    }
+});
+
+app.Run(applicationUrl);
 
 static void EnsureCfnetNativeLibraries(ILogger logger)
 {
