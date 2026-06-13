@@ -298,23 +298,34 @@ cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
 });
 
 const string applicationUrl = "http://localhost:5000";
+bool isDevelopment = app.Environment.IsDevelopment();
 
-app.Lifetime.ApplicationStarted.Register(() =>
+if (!isDevelopment)
 {
-    try
+    app.Lifetime.ApplicationStarted.Register(() =>
     {
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = applicationUrl,
-            UseShellExecute = true
-        });
-    }
-    catch
-    {
-    }
-});
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = applicationUrl,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
+    });
+}
 
-app.Run(applicationUrl);
+if (isDevelopment)
+{
+    app.Run();
+}
+else
+{
+    app.Run(applicationUrl);
+}
 
 static void EnsureCfnetNativeLibraries(ILogger logger)
 {

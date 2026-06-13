@@ -62,13 +62,15 @@ function getLinkStepConnectTitle() {
     return isCurrentVisualizationLanguageKorean() ? '2. 연결' : '2. Connect';
 }
 
+function getLinkStepCheckTitle() {
+    return isCurrentVisualizationLanguageKorean() ? '4. 연결 체크' : '4. Connection check';
+}
+
 function syncCfnetStepLayout() {
     const isCfnet = isCfnetFieldIoSelected();
     const step4Title = linkStep4?.querySelector('.link-step-title');
     if (step4Title) {
-        step4Title.textContent = isCfnet
-            ? getLinkStepConnectTitle()
-            : (isCurrentVisualizationLanguageKorean() ? '4. 연결 테스트' : '4. Connection test');
+        step4Title.textContent = isCfnet ? getLinkStepConnectTitle() : getLinkStepCheckTitle();
     }
 
     if (linkStep2) {
@@ -193,15 +195,15 @@ function updateDeviceConnectionStatusBar() {
         statusText = [activePort, useKorean ? '연결됨' : 'Connected'].filter(Boolean).join(' · ');
         titleText = [device || 'Device', transport, activePort, useKorean ? '연결됨' : 'Connected'].filter(Boolean).join(' / ');
     } else if (lastTestOk) {
-        statusText = [portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' · ');
+        statusText = portName;
         titleText = [device || 'Device', transport, portName, useKorean ? '연결 이상없음' : 'Connection OK'].filter(Boolean).join(' / ');
     } else if (hasConfiguration) {
         if (isCfnet) {
-            statusText = useKorean ? '연결 필요' : 'Connection required';
-            titleText = [device || (useKorean ? '디바이스' : 'Device'), useKorean ? '연결 필요' : 'Connection required'].filter(Boolean).join(' / ');
+            statusText = 'CFNET';
+            titleText = device || (useKorean ? '디바이스' : 'Device');
         } else {
-            statusText = [portName || transport, useKorean ? '연결 테스트 필요' : 'Test required'].filter(Boolean).join(' · ');
-            titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName, useKorean ? '연결 테스트를 먼저 수행하세요' : 'Run connection test first'].filter(Boolean).join(' / ');
+            statusText = portName || transport;
+            titleText = [device || (useKorean ? '디바이스' : 'Device'), transport, portName].filter(Boolean).join(' / ');
         }
     } else {
         statusText = useKorean ? '디바이스 미설정' : 'Device not set';
@@ -236,7 +238,7 @@ function updateUsbConnectionUi(connectionState) {
     const disconnectedText = testOk
         ? (useKorean ? '연결 이상없음' : 'Connection OK')
         : (hasDevice && hasTransport && hasPortDetail
-            ? (useKorean ? '연결 테스트 필요' : 'Connection test required')
+            ? ''
             : (useKorean ? '디바이스 미설정' : 'Device not set'));
     const connectedText = useKorean
         ? `연결됨${portName ? ` (${portName})` : ''}`
@@ -254,7 +256,7 @@ function updateUsbConnectionUi(connectionState) {
                 : (isConnected
                 ? (useKorean ? '연결 해제' : 'Disconnect')
                 : (useKorean ? '연결' : 'Connect')))
-            : (useKorean ? '연결 테스트' : 'Connection test');
+            : (useKorean ? '연결 체크' : 'Connection check');
         usbConnectButton.disabled = cfnetConnectionInProgress || baseDisabled;
     }
 
@@ -496,7 +498,7 @@ async function toggleUsbCdcConnection() {
         });
 
         if (!response.ok) {
-            throw new Error(`USB-CDC test failed: ${response.status}`);
+            throw new Error(`USB-CDC connection check failed: ${response.status}`);
         }
 
         await response.json();
@@ -504,7 +506,7 @@ async function toggleUsbCdcConnection() {
     } catch (error) {
         console.warn(error);
         updateUsbConnectionUi({ isConnected: false, portName: '', testOk: false, testPortName: '' });
-        alert(useKoreanLanguage ? 'USB-CDC 연결 테스트에 실패했습니다.' : 'USB-CDC connection test failed.');
+        alert(useKoreanLanguage ? 'USB-CDC 연결 체크에 실패했습니다.' : 'USB-CDC connection check failed.');
         await loadUsbCdcPorts(selectedPortName);
     }
 }
