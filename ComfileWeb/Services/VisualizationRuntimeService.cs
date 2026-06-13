@@ -25,6 +25,8 @@ public sealed class VisualizationRuntimeService
     private Task? _pollingTask;
     private int _pollingIntervalMs = 50;
     private string? _lastError;
+    private DateTimeOffset? _cfnetDisconnectDetectedAt;
+    private bool _cfnetDisconnectAlertSent;
     private bool _running;
 
     public VisualizationRuntimeService(UsbCdcService usbCdc, ILogger<VisualizationRuntimeService> logger)
@@ -390,7 +392,17 @@ public sealed class VisualizationRuntimeService
 
             if (_cfnetEntries.Count > 0)
             {
-                snapshot = PollCfnetValues();
+                CfnetPollOutcome outcome = PollCfnetValues();
+                snapshot = outcome.Snapshot;
+                if (outcome.StateChanged)
+                {
+                    return snapshot is not null
+                        ? Task.WhenAll(
+                            BroadcastInvocationAsync("RuntimeStateChanged", new { running = _running, error = outcome.StateError }, cancellationToken),
+                            BroadcastInvocationAsync("RuntimeValuesChanged", new { values = snapshot }, cancellationToken))
+                        : BroadcastInvocationAsync("RuntimeStateChanged", new { running = _running, error = outcome.StateError }, cancellationToken);
+                }
+
                 return snapshot is not null
                     ? BroadcastInvocationAsync("RuntimeValuesChanged", new { values = snapshot }, cancellationToken)
                     : Task.CompletedTask;
@@ -568,7 +580,7 @@ public sealed class VisualizationRuntimeService
 
     private sealed record PendingWrite(string Address, int MonType, int MonIndex, int Value);
 
-    private Dictionary<string, int>? PollCfnetValues()
+    private CfnetPollOutcome PollCfnetValues()
     {
         try
         {
@@ -576,11 +588,7 @@ public sealed class VisualizationRuntimeService
 
             if (Cfheader.Instances.Count == 0)
             {
-                if (_lastError != "CFHEADER instance not found.")
-                {
-                    _lastError = "CFHEADER instance not found.";
-                }
-                return null;
+                return HandleCfnetPollFailure("CFHEADER instance not found.");
             }
 
             var cfheader0 = Cfheader.Instances[0];
@@ -630,19 +638,35 @@ public sealed class VisualizationRuntimeService
                 }
             }
 
+            bool recovered = _cfnetDisconnectDetectedAt is not null || _cfnetDisconnectAlertSent;
+            _cfnetDisconnectDetectedAt = null;
+            _cfnetDisconnectAlertSent = false;
             if (!string.IsNullOrWhiteSpace(_lastError))
             {
                 _lastError = null;
             }
 
-            return new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
+            return new CfnetPollOutcome(new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase), recovered ? null : null, recovered);
         }
         catch (Exception ex)
         {
-            _lastError = ex.Message;
             _logger.LogWarning(ex, "CFNET runtime polling failed.");
-            return null;
+            return HandleCfnetPollFailure(ex.Message);
         }
+    }
+
+    private CfnetPollOutcome HandleCfnetPollFailure(string message)
+    {
+        _lastError = message;
+        _cfnetDisconnectDetectedAt ??= DateTimeOffset.UtcNow;
+
+        if (!_cfnetDisconnectAlertSent && DateTimeOffset.UtcNow - _cfnetDisconnectDetectedAt.Value >= TimeSpan.FromSeconds(5))
+        {
+            _cfnetDisconnectAlertSent = true;
+            return new CfnetPollOutcome(null, "CFNET 연결이 끊어졌습니다.", true);
+        }
+
+        return new CfnetPollOutcome(null, null, false);
     }
 
     private void ApplyPendingCfnetWrites()
@@ -701,6 +725,8 @@ public sealed class VisualizationRuntimeService
             }
         }
     }
+
+    private sealed record CfnetPollOutcome(Dictionary<string, int>? Snapshot, string? StateError, bool StateChanged);
 
     private sealed record CfnetEntry(string Address)
     {

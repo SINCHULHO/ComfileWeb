@@ -296,30 +296,7 @@ cfnetApi.MapPost("/disconnect", (ILoggerFactory loggerFactory) =>
     }
 });
 
-TryTurnOnCfdo0Port0AtStartup(app.Logger);
-
 app.Run();
-
-static void TryTurnOnCfdo0Port0AtStartup(ILogger logger)
-{
-    EnsureCfnetNativeLibraries(logger);
-
-    try
-    {
-        var cfheader0 = Cfheader.Instances[0];
-        var cfdo0 = cfheader0.DigitalOutputModules[0];
-
-        cfheader0.Open();
-        cfdo0.Channels[0].State = true;
-        cfheader0.Sync();
-
-        logger.LogInformation("CFDO[0] Port[0] ON completed at startup.");
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Startup CFDO[0] Port[0] ON failed.");
-    }
-}
 
 static void EnsureCfnetNativeLibraries(ILogger logger)
 {

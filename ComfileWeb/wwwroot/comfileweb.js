@@ -101,7 +101,7 @@
 
 		const meta = document.createElement('div');
 		meta.className = 'about-dialog-meta';
-		meta.innerHTML = 'COMFILE Technology Inc.<br />© 2026 COMFILE Technology Inc. All rights reserved.<br />HMI 화면 설계, 위젯 배치, 장치 링크 설정 등 핵심 기능을 제공합니다.<br />지원 디바이스 : CUBLOC CORE, CUBLOC MSB, CUBLOC2';
+		meta.innerHTML = 'COMFILE Technology Inc.<br />© 2026 COMFILE Technology Inc. All rights reserved.<br />HMI 화면 설계, 위젯 배치, 장치 링크 설정 등 핵심 기능을 제공합니다.<br />지원 디바이스 : CUBLOC CORE, CUBLOC MSB, CUBLOC2, CFNET Field I/O';
 
 		const closeButton = document.createElement('button');
 		closeButton.type = 'button';
