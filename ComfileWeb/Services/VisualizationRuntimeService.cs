@@ -27,6 +27,7 @@ public sealed class VisualizationRuntimeService
     private string? _lastError;
     private DateTimeOffset? _cfnetDisconnectDetectedAt;
     private bool _cfnetDisconnectAlertSent;
+    private DateTimeOffset? _cfnetRetryAt;
     private bool _running;
 
     public VisualizationRuntimeService(UsbCdcService usbCdc, ILogger<VisualizationRuntimeService> logger)
@@ -392,6 +393,11 @@ public sealed class VisualizationRuntimeService
 
             if (_cfnetEntries.Count > 0)
             {
+                if (_cfnetRetryAt is not null && DateTimeOffset.UtcNow < _cfnetRetryAt.Value)
+                {
+                    return Task.CompletedTask;
+                }
+
                 CfnetPollOutcome outcome = PollCfnetValues();
                 snapshot = outcome.Snapshot;
                 if (outcome.StateChanged)
@@ -641,6 +647,7 @@ public sealed class VisualizationRuntimeService
             bool recovered = _cfnetDisconnectDetectedAt is not null || _cfnetDisconnectAlertSent;
             _cfnetDisconnectDetectedAt = null;
             _cfnetDisconnectAlertSent = false;
+            _cfnetRetryAt = null;
             if (!string.IsNullOrWhiteSpace(_lastError))
             {
                 _lastError = null;
@@ -659,14 +666,42 @@ public sealed class VisualizationRuntimeService
     {
         _lastError = message;
         _cfnetDisconnectDetectedAt ??= DateTimeOffset.UtcNow;
+        ResetCfnetConnectionHandle();
 
         if (!_cfnetDisconnectAlertSent && DateTimeOffset.UtcNow - _cfnetDisconnectDetectedAt.Value >= TimeSpan.FromSeconds(5))
         {
             _cfnetDisconnectAlertSent = true;
+            _cfnetRetryAt = DateTimeOffset.UtcNow.AddMilliseconds(250);
             return new CfnetPollOutcome(null, "CFNET 연결이 끊어졌습니다.", true);
         }
 
+        if (_cfnetDisconnectAlertSent)
+        {
+            _cfnetRetryAt = DateTimeOffset.UtcNow.AddMilliseconds(250);
+        }
+
         return new CfnetPollOutcome(null, null, false);
+    }
+
+    private void ResetCfnetConnectionHandle()
+    {
+        try
+        {
+            if (Cfheader.Instances.Count == 0)
+            {
+                return;
+            }
+
+            var cfheader0 = Cfheader.Instances[0];
+            if (cfheader0.IsOpen)
+            {
+                cfheader0.Close();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CFNET connection reset failed.");
+        }
     }
 
     private void ApplyPendingCfnetWrites()
