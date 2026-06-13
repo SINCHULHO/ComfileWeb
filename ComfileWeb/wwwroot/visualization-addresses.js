@@ -674,6 +674,14 @@ function getCfnetAreaHint(area) {
     return String(area?.type || '');
 }
 
+function isCfnetAreaDetected(area) {
+    const detectedModules = Array.isArray(window.cfnetDetectedAddressModules)
+        ? window.cfnetDetectedAddressModules
+        : [];
+    const key = `${getCfnetAreaModule(area)}.${getCfnetAreaAdr(area)}`.toUpperCase();
+    return detectedModules.includes(key);
+}
+
 function renderAddressPickerSidebarMarkup(state, allowedAreas) {
     if (state.provider?.metadataMode === 'commentOnly') {
         const modules = Array.from(new Set(allowedAreas.map(area => getCfnetAreaModule(area)).filter(Boolean)));
@@ -687,7 +695,7 @@ function renderAddressPickerSidebarMarkup(state, allowedAreas) {
             const adrButtons = allowedAreas
                 .filter(area => getCfnetAreaModule(area) === moduleName)
                 .map(area => `<button class="address-picker-area address-picker-area-child${area.prefix === state.selectedAreaPrefix ? ' is-selected' : ''}" type="button" data-address-area="${escapeHtml(area.prefix)}">
-                        <span>${escapeHtml(`${getCfnetAreaModule(area)}.${getCfnetAreaAdr(area)}`)}</span>
+                        <span class="address-picker-area-title">${escapeHtml(`${getCfnetAreaModule(area)}.${getCfnetAreaAdr(area)}`)}${isCfnetAreaDetected(area) ? '<span class="cfnet-detected-module-dot" aria-label="Detected"></span>' : ''}</span>
                         <small>${escapeHtml(getCfnetAreaHint(area))}</small>
                     </button>`)
                 .join('');
@@ -1135,7 +1143,16 @@ function openCbprojAliasImportPicker(backdrop, state, button) {
 }
 
 function bindAddressPickerEvents(backdrop, state) {
-    const close = () => backdrop.remove();
+    const refreshCfnetDetectedModules = () => {
+        if (document.body.contains(backdrop) && state.provider?.metadataMode === 'commentOnly') {
+            renderAddressPickerSidebar(backdrop, state);
+        }
+    };
+    const close = () => {
+        window.removeEventListener('cfnet-detected-modules-changed', refreshCfnetDetectedModules);
+        backdrop.remove();
+    };
+    window.addEventListener('cfnet-detected-modules-changed', refreshCfnetDetectedModules);
     backdrop.addEventListener('click', event => {
         if (event.target === backdrop || event.target.closest('.address-picker-close') || event.target.closest('.address-picker-cancel')) {
             close();

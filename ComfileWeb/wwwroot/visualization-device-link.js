@@ -144,6 +144,8 @@ function clearCfnetDetectedModules() {
     if (listElement) {
         listElement.innerHTML = '';
     }
+    window.cfnetDetectedAddressModules = [];
+    window.dispatchEvent(new CustomEvent('cfnet-detected-modules-changed'));
 }
 
 function getSelectedCfheaderAddress() {
@@ -158,6 +160,25 @@ function renderCfnetDetectedModules(modules) {
     }
 
     const normalizedModules = Array.isArray(modules) ? modules : [];
+    window.cfnetDetectedAddressModules = normalizedModules
+        .map(module => {
+            const type = String(module?.type || '').trim().toUpperCase();
+            const address = String(module?.address ?? '').trim();
+            let moduleName = '';
+            if (type.includes('DIGITALINPUT')) {
+                moduleName = 'DI';
+            } else if (type.includes('DIGITALOUTPUT')) {
+                moduleName = 'DO';
+            } else if (type.includes('ANALOGINPUT')) {
+                moduleName = 'ADC';
+            } else if (type.includes('ANALOGOUTPUT')) {
+                moduleName = 'DAC';
+            }
+
+            return moduleName && address ? `${moduleName}.${address}` : '';
+        })
+        .filter(Boolean);
+    window.dispatchEvent(new CustomEvent('cfnet-detected-modules-changed'));
     if (normalizedModules.length === 0) {
         listElement.innerHTML = `<div class="cfnet-detected-modules-empty">${isCurrentVisualizationLanguageKorean() ? '감지된 모듈 없음' : 'No modules detected'}</div>`;
         return;

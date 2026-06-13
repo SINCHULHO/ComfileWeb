@@ -99,7 +99,8 @@ const designSurface = document.getElementById('designSurface');
                     properties: {
                         gridDivisionsX: 49,
                         gridDivisionsY: 30,
-                        pageBackColorHtml: '#202124'
+                        pageBackColorHtml: '#202124',
+                        mobile: false
                     },
                     widgets: []
                 }
@@ -461,7 +462,8 @@ const designSurface = document.getElementById('designSurface');
                 properties: {
                     gridDivisionsX: 49,
                     gridDivisionsY: 30,
-                    pageBackColorHtml: themeDefaults.pageBack
+                    pageBackColorHtml: themeDefaults.pageBack,
+                    mobile: false
                 },
                 widgets: []
             };
@@ -490,6 +492,7 @@ const designSurface = document.getElementById('designSurface');
                 if (!page.properties.pageBackColorHtml) {
                     page.properties.pageBackColorHtml = getThemeColorDefaults().pageBack;
                 }
+                page.properties.mobile = !!page.properties.mobile;
             });
         }
 
@@ -1022,9 +1025,35 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
+            if (propertyKey === 'Mobile') {
+                const nextValue = String(value || '').trim().toLowerCase() === 'on';
+                if (!!page.properties.mobile === nextValue) {
+                    renderProperties();
+                    return;
+                }
+
+                pushUndoState();
+                page.properties.mobile = nextValue;
+                if (nextValue) {
+                    page.properties.gridDivisionsX = 20;
+                    page.properties.gridDivisionsY = 42;
+                } else {
+                    page.properties.gridDivisionsX = 49;
+                    page.properties.gridDivisionsY = 30;
+                }
+                updateGridControlsFromCurrentPage();
+                renderWidgets();
+                renderProperties();
+                notifyVisualizationDirty();
+                return;
+            }
+
             if (propertyKey === 'Grid X' || propertyKey === 'Grid Y') {
                 const min = 5;
-                const max = propertyKey === 'Grid X' ? 49 : 30;
+                const isMobilePage = !!page.properties.mobile;
+                const max = propertyKey === 'Grid X'
+                    ? (isMobilePage ? 20 : 49)
+                    : (isMobilePage ? 42 : 30);
                 const nextValue = Math.max(min, Math.min(max, Math.round(toNumber(value, propertyKey === 'Grid X' ? page.properties.gridDivisionsX : page.properties.gridDivisionsY))));
                 const propertyName = propertyKey === 'Grid X' ? 'gridDivisionsX' : 'gridDivisionsY';
                 if (Number(page.properties[propertyName]) === nextValue) {
@@ -1774,8 +1803,11 @@ const designSurface = document.getElementById('designSurface');
                 desiredHeight = Math.max(1, Math.round(target.height / cellPixelHeight));
             }
 
-            desiredWidth = Math.max(1, Math.min(4, desiredWidth, gridX - widget.cellX));
-            desiredHeight = Math.max(1, Math.min(4, desiredHeight, gridY - widget.cellY));
+            const isMobilePage = !!getCurrentPage()?.properties?.mobile;
+            const maxInitialWidth = isMobilePage ? 10 : 4;
+            const maxInitialHeight = isMobilePage ? 10 : 4;
+            desiredWidth = Math.max(1, Math.min(maxInitialWidth, desiredWidth, gridX - widget.cellX));
+            desiredHeight = Math.max(1, Math.min(maxInitialHeight, desiredHeight, gridY - widget.cellY));
 
             while (desiredWidth > 1 || desiredHeight > 1) {
                 if (!wouldOverlap(widget, widget.cellX, widget.cellY, desiredWidth, desiredHeight)) {
@@ -4194,6 +4226,7 @@ const designSurface = document.getElementById('designSurface');
             const pageRows = [
                 { key: 'Page Name', value: page.name || 'Page1' },
                 { key: 'Page Back Color', value: page.properties.pageBackColorHtml || getThemeColorDefaults().pageBack },
+                { key: 'Mobile', value: page.properties.mobile ? 'On' : 'Off' },
                 { key: 'Grid X', value: String(page.properties.gridDivisionsX || 49) },
                 { key: 'Grid Y', value: String(page.properties.gridDivisionsY || 30) }
             ];
@@ -4204,6 +4237,14 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function renderPagePropertyEditor(key, value) {
+            if (key === 'Mobile') {
+                const normalized = String(value || '').trim().toLowerCase() === 'on' ? 'On' : 'Off';
+                return `<select class="property-select" data-page-property-key="${escapeHtml(key)}">
+                    <option value="Off"${normalized === 'Off' ? ' selected' : ''}>Off</option>
+                    <option value="On"${normalized === 'On' ? ' selected' : ''}>On</option>
+                </select>`;
+            }
+
             if (key === 'Page Back Color') {
                 const color = normalizeCssColor(value) || getThemeColorDefaults().pageBack;
                 const swatchClass = color ? 'property-color-swatch is-valid' : 'property-color-swatch';
@@ -6934,13 +6975,26 @@ const designSurface = document.getElementById('designSurface');
 
         function updateGridControlsFromCurrentPage() {
             const page = getCurrentPage();
-            const gridX = Math.max(5, Math.min(49, toNumber(page?.properties?.gridDivisionsX, 49)));
-            const gridY = Math.max(5, Math.min(30, toNumber(page?.properties?.gridDivisionsY, 30)));
+            const isMobilePage = !!page?.properties?.mobile;
+            const maxGridX = isMobilePage ? 20 : 49;
+            const maxGridY = isMobilePage ? 42 : 30;
+            const gridX = Math.max(5, Math.min(maxGridX, toNumber(page?.properties?.gridDivisionsX, maxGridX)));
+            const gridY = Math.max(5, Math.min(maxGridY, toNumber(page?.properties?.gridDivisionsY, maxGridY)));
             const pageBackColor = normalizeCssColor(page?.properties?.pageBackColorHtml) || getThemeColorDefaults().pageBack;
+            if (page?.properties) {
+                page.properties.gridDivisionsX = gridX;
+                page.properties.gridDivisionsY = gridY;
+            }
+            gridXSlider.max = String(maxGridX);
+            gridYSlider.max = String(maxGridY);
             gridXSlider.value = String(gridX);
             gridYSlider.value = String(gridY);
             designSurface.style.setProperty('--grid-x', String(gridX));
             designSurface.style.setProperty('--grid-y', String(gridY));
+            designSurface.classList.toggle('is-mobile-page', isMobilePage);
+            designSurface.style.width = isMobilePage ? '390px' : '';
+            designSurface.style.height = isMobilePage ? '844px' : '';
+            designSurface.style.flex = isMobilePage ? '0 0 auto' : '';
             designSurface.style.backgroundColor = pageBackColor;
             if (workArea) {
                 workArea.style.backgroundColor = pageBackColor;
