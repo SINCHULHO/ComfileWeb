@@ -304,6 +304,10 @@
 	}
 
 	async function confirmSaveCurrentWorkBeforeOpen() {
+		if (!documentDirty) {
+			return true;
+		}
+
 		if (!currentDocumentHasWidgets()) {
 			return true;
 		}

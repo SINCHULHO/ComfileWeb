@@ -542,6 +542,14 @@ const designSurface = document.getElementById('designSurface');
 
         function getRuntimeUsbCdcSettings() {
             const connection = getDeviceConnectionState();
+            const device = String(connection.device || '').trim().toUpperCase();
+            if (device === 'CFNET') {
+                return {
+                    device: connection.device,
+                    cfheaderAddress: connection.cfheaderAddress
+                };
+            }
+
             if (connection.transport === 'Ethernet' || !connection.portName) {
                 return null;
             }
