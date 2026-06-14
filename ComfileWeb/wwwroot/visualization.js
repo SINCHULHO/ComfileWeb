@@ -393,6 +393,7 @@ const designSurface = document.getElementById('designSurface');
             'Direction': '방향',
             'Marking': '눈금',
             'Gauge Type': '게이지 종류',
+            'Scale': '스케일',
             'Color': '색상',
             'Unit': '단위',
             'Editable': '편집 가능',
@@ -401,6 +402,8 @@ const designSurface = document.getElementById('designSurface');
             'Location': '세로 위치',
             'Minimum': '최소값',
             'Maximum': '최대값',
+            'RAW Minimum': '원본 최소값',
+            'RAW Maximum': '원본 최대값',
             'Value': '값',
             'Page Name': '페이지 이름',
             'Page Back Color': '배경색',
@@ -1846,10 +1849,13 @@ const designSurface = document.getElementById('designSurface');
                     Name: name,
                     Address: '',
                     'Gauge Type': 'Default',
+                    Scale: 'Off',
                     X: String(cellX),
                     Y: String(cellY),
                     Minimum: '0',
                     Maximum: '100',
+                    'RAW Minimum': '0',
+                    'RAW Maximum': '26666',
                     Color: themeDefaults.gaugeDisplay,
                     Unit: '',
                     Value: '0'
@@ -1898,10 +1904,13 @@ const designSurface = document.getElementById('designSurface');
                     Name: name,
                     Address: '',
                     Direction: 'Horizontal',
+                    Scale: 'Off',
                     X: String(cellX),
                     Y: String(cellY),
                     Minimum: '0',
                     Maximum: '100',
+                    'RAW Minimum': '0',
+                    'RAW Maximum': '4094',
                     'Fill Color': themeDefaults.sliderFill,
                     'Handle Color': themeDefaults.sliderHandle,
                     Value: '0'
@@ -2374,10 +2383,10 @@ const designSurface = document.getElementById('designSurface');
             const isLightTheme = currentThemeMode === 'light';
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
-                widget.properties.Value = String(runtimeValue);
+                widget.properties.Value = String(getGaugeDisplayValue(widget, runtimeValue));
             }
 
-            normalizeSliderRangeProperties(widget);
+            normalizeGaugeRangeProperties(widget);
             const gaugeType = normalizeGaugeType(widget.properties['Gauge Type']);
             widget.properties['Gauge Type'] = gaugeType;
 
@@ -2398,7 +2407,7 @@ const designSurface = document.getElementById('designSurface');
 
             const minimum = getSliderMinimum(widget);
             const maximum = getSliderMaximum(widget);
-            const value = getSliderValue(widget);
+            const value = getGaugeValue(widget);
             const gaugeUnit = normalizeNumberUnit(widget.properties.Unit);
             const ratio = maximum <= minimum ? 0 : Math.max(0, Math.min(1, (value - minimum) / (maximum - minimum)));
 
@@ -3031,8 +3040,10 @@ const designSurface = document.getElementById('designSurface');
             const themeDefaults = getThemeColorDefaults();
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
-                widget.properties.Value = String(runtimeValue);
+                widget.properties.Value = String(getSliderDisplayValue(widget, runtimeValue));
             }
+
+            normalizeSliderRangeProperties(widget);
 
             const element = document.createElement('div');
             element.className = 'design-widget design-widget-slider';
@@ -4049,6 +4060,8 @@ const designSurface = document.getElementById('designSurface');
 
                         const rows = [
                             { key: 'Direction', value: sampleWidget.properties.Direction || 'Horizontal', editable: true },
+                            { key: 'Scale', value: normalizeScaleMode(sampleWidget.properties.Scale), editable: true },
+                            ...getScaleRawPropertyRows(sampleWidget),
                             { key: 'Minimum', value: sampleWidget.properties.Minimum || '0', editable: true },
                             { key: 'Maximum', value: sampleWidget.properties.Maximum || '100', editable: true },
                             { key: 'Fill Color', value: sampleWidget.properties['Fill Color'] || getThemeColorDefaults().sliderFill, editable: true },
@@ -4198,6 +4211,9 @@ const designSurface = document.getElementById('designSurface');
 
         function isSliderMultiEditableProperty(propertyKey) {
             return propertyKey === 'Direction' ||
+                propertyKey === 'Scale' ||
+                propertyKey === 'RAW Minimum' ||
+                propertyKey === 'RAW Maximum' ||
                 propertyKey === 'Minimum' ||
                 propertyKey === 'Maximum' ||
                 propertyKey === 'Fill Color' ||
@@ -4313,10 +4329,13 @@ const designSurface = document.getElementById('designSurface');
 
             if (widget.kind === 'Slider') {
                 normalizeSliderRangeProperties(widget);
+                const rawRows = getScaleRawPropertyRows(widget);
                 return [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
                     { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Direction', value: widget.properties.Direction || 'Horizontal', editable: true },
+                    { key: 'Scale', value: normalizeScaleMode(widget.properties.Scale), editable: true },
+                    ...rawRows,
                     { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
                     { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
                     { key: 'Minimum', value: widget.properties.Minimum || '0', editable: true },
@@ -4344,11 +4363,14 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (widget.kind === 'Gauge') {
-                normalizeSliderRangeProperties(widget);
+                normalizeGaugeRangeProperties(widget);
+                const rawRows = getScaleRawPropertyRows(widget);
                 return [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
                     { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Gauge Type', value: normalizeGaugeType(widget.properties['Gauge Type']), editable: true },
+                    { key: 'Scale', value: normalizeScaleMode(widget.properties.Scale), editable: true },
+                    ...rawRows,
                     { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
                     { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
                     { key: 'Minimum', value: widget.properties.Minimum || '0', editable: true },
@@ -4456,6 +4478,14 @@ const designSurface = document.getElementById('designSurface');
                     <option value="Default" ${normalizedValue === 'Default' ? 'selected' : ''}>Default</option>
                     <option value="Simple" ${normalizedValue === 'Simple' ? 'selected' : ''}>Simple</option>
                     <option value="Line" ${normalizedValue === 'Line' ? 'selected' : ''}>Line</option>
+                </select>`;
+            }
+
+            if (widget && (widget.kind === 'Gauge' || widget.kind === 'Slider') && key === 'Scale') {
+                const normalizedValue = normalizeScaleMode(value);
+                return `<select class="property-select" data-property-key="${escapeHtml(key)}">
+                    <option value="Off" ${normalizedValue === 'Off' ? 'selected' : ''}>Off</option>
+                    <option value="On" ${normalizedValue === 'On' ? 'selected' : ''}>On</option>
                 </select>`;
             }
 
@@ -4707,7 +4737,7 @@ const designSurface = document.getElementById('designSurface');
                 pushUndoState();
                 nextValues.forEach(item => {
                     item.widget.properties[propertyKey] = item.value;
-                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value') {
+                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value' || propertyKey === 'Scale' || propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum') {
                         normalizeSliderRangeProperties(item.widget);
                     }
                 });
@@ -4786,6 +4816,13 @@ const designSurface = document.getElementById('designSurface');
 
                 pushUndoState();
                 widget.properties[propertyKey] = nextValue;
+                if ((widget.kind === 'Slider' || widget.kind === 'Gauge') && (propertyKey === 'Scale' || propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum' || propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
+                    if (widget.kind === 'Gauge') {
+                        normalizeGaugeRangeProperties(widget);
+                    } else {
+                        normalizeSliderRangeProperties(widget);
+                    }
+                }
             }
 
             renderWidgets();
@@ -4838,6 +4875,27 @@ const designSurface = document.getElementById('designSurface');
 
             if (widget.kind === 'Gauge' && propertyKey === 'Gauge Type') {
                 return normalizeGaugeType(value);
+            }
+
+            if ((widget.kind === 'Gauge' || widget.kind === 'Slider') && propertyKey === 'Scale') {
+                return normalizeScaleMode(value);
+            }
+
+            if ((widget.kind === 'Gauge' || widget.kind === 'Slider') && (propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum')) {
+                if (isWidgetRawRangeCfnetFixed(widget)) {
+                    const rawRange = getDefaultRawRangeForWidget(widget);
+                    return propertyKey === 'RAW Minimum' ? String(rawRange.minimum) : String(rawRange.maximum);
+                }
+
+                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(Math.round(toNumber(value, propertyKey === 'RAW Maximum' ? getDefaultRawRangeForWidget(widget).maximum : getDefaultRawRangeForWidget(widget).minimum))) } };
+                normalizeScaleRawRangeProperties(preview);
+                return preview.properties[propertyKey];
+            }
+
+            if (widget.kind === 'Gauge' && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
+                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(Math.round(toNumber(value, propertyKey === 'Maximum' ? 100 : 0))) } };
+                normalizeGaugeRangeProperties(preview);
+                return preview.properties[propertyKey];
             }
 
             if ((widget.kind === 'Slider' || widget.kind === 'ProgressBar') && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
@@ -5773,6 +5831,119 @@ const designSurface = document.getElementById('designSurface');
             return 'Default';
         }
 
+        function normalizeScaleMode(value) {
+            return String(value || '').trim().toLowerCase() === 'on' ? 'On' : 'Off';
+        }
+
+        function isCfnetAdcAddress(address) {
+            return /^ADC\.\d+\.\d+$/i.test(String(address || '').trim());
+        }
+
+        function isCfnetDacAddress(address) {
+            return /^DAC\.\d+\.\d+$/i.test(String(address || '').trim());
+        }
+
+        function isCfnetDeviceSelected() {
+            return String(linkModelSelect?.value || documentModel.deviceConnection?.device || '').trim().toUpperCase() === 'CFNET';
+        }
+
+        function isWidgetRawRangeCfnetFixed(widget) {
+            if (!isCfnetDeviceSelected()) {
+                return false;
+            }
+
+            return widget && ((widget.kind === 'Gauge' && isCfnetAdcAddress(widget.properties?.Address)) ||
+                (widget.kind === 'Slider' && isCfnetDacAddress(widget.properties?.Address)));
+        }
+
+        function getDefaultRawRangeForWidget(widget) {
+            if (widget && widget.kind === 'Gauge') {
+                return { minimum: 0, maximum: 26666 };
+            }
+
+            if (widget && widget.kind === 'Slider') {
+                return { minimum: 0, maximum: 4094 };
+            }
+
+            return { minimum: 0, maximum: 100 };
+        }
+
+        function getRawRangeForWidget(widget) {
+            const defaults = getDefaultRawRangeForWidget(widget);
+            if (isWidgetRawRangeCfnetFixed(widget)) {
+                return defaults;
+            }
+
+            const rawMinimum = Math.round(toNumber(widget && widget.properties ? widget.properties['RAW Minimum'] : defaults.minimum, defaults.minimum));
+            let rawMaximum = Math.round(toNumber(widget && widget.properties ? widget.properties['RAW Maximum'] : defaults.maximum, defaults.maximum));
+            if (rawMaximum <= rawMinimum) {
+                rawMaximum = rawMinimum + 1;
+            }
+
+            return { minimum: rawMinimum, maximum: rawMaximum };
+        }
+
+        function getScaleRawPropertyRows(widget) {
+            if (!widget || !widget.properties || normalizeScaleMode(widget.properties.Scale) !== 'On') {
+                return [];
+            }
+
+            const rawRange = getRawRangeForWidget(widget);
+            const editable = !isWidgetRawRangeCfnetFixed(widget);
+            return [
+                { key: 'RAW Minimum', value: String(rawRange.minimum), editable },
+                { key: 'RAW Maximum', value: String(rawRange.maximum), editable }
+            ];
+        }
+
+        function getGaugeDisplayValue(widget, rawValue) {
+            const rawNumber = toNumber(rawValue, getSliderMinimum(widget));
+            if (!widget || !widget.properties || normalizeScaleMode(widget.properties.Scale) !== 'On') {
+                return rawNumber;
+            }
+
+            const rawRange = getRawRangeForWidget(widget);
+            return convertRawToWidgetRange(widget, rawNumber, rawRange.minimum, rawRange.maximum);
+        }
+
+        function getGaugeValue(widget) {
+            return toNumber(widget && widget.properties ? widget.properties.Value : getSliderMinimum(widget), getSliderMinimum(widget));
+        }
+
+        function getSliderDisplayValue(widget, rawValue) {
+            const rawNumber = toNumber(rawValue, getSliderMinimum(widget));
+            if (!widget || !widget.properties || normalizeScaleMode(widget.properties.Scale) !== 'On') {
+                return rawNumber;
+            }
+
+            const rawRange = getRawRangeForWidget(widget);
+            return convertRawToWidgetRange(widget, rawNumber, rawRange.minimum, rawRange.maximum);
+        }
+
+        function getSliderRuntimeWriteValue(widget, displayValue) {
+            const displayNumber = toNumber(displayValue, getSliderMinimum(widget));
+            if (!widget || !widget.properties || normalizeScaleMode(widget.properties.Scale) !== 'On') {
+                return Math.round(displayNumber);
+            }
+
+            const rawRange = getRawRangeForWidget(widget);
+            return Math.round(convertWidgetRangeToRaw(widget, displayNumber, rawRange.minimum, rawRange.maximum));
+        }
+
+        function convertRawToWidgetRange(widget, rawValue, rawMinimum, rawMaximum) {
+            const minimum = getSliderMinimum(widget);
+            const maximum = getSliderMaximum(widget);
+            const ratio = Math.max(0, Math.min(1, (rawValue - rawMinimum) / (rawMaximum - rawMinimum)));
+            return minimum + ((maximum - minimum) * ratio);
+        }
+
+        function convertWidgetRangeToRaw(widget, value, rawMinimum, rawMaximum) {
+            const minimum = getSliderMinimum(widget);
+            const maximum = getSliderMaximum(widget);
+            const ratio = maximum <= minimum ? 0 : Math.max(0, Math.min(1, (value - minimum) / (maximum - minimum)));
+            return rawMinimum + ((rawMaximum - rawMinimum) * ratio);
+        }
+
         function getSliderMinimum(widget) {
             return Math.round(toNumber(widget && widget.properties ? widget.properties.Minimum : 0, 0));
         }
@@ -5906,9 +6077,10 @@ const designSurface = document.getElementById('designSurface');
 
                 const valueToWrite = latestRuntimeWriteValue;
                 lastSentRuntimeWriteValue = valueToWrite;
+                const runtimeValueToWrite = getSliderRuntimeWriteValue(widget, valueToWrite);
                 runtimeWritePromise = runtimeWritePromise
                     .catch(() => { })
-                    .then(() => writeRuntimeWidgetValue(widget, valueToWrite, false));
+                    .then(() => writeRuntimeWidgetValue(widget, runtimeValueToWrite, false));
             };
 
             const runtimeWriteTimer = window.setInterval(sendLatestRuntimeWrite, 100);
@@ -5922,9 +6094,10 @@ const designSurface = document.getElementById('designSurface');
                 lastValue = nextValue;
                 const address = getWidgetRuntimeAddress(widget);
                 if (address) {
-                    runtimeValues.set(address, nextValue);
+                    const runtimeValue = getSliderRuntimeWriteValue(widget, nextValue);
+                    runtimeValues.set(address, runtimeValue);
                     runtimeLocalValueOverrides.set(address, {
-                        value: nextValue,
+                        value: runtimeValue,
                         expiresAt: window.performance.now() + 700
                     });
                 }
@@ -5940,9 +6113,10 @@ const designSurface = document.getElementById('designSurface');
                 latestRuntimeWriteValue = finalValue;
                 const address = getWidgetRuntimeAddress(widget);
                 if (address) {
-                    runtimeValues.set(address, finalValue);
+                    const runtimeValue = getSliderRuntimeWriteValue(widget, finalValue);
+                    runtimeValues.set(address, runtimeValue);
                     runtimeLocalValueOverrides.set(address, {
-                        value: finalValue,
+                        value: runtimeValue,
                         expiresAt: window.performance.now() + 700
                     });
                 }
@@ -5950,7 +6124,7 @@ const designSurface = document.getElementById('designSurface');
                     await runtimeWritePromise;
                 } catch {
                 }
-                await writeRuntimeWidgetValue(widget, finalValue, true);
+                await writeRuntimeWidgetValue(widget, getSliderRuntimeWriteValue(widget, finalValue), true);
                 window.removeEventListener('pointermove', applyPointerValue);
                 window.removeEventListener('pointerup', endDrag);
                 window.removeEventListener('pointercancel', endDrag);
@@ -5974,6 +6148,35 @@ const designSurface = document.getElementById('designSurface');
             widget.properties.Maximum = String(maximum);
             widget.properties.Value = String(value);
             widget.properties.Direction = normalizeSliderDirection(widget.properties.Direction);
+            if (widget.kind === 'Slider') {
+                widget.properties.Scale = normalizeScaleMode(widget.properties.Scale);
+                normalizeScaleRawRangeProperties(widget);
+            }
+        }
+
+        function normalizeGaugeRangeProperties(widget) {
+            if (!widget || !widget.properties) {
+                return;
+            }
+
+            const minimum = getSliderMinimum(widget);
+            const maximum = getSliderMaximum(widget);
+            const value = Math.round(getGaugeValue(widget));
+            widget.properties.Minimum = String(minimum);
+            widget.properties.Maximum = String(maximum);
+            widget.properties.Value = String(value);
+            widget.properties.Scale = normalizeScaleMode(widget.properties.Scale);
+            normalizeScaleRawRangeProperties(widget);
+        }
+
+        function normalizeScaleRawRangeProperties(widget) {
+            if (!widget || !widget.properties || (widget.kind !== 'Gauge' && widget.kind !== 'Slider')) {
+                return;
+            }
+
+            const rawRange = getRawRangeForWidget(widget);
+            widget.properties['RAW Minimum'] = String(rawRange.minimum);
+            widget.properties['RAW Maximum'] = String(rawRange.maximum);
         }
 
         function getWidgetRuntimeAddress(widget) {

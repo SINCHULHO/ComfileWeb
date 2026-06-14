@@ -110,7 +110,7 @@ function getDefaultLinkStepCheckTitle() {
 }
 
 function getLinkStepPortTitle() {
-    return isCurrentVisualizationLanguageKorean() ? '2. 포트 설정' : '2. Port settings';
+    return isCurrentVisualizationLanguageKorean() ? '2. USB 가상 COM 포트설정' : '2. USB-CDC Port Settings';
 }
 
 function getDefaultLinkStepPortTitle() {
