@@ -599,7 +599,7 @@ public sealed class VisualizationRuntimeService
             }
 
             string runtimeAddress = (addressElement.GetString() ?? string.Empty).Trim();
-            if (CfnetAddressing.TryParseAddress(runtimeAddress, out bool _, out int _, out int _))
+            if (CfnetAddressing.TryParseAddress(runtimeAddress, out CfnetAddressing.AddressKind _, out int _, out int _))
             {
                 string cfnetKey = runtimeAddress.ToUpperInvariant();
                 if (_cfnetEntries.Any(entry => string.Equals(entry.Key, cfnetKey, StringComparison.OrdinalIgnoreCase)))
@@ -676,12 +676,12 @@ public sealed class VisualizationRuntimeService
 
             foreach (CfnetEntry entry in _cfnetEntries)
             {
-                if (!CfnetAddressing.TryParseAddress(entry.Address, out bool isOutput, out int moduleIndex, out int bitIndex))
+                if (!CfnetAddressing.TryParseAddress(entry.Address, out CfnetAddressing.AddressKind addressKind, out int moduleIndex, out int channelIndex))
                 {
                     continue;
                 }
 
-                if (isOutput)
+                if (addressKind == CfnetAddressing.AddressKind.DigitalOutput)
                 {
                     if (moduleIndex >= cfheader0.DigitalOutputModules.Count)
                     {
@@ -689,14 +689,14 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var doModule = cfheader0.DigitalOutputModules[moduleIndex];
-                    if (bitIndex >= doModule.Channels.Count)
+                    if (channelIndex >= doModule.Channels.Count)
                     {
                         continue;
                     }
 
-                    _values[entry.Address] = doModule.Channels[bitIndex].State ? 1 : 0;
+                    _values[entry.Address] = doModule.Channels[channelIndex].State ? 1 : 0;
                 }
-                else
+                else if (addressKind == CfnetAddressing.AddressKind.DigitalInput)
                 {
                     if (moduleIndex >= cfheader0.DigitalInputModules.Count)
                     {
@@ -704,12 +704,48 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var diModule = cfheader0.DigitalInputModules[moduleIndex];
-                    if (bitIndex >= diModule.Channels.Count)
+                    if (channelIndex >= diModule.Channels.Count)
                     {
                         continue;
                     }
 
-                    _values[entry.Address] = diModule.Channels[bitIndex].State ? 1 : 0;
+                    _values[entry.Address] = diModule.Channels[channelIndex].State ? 1 : 0;
+                }
+                else if (addressKind == CfnetAddressing.AddressKind.AnalogInput)
+                {
+                    if (moduleIndex >= cfheader0.AnalogInputModules.Count)
+                    {
+                        continue;
+                    }
+
+                    var analogInputModule = cfheader0.AnalogInputModules[moduleIndex];
+                    if (channelIndex >= analogInputModule.Channels.Count)
+                    {
+                        continue;
+                    }
+
+                    var channel = analogInputModule.Channels[channelIndex];
+                    if (channel.NumberOfConversions == 0)
+                    {
+                        channel.NumberOfConversions = 1;
+                    }
+
+                    _values[entry.Address] = channel.RawValue;
+                }
+                else if (addressKind == CfnetAddressing.AddressKind.AnalogOutput)
+                {
+                    if (moduleIndex >= cfheader0.AnalogOutputModules.Count)
+                    {
+                        continue;
+                    }
+
+                    var analogOutputModule = cfheader0.AnalogOutputModules[moduleIndex];
+                    if (channelIndex >= analogOutputModule.Channels.Count)
+                    {
+                        continue;
+                    }
+
+                    _values[entry.Address] = analogOutputModule.Channels[channelIndex].RawValue;
                 }
             }
 
@@ -776,13 +812,15 @@ public sealed class VisualizationRuntimeService
         }
 
         List<PendingWrite> writes = _pendingWrites.Values
-            .Where(write => CfnetAddressing.TryParseAddress(write.Address, out bool isOutput, out int _, out int _) && isOutput)
+            .Where(write => CfnetAddressing.TryParseAddress(write.Address, out CfnetAddressing.AddressKind kind, out int _, out int _)
+                && kind is CfnetAddressing.AddressKind.DigitalOutput or CfnetAddressing.AddressKind.AnalogOutput)
             .ToList();
 
         foreach (PendingWrite write in writes)
         {
             _pendingWrites.Remove(write.Address);
-            if (!CfnetAddressing.TryParseAddress(write.Address, out bool isOutput, out int moduleIndex, out int bitIndex) || !isOutput)
+            if (!CfnetAddressing.TryParseAddress(write.Address, out CfnetAddressing.AddressKind addressKind, out int moduleIndex, out int channelIndex)
+                || addressKind is not (CfnetAddressing.AddressKind.DigitalOutput or CfnetAddressing.AddressKind.AnalogOutput))
             {
                 continue;
             }
@@ -795,20 +833,41 @@ public sealed class VisualizationRuntimeService
                     cfheader0.Open();
                 }
 
-                if (moduleIndex >= cfheader0.DigitalOutputModules.Count)
+                if (addressKind == CfnetAddressing.AddressKind.DigitalOutput)
                 {
-                    _lastError = $"CFNET DO module not found: {moduleIndex}";
-                    continue;
-                }
+                    if (moduleIndex >= cfheader0.DigitalOutputModules.Count)
+                    {
+                        _lastError = $"CFNET DO module not found: {moduleIndex}";
+                        continue;
+                    }
 
-                var module = cfheader0.DigitalOutputModules[moduleIndex];
-                if (bitIndex >= module.Channels.Count)
+                    var module = cfheader0.DigitalOutputModules[moduleIndex];
+                    if (channelIndex >= module.Channels.Count)
+                    {
+                        _lastError = $"CFNET DO bit out of range: {channelIndex}";
+                        continue;
+                    }
+
+                    module.Channels[channelIndex].State = write.Value != 0;
+                }
+                else
                 {
-                    _lastError = $"CFNET DO bit out of range: {bitIndex}";
-                    continue;
-                }
+                    if (moduleIndex >= cfheader0.AnalogOutputModules.Count)
+                    {
+                        _lastError = $"CFNET DAC module not found: {moduleIndex}";
+                        continue;
+                    }
 
-                module.Channels[bitIndex].State = write.Value != 0;
+                    var module = cfheader0.AnalogOutputModules[moduleIndex];
+                    if (channelIndex >= module.Channels.Count)
+                    {
+                        _lastError = $"CFNET DAC channel out of range: {channelIndex}";
+                        continue;
+                    }
+
+                    int rawValue = Math.Clamp(write.Value, 0, 4094);
+                    module.Channels[channelIndex].RawValue = (ushort)rawValue;
+                }
                 cfheader0.Sync();
             }
             catch (Exception ex)

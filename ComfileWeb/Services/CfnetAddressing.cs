@@ -4,11 +4,45 @@ namespace ComfileWeb.Services;
 
 public static class CfnetAddressing
 {
+    public enum AddressKind
+    {
+        DigitalInput,
+        DigitalOutput,
+        AnalogInput,
+        AnalogOutput
+    }
+
     public static bool TryParseAddress(string? text, out bool isOutput, out int moduleIndex, out int bitIndex)
     {
         isOutput = false;
         moduleIndex = 0;
         bitIndex = 0;
+
+        if (!TryParseAddress(text, out AddressKind kind, out moduleIndex, out bitIndex))
+        {
+            return false;
+        }
+
+        if (kind is AddressKind.DigitalOutput or AddressKind.AnalogOutput)
+        {
+            isOutput = true;
+            return true;
+        }
+
+        if (kind == AddressKind.DigitalInput)
+        {
+            isOutput = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    public static bool TryParseAddress(string? text, out AddressKind kind, out int moduleIndex, out int channelIndex)
+    {
+        kind = AddressKind.DigitalInput;
+        moduleIndex = 0;
+        channelIndex = 0;
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -25,11 +59,19 @@ public static class CfnetAddressing
         string prefix = parts[0].ToUpperInvariant();
         if (prefix == "DO")
         {
-            isOutput = true;
+            kind = AddressKind.DigitalOutput;
         }
         else if (prefix == "DI")
         {
-            isOutput = false;
+            kind = AddressKind.DigitalInput;
+        }
+        else if (prefix == "ADC")
+        {
+            kind = AddressKind.AnalogInput;
+        }
+        else if (prefix == "DAC")
+        {
+            kind = AddressKind.AnalogOutput;
         }
         else
         {
@@ -37,7 +79,7 @@ public static class CfnetAddressing
         }
 
         if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out moduleIndex)
-            || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out bitIndex))
+            || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out channelIndex))
         {
             return false;
         }
@@ -47,7 +89,13 @@ public static class CfnetAddressing
             return false;
         }
 
-        if (bitIndex < 0 || bitIndex > 15)
+        int maxChannelIndex = kind switch
+        {
+            AddressKind.AnalogInput => 3,
+            AddressKind.AnalogOutput => 1,
+            _ => 15
+        };
+        if (channelIndex < 0 || channelIndex > maxChannelIndex)
         {
             return false;
         }
