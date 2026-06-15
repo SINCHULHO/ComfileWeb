@@ -389,6 +389,7 @@ const designSurface = document.getElementById('designSurface');
             'X': 'X',
             'Y': 'Y',
             'Text Size': '글자 크기',
+            'Font': '글꼴',
             'Text': '텍스트',
             'Direction': '방향',
             'Marking': '눈금',
@@ -1686,7 +1687,6 @@ const designSurface = document.getElementById('designSurface');
                 cellHeight: 1,
                 properties: {
                     Name: name,
-                    Address: '',
                     Display: 'On',
                     'Display Address': '',
                     Lamp: 'Off',
@@ -1716,7 +1716,6 @@ const designSurface = document.getElementById('designSurface');
                 cellHeight: 1,
                 properties: {
                     Name: name,
-                    Address: '',
                     Display: 'On',
                     'Display Address': '',
                     Border: 'Off',
@@ -1931,7 +1930,6 @@ const designSurface = document.getElementById('designSurface');
                 cellHeight: 1,
                 properties: {
                     Name: name,
-                    Address: '',
                     Display: 'On',
                     'Display Address': '',
                     Border: 'Off',
@@ -1942,6 +1940,7 @@ const designSurface = document.getElementById('designSurface');
                     Alignment: 'Center',
                     Location: 'Middle',
                     'Text Size': '18',
+                    Font: 'Pretendard',
                     Text: 'Text'
                 }
             };
@@ -3025,6 +3024,7 @@ const designSurface = document.getElementById('designSurface');
             label.textContent = widget.properties.Text || '';
             label.style.color = normalizeCssColor(widget.properties.DisplayColor) || themeDefaults.textDisplay;
             label.style.fontSize = `${toNumber(widget.properties['Text Size'], 18)}px`;
+            label.style.fontFamily = getTextWidgetFontFamily(widget.properties.Font);
             label.style.textAlign = getTextCssAlignment(widget.properties.Alignment);
             label.style.justifyContent = getTextCssAlignment(widget.properties.Alignment);
             label.style.alignItems = getTextCssLocation(widget.properties.Location);
@@ -3992,7 +3992,8 @@ const designSurface = document.getElementById('designSurface');
                             { key: 'Border Color', value: getWidgetBorderBackColor(sampleWidget), editable: true },
                             { key: 'DisplayColor', value: sampleWidget.properties.DisplayColor || '#DCDCDC', editable: true },
                             { key: 'Position', value: getTextPositionValue(sampleWidget), editable: true },
-                            { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '18', editable: true }
+                            { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '18', editable: true },
+                            { key: 'Font', value: normalizeTextWidgetFont(sampleWidget.properties.Font), editable: true }
                         ];
 
                         propertyGridBody.innerHTML = rows
@@ -4201,6 +4202,7 @@ const designSurface = document.getElementById('designSurface');
                 propertyKey === 'Border Color' ||
                 propertyKey === 'DisplayColor' ||
                 propertyKey === 'Position' ||
+                propertyKey === 'Font' ||
                 propertyKey === 'Text Size';
         }
 
@@ -4313,7 +4315,6 @@ const designSurface = document.getElementById('designSurface');
             if (widget.kind === 'Text') {
                 return [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
-                    { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Display', value: normalizeWidgetDisplayMode(widget.properties.Display), editable: true },
                     { key: 'Display Address', value: widget.properties['Display Address'] || '', editable: normalizeWidgetDisplayMode(widget.properties.Display) === 'Address' },
                     { key: 'Border', value: widget.properties.Border || 'Off', editable: true },
@@ -4323,6 +4324,7 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'DisplayColor', value: widget.properties.DisplayColor || '#DCDCDC', editable: true },
                     { key: 'Position', value: getTextPositionValue(widget), editable: true },
                     { key: 'Text Size', value: widget.properties['Text Size'] || '18', editable: true },
+                    { key: 'Font', value: normalizeTextWidgetFont(widget.properties.Font), editable: true },
                     { key: 'Text', value: widget.properties.Text || 'Text', editable: true }
                 ];
             }
@@ -4446,6 +4448,13 @@ const designSurface = document.getElementById('designSurface');
 
             if (widget && widget.kind === 'Text' && key === 'Position') {
                 return renderTextPositionPicker(widget);
+            }
+
+            if (widget && widget.kind === 'Text' && key === 'Font') {
+                const normalizedValue = normalizeTextWidgetFont(value);
+                return `<select class="property-select" data-property-key="${escapeHtml(key)}">
+                    ${getTextWidgetFontOptions().map(font => `<option value="${escapeHtml(font)}" ${normalizedValue === font ? 'selected' : ''}>${escapeHtml(font)}</option>`).join('')}
+                </select>`;
             }
 
             if (key === 'Round') {
@@ -4831,6 +4840,10 @@ const designSurface = document.getElementById('designSurface');
         function normalizeWidgetPropertyValue(widget, propertyKey, value) {
             if (widget.kind === 'Text' && propertyKey === 'Position') {
                 return normalizeTextPosition(value);
+            }
+
+            if (widget.kind === 'Text' && propertyKey === 'Font') {
+                return normalizeTextWidgetFont(value);
             }
 
             if ((widget.kind === 'Lamp' || widget.kind === 'Toggle' || widget.kind === 'Text') && propertyKey === 'Border') {
@@ -5759,6 +5772,21 @@ const designSurface = document.getElementById('designSurface');
                 return 'Bottom';
             }
             return 'Middle';
+        }
+
+        function getTextWidgetFontOptions() {
+            return ['Pretendard', 'SUIT'];
+        }
+
+        function normalizeTextWidgetFont(value) {
+            const text = String(value || '').trim();
+            const fonts = getTextWidgetFontOptions();
+            return fonts.find(font => font.toLowerCase() === text.toLowerCase()) || 'Pretendard';
+        }
+
+        function getTextWidgetFontFamily(value) {
+            const font = normalizeTextWidgetFont(value);
+            return `"${font}", sans-serif`;
         }
 
         function getTextPositionValue(widget) {
