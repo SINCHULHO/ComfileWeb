@@ -3550,7 +3550,22 @@ const designSurface = document.getElementById('designSurface');
             widget.properties.Y = String(top);
             activeResize.hasChanged = true;
 
-            renderWidgets();
+            updateResizingWidgetBounds(widget);
+        }
+
+        function updateResizingWidgetBounds(widget) {
+            if (!widget || !designSurface) {
+                return;
+            }
+
+            const element = designSurface.querySelector(`.design-widget[data-widget-id="${CSS.escape(widget.id)}"]`);
+            if (!element) {
+                return;
+            }
+
+            applyWidgetBounds(element, widget);
+            designSurface.querySelectorAll('.selected-widget-address-popup').forEach(popup => popup.remove());
+            renderSelectedWidgetAddressPopup(element, widget);
         }
 
         function resizeSelectedWidgetGroup(event) {
@@ -3688,6 +3703,7 @@ const designSurface = document.getElementById('designSurface');
         function endResizeSelectedWidget() {
             if (activeResize && activeResize.hasChanged) {
                 pushUndoSnapshot(activeResize.beforeSnapshot);
+                renderWidgets();
             }
             activeResize = null;
             if (resizeDragIndicator) {
@@ -4311,6 +4327,7 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'Editable', value: widget.properties.Editable || 'Disable', editable: true },
                     { key: 'Unit', value: widget.properties.Unit || '', editable: true },
                     { key: 'Text Size', value: widget.properties['Text Size'] || '24', editable: true },
+                    { key: 'Font', value: getGlobalWidgetFont(), editable: true },
                     { key: 'Text', value: widget.properties.Text || '123', editable: true }
                 ];
             }
@@ -4454,7 +4471,7 @@ const designSurface = document.getElementById('designSurface');
                 return renderTextPositionPicker(widget);
             }
 
-            if (widget && (widget.kind === 'Text' || widget.kind === 'Button') && key === 'Font') {
+            if (widget && (widget.kind === 'Text' || widget.kind === 'Button' || widget.kind === 'Number') && key === 'Font') {
                 const normalizedValue = normalizeTextWidgetFont(value);
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
                     ${getTextWidgetFontOptions().map(font => `<option value="${escapeHtml(font)}" ${normalizedValue === font ? 'selected' : ''}>${escapeHtml(font)}</option>`).join('')}
