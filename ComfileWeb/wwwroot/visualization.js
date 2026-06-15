@@ -93,6 +93,7 @@ const designSurface = document.getElementById('designSurface');
             cfnetAddressComments: [],
             ldMonitorDocument: null,
             ldMonitorSourceFileName: '',
+            font: 'Pretendard',
             pages: [
                 {
                     name: 'Page1',
@@ -474,6 +475,7 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function normalizeVisualizationDocumentPages() {
+            documentModel.font = normalizeTextWidgetFont(documentModel.font);
             if (!Array.isArray(documentModel.pages) || documentModel.pages.length === 0) {
                 documentModel.pages = [createVisualizationPage('Page1')];
             }
@@ -1940,7 +1942,6 @@ const designSurface = document.getElementById('designSurface');
                     Alignment: 'Center',
                     Location: 'Middle',
                     'Text Size': '18',
-                    Font: 'Pretendard',
                     Text: 'Text'
                 }
             };
@@ -2002,6 +2003,8 @@ const designSurface = document.getElementById('designSurface');
             if (runtimeRunning && activeNumberInputPopup) {
                 return;
             }
+
+            applyGlobalWidgetFont();
 
             const page = getCurrentPage();
             designSurface.classList.toggle('runtime-running', runtimeRunning);
@@ -3024,7 +3027,7 @@ const designSurface = document.getElementById('designSurface');
             label.textContent = widget.properties.Text || '';
             label.style.color = normalizeCssColor(widget.properties.DisplayColor) || themeDefaults.textDisplay;
             label.style.fontSize = `${toNumber(widget.properties['Text Size'], 18)}px`;
-            label.style.fontFamily = getTextWidgetFontFamily(widget.properties.Font);
+            label.style.fontFamily = getTextWidgetFontFamily(getGlobalWidgetFont());
             label.style.textAlign = getTextCssAlignment(widget.properties.Alignment);
             label.style.justifyContent = getTextCssAlignment(widget.properties.Alignment);
             label.style.alignItems = getTextCssLocation(widget.properties.Location);
@@ -3993,7 +3996,7 @@ const designSurface = document.getElementById('designSurface');
                             { key: 'DisplayColor', value: sampleWidget.properties.DisplayColor || '#DCDCDC', editable: true },
                             { key: 'Position', value: getTextPositionValue(sampleWidget), editable: true },
                             { key: 'Text Size', value: sampleWidget.properties['Text Size'] || '18', editable: true },
-                            { key: 'Font', value: normalizeTextWidgetFont(sampleWidget.properties.Font), editable: true }
+                            { key: 'Font', value: getGlobalWidgetFont(), editable: true }
                         ];
 
                         propertyGridBody.innerHTML = rows
@@ -4324,7 +4327,7 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'DisplayColor', value: widget.properties.DisplayColor || '#DCDCDC', editable: true },
                     { key: 'Position', value: getTextPositionValue(widget), editable: true },
                     { key: 'Text Size', value: widget.properties['Text Size'] || '18', editable: true },
-                    { key: 'Font', value: normalizeTextWidgetFont(widget.properties.Font), editable: true },
+                    { key: 'Font', value: getGlobalWidgetFont(), editable: true },
                     { key: 'Text', value: widget.properties.Text || 'Text', editable: true }
                 ];
             }
@@ -4411,6 +4414,7 @@ const designSurface = document.getElementById('designSurface');
                 { key: 'ForeColor', value: widget.properties.ForeColor || '', editable: true },
                 { key: 'Round', value: widget.properties.Round || '', editable: true },
                 { key: 'Text Size', value: widget.properties['Text Size'] || '', editable: true },
+                { key: 'Font', value: getGlobalWidgetFont(), editable: true },
                 { key: 'Text', value: widget.properties.Text || '', editable: true }
             ];
         }
@@ -4450,7 +4454,7 @@ const designSurface = document.getElementById('designSurface');
                 return renderTextPositionPicker(widget);
             }
 
-            if (widget && widget.kind === 'Text' && key === 'Font') {
+            if (widget && (widget.kind === 'Text' || widget.kind === 'Button') && key === 'Font') {
                 const normalizedValue = normalizeTextWidgetFont(value);
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
                     ${getTextWidgetFontOptions().map(font => `<option value="${escapeHtml(font)}" ${normalizedValue === font ? 'selected' : ''}>${escapeHtml(font)}</option>`).join('')}
@@ -4602,6 +4606,19 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function updateSelectedWidgetProperty(propertyKey, value) {
+            if (propertyKey === 'Font') {
+                const nextValue = normalizeTextWidgetFont(value);
+                if (getGlobalWidgetFont() === nextValue) {
+                    renderWidgets();
+                    return;
+                }
+
+                pushUndoState();
+                setGlobalWidgetFont(nextValue);
+                renderWidgets();
+                return;
+            }
+
             if (areAllSelectedButtons() && isButtonMultiEditableProperty(propertyKey)) {
                 const selectedButtons = getSelectedButtonWidgets();
                 const nextValues = selectedButtons
@@ -4843,6 +4860,10 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (widget.kind === 'Text' && propertyKey === 'Font') {
+                return normalizeTextWidgetFont(value);
+            }
+
+            if (widget.kind === 'Button' && propertyKey === 'Font') {
                 return normalizeTextWidgetFont(value);
             }
 
@@ -5787,6 +5808,20 @@ const designSurface = document.getElementById('designSurface');
         function getTextWidgetFontFamily(value) {
             const font = normalizeTextWidgetFont(value);
             return `"${font}", sans-serif`;
+        }
+
+        function getGlobalWidgetFont() {
+            documentModel.font = normalizeTextWidgetFont(documentModel.font);
+            return documentModel.font;
+        }
+
+        function setGlobalWidgetFont(value) {
+            documentModel.font = normalizeTextWidgetFont(value);
+            applyGlobalWidgetFont();
+        }
+
+        function applyGlobalWidgetFont() {
+            document.documentElement.style.setProperty('--widget-font-family', getTextWidgetFontFamily(documentModel.font));
         }
 
         function getTextPositionValue(widget) {
@@ -7160,6 +7195,7 @@ const designSurface = document.getElementById('designSurface');
             documentModel.cfnetAddressComments = Array.isArray(nextDocumentModel.cfnetAddressComments) ? nextDocumentModel.cfnetAddressComments : [];
             documentModel.ldMonitorDocument = nextDocumentModel.ldMonitorDocument && typeof nextDocumentModel.ldMonitorDocument === 'object' ? nextDocumentModel.ldMonitorDocument : null;
             documentModel.ldMonitorSourceFileName = String(nextDocumentModel.ldMonitorSourceFileName || '');
+            documentModel.font = normalizeTextWidgetFont(nextDocumentModel.font);
             documentModel.pages = nextDocumentModel.pages;
             cublocSourceFileHandle = null;
             cublocSourceFileObject = null;
@@ -7175,6 +7211,7 @@ const designSurface = document.getElementById('designSurface');
             }
             updateSourceSyncSettingsUi();
             normalizeVisualizationDocumentPages();
+            applyGlobalWidgetFont();
             applyThemeLinkedColors('light', currentThemeMode);
             applyThemeLinkedColors('dark', currentThemeMode);
             activePageName = getPageByName('Page1') ? 'Page1' : (documentModel.pages[0].name || 'Page1');
