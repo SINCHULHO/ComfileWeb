@@ -16,12 +16,88 @@
 	let currentProjectName = '';
 	let documentDirty = false;
 	let documentSavedOnce = false;
+	let useKoreanLanguage = true;
 	let textResources = {
 		save: '저장',
 		saved: '저장됨',
 		saveAs: '다른이름으로 저장',
 		open: '열기'
 	};
+	const dialogResources = {
+		ko: {
+			aboutMeta: 'COMFILE Technology Inc.<br />© 2026 COMFILE Technology Inc. All rights reserved.<br />HMI 화면 설계, 위젯 배치, 장치 링크 설정 등 핵심 기능을 제공합니다.<br />지원 디바이스 : CUBLOC CORE, CUBLOC MSB, CUBLOC2, CFNET Field I/O',
+			unsavedPrompt: '작업중인 화면이 있습니다. 다른 프로젝트를 열기 전에 현재 작업을 다른 이름으로 저장하시겠습니까?',
+			openProjectTitle: '프로젝트 열기',
+			chooseFile: '파일 선택',
+			open: '열기',
+			cancel: '취소',
+			emptyProjects: '저장된 프로젝트가 없습니다. 또는 아래 파일 선택으로 직접 파일을 고르세요.',
+			selectedFile: '선택된 파일:',
+			fileReadError: '파일을 읽을 수 없습니다:',
+			saveProjectTitle: '프로젝트 저장',
+			projectName: '프로젝트 이름',
+			projectSaveDirectory: '프로젝트 저장 위치',
+			directoryPlaceholder: '예: D:\\ComfileWeb\\Projects',
+			chooseFolder: '폴더 선택',
+			directoryHelp: '경로를 직접 입력하거나 ... 버튼으로 폴더를 선택한 뒤 저장을 누르세요.',
+			save: '저장',
+			yes: '예',
+			no: '아니오',
+			noDocumentToSave: '저장할 화면 내용이 없습니다.',
+			enterProjectName: '프로젝트 이름을 입력하세요.',
+			failedSerializeDocument: '화면 문서를 직렬화하지 못했습니다:',
+			saveFailed: '저장에 실패했습니다.',
+			saveError: '저장 중 오류가 발생했습니다:',
+			enterProjectDirectory: '프로젝트 저장 위치를 입력하세요.',
+			updateProjectDirectoryFailed: '프로젝트 저장 위치를 변경하지 못했습니다.',
+			updateProjectDirectoryError: '프로젝트 저장 위치 변경 중 오류가 발생했습니다:',
+			overwriteProjectConfirm: "'{projectName}' 프로젝트가 이미 있습니다.\n같은 이름으로 덮어쓰시겠습니까?",
+			loadListFailed: '목록을 불러오지 못했습니다.',
+			loadListError: '목록을 불러오는 중 오류가 발생했습니다:',
+			loadProjectFailed: '프로젝트를 불러오지 못했습니다.',
+			projectEmpty: '프로젝트 내용이 비어 있습니다.',
+			loadProjectError: '프로젝트를 불러오는 중 오류가 발생했습니다:'
+		},
+		en: {
+			aboutMeta: 'COMFILE Technology Inc.<br />© 2026 COMFILE Technology Inc. All rights reserved.<br />Provides core features such as HMI screen design, widget layout, and device link configuration.<br />Supported devices: CUBLOC CORE, CUBLOC MSB, CUBLOC2, CFNET Field I/O',
+			unsavedPrompt: 'There is work in progress. Do you want to save it with a new name before opening another project?',
+			openProjectTitle: 'Open Project',
+			chooseFile: 'Choose File',
+			open: 'Open',
+			cancel: 'Cancel',
+			emptyProjects: 'No saved projects. Or choose a file directly using the button below.',
+			selectedFile: 'Selected file:',
+			fileReadError: 'Failed to read file:',
+			saveProjectTitle: 'Save Project',
+			projectName: 'Project Name',
+			projectSaveDirectory: 'Project Save Directory',
+			directoryPlaceholder: 'e.g. D:\\ComfileWeb\\Projects',
+			chooseFolder: 'Choose Folder',
+			directoryHelp: 'Enter a path directly or choose a folder with the ... button, then click Save.',
+			save: 'Save',
+			yes: 'Yes',
+			no: 'No',
+			noDocumentToSave: 'There is no screen content to save.',
+			enterProjectName: 'Please enter a project name.',
+			failedSerializeDocument: 'Failed to serialize the screen document:',
+			saveFailed: 'Failed to save.',
+			saveError: 'An error occurred while saving:',
+			enterProjectDirectory: 'Please enter the project save directory.',
+			updateProjectDirectoryFailed: 'Failed to change the project save directory.',
+			updateProjectDirectoryError: 'An error occurred while changing the project save directory:',
+			overwriteProjectConfirm: "Project '{projectName}' already exists.\nDo you want to overwrite it?",
+			loadListFailed: 'Failed to load the project list.',
+			loadListError: 'An error occurred while loading the project list:',
+			loadProjectFailed: 'Failed to load the project.',
+			projectEmpty: 'The project content is empty.',
+			loadProjectError: 'An error occurred while loading the project:'
+		}
+	};
+
+	function getDialogText(key) {
+		const locale = useKoreanLanguage ? dialogResources.ko : dialogResources.en;
+		return locale[key] || key;
+	}
 
 	function updateSaveButtonState() {
 		if (quickSaveButton) {
@@ -41,6 +117,9 @@
 
 	function applyLanguageResources(event) {
 		const resources = event && event.detail && event.detail.resources ? event.detail.resources : null;
+		if (event && event.detail && typeof event.detail.useKorean === 'boolean') {
+			useKoreanLanguage = event.detail.useKorean;
+		}
 		if (!resources) {
 			return;
 		}
@@ -101,7 +180,7 @@
 
 		const meta = document.createElement('div');
 		meta.className = 'about-dialog-meta';
-		meta.innerHTML = 'COMFILE Technology Inc.<br />© 2026 COMFILE Technology Inc. All rights reserved.<br />HMI 화면 설계, 위젯 배치, 장치 링크 설정 등 핵심 기능을 제공합니다.<br />지원 디바이스 : CUBLOC CORE, CUBLOC MSB, CUBLOC2, CFNET Field I/O';
+		meta.innerHTML = getDialogText('aboutMeta');
 
 		const closeButton = document.createElement('button');
 		closeButton.type = 'button';
@@ -258,7 +337,7 @@
 			dialog.style.boxSizing = 'border-box';
 
 			const message = document.createElement('div');
-			message.textContent = '작업중인 화면이 있습니다. 다른 프로젝트를 열기 전에 현재 작업을 다른 이름으로 저장하시겠습니까?';
+			message.textContent = getDialogText('unsavedPrompt');
 			message.style.fontSize = '14px';
 			message.style.lineHeight = '1.5';
 			message.style.marginBottom = '16px';
@@ -270,12 +349,12 @@
 
 			const noButton = document.createElement('button');
 			noButton.type = 'button';
-			noButton.textContent = 'No';
+			noButton.textContent = getDialogText('no');
 			applyButtonStyle(noButton);
 
 			const yesButton = document.createElement('button');
 			yesButton.type = 'button';
-			yesButton.textContent = 'Yes';
+			yesButton.textContent = getDialogText('yes');
 			applyButtonStyle(yesButton);
 			yesButton.style.background = '#2563eb';
 			yesButton.style.borderColor = '#3b82f6';
@@ -349,7 +428,7 @@
 	async function saveProjectAs() {
 		const text = getDocumentText();
 		if (!text || !text.trim()) {
-			window.alert('저장할 화면 내용이 없습니다.');
+			window.alert(getDialogText('noDocumentToSave'));
 			return;
 		}
 
@@ -360,7 +439,7 @@
 
 		const trimmed = String(saveInfo.name || '').trim();
 		if (!trimmed) {
-			window.alert('프로젝트 이름을 입력하세요.');
+			window.alert(getDialogText('enterProjectName'));
 			return;
 		}
 
@@ -382,7 +461,7 @@
 	async function saveProjectWithName(projectName, documentText) {
 		const text = documentText || getDocumentText();
 		if (!text || !text.trim()) {
-			window.alert('저장할 화면 내용이 없습니다.');
+			window.alert(getDialogText('noDocumentToSave'));
 			return;
 		}
 
@@ -390,7 +469,7 @@
 		try {
 			documentValue = JSON.parse(text);
 		} catch (error) {
-			window.alert('화면 문서를 직렬화하지 못했습니다: ' + (error && error.message ? error.message : error));
+			window.alert(getDialogText('failedSerializeDocument') + ' ' + (error && error.message ? error.message : error));
 			return;
 		}
 
@@ -403,7 +482,7 @@
 
 			if (!response.ok) {
 				const detail = await readErrorDetail(response);
-				window.alert('저장에 실패했습니다. ' + detail);
+				window.alert(getDialogText('saveFailed') + ' ' + detail);
 				return;
 			}
 
@@ -413,7 +492,7 @@
 			setDocumentSaved();
 			return true;
 		} catch (error) {
-			window.alert('저장 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+			window.alert(getDialogText('saveError') + ' ' + (error && error.message ? error.message : error));
 		}
 
 		return false;
@@ -436,7 +515,7 @@
 	async function applyProjectSaveDirectory(projectsDirectory) {
 		const trimmed = String(projectsDirectory || '').trim();
 		if (!trimmed) {
-			window.alert('프로젝트 저장 위치를 입력하세요.');
+			window.alert(getDialogText('enterProjectDirectory'));
 			return false;
 		}
 
@@ -449,13 +528,13 @@
 
 			if (!response.ok) {
 				const detail = await readErrorDetail(response);
-				window.alert('프로젝트 저장 위치를 변경하지 못했습니다. ' + detail);
+				window.alert(getDialogText('updateProjectDirectoryFailed') + ' ' + detail);
 				return false;
 			}
 
 			return true;
 		} catch (error) {
-			window.alert('프로젝트 저장 위치 변경 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+			window.alert(getDialogText('updateProjectDirectoryError') + ' ' + (error && error.message ? error.message : error));
 			return false;
 		}
 	}
@@ -473,7 +552,7 @@
 				return true;
 			}
 
-			return window.confirm(`'${projectName}' 프로젝트가 이미 있습니다.\n같은 이름으로 덮어쓰시겠습니까?`);
+			return window.confirm(getDialogText('overwriteProjectConfirm').replace('{projectName}', projectName));
 		} catch {
 			return true;
 		}
@@ -490,13 +569,13 @@
 			const response = await fetch('/api/project/list', { cache: 'no-store' });
 			if (!response.ok) {
 				const detail = await readErrorDetail(response);
-				window.alert('목록을 불러오지 못했습니다. ' + detail);
+				window.alert(getDialogText('loadListFailed') + ' ' + detail);
 				return;
 			}
 
 			items = await response.json();
 		} catch (error) {
-			window.alert('목록을 불러오는 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+			window.alert(getDialogText('loadListError') + ' ' + (error && error.message ? error.message : error));
 			return;
 		}
 
@@ -512,13 +591,13 @@
 				const response = await fetch('/api/project/load?name=' + encodeURIComponent(targetName), { cache: 'no-store' });
 				if (!response.ok) {
 					const detail = await readErrorDetail(response);
-					window.alert('프로젝트를 불러오지 못했습니다. ' + detail);
+					window.alert(getDialogText('loadProjectFailed') + ' ' + detail);
 					return;
 				}
 
 				const text = await response.text();
 				if (!text || !text.trim()) {
-					window.alert('프로젝트 내용이 비어 있습니다.');
+					window.alert(getDialogText('projectEmpty'));
 					return;
 				}
 
@@ -528,14 +607,14 @@
 				setDocumentDirty(false);
 				saveTemporaryDraft(true);
 			} catch (error) {
-				window.alert('프로젝트를 불러오는 중 오류가 발생했습니다: ' + (error && error.message ? error.message : error));
+				window.alert(getDialogText('loadProjectError') + ' ' + (error && error.message ? error.message : error));
 			}
 			return;
 		}
 
 		if (selection.kind === 'file') {
 			if (!selection.text || !selection.text.trim()) {
-				window.alert('프로젝트 내용이 비어 있습니다.');
+				window.alert(getDialogText('projectEmpty'));
 				return;
 			}
 
@@ -576,7 +655,7 @@
 			dialog.style.boxSizing = 'border-box';
 
 			const title = document.createElement('div');
-			title.textContent = '프로젝트 열기';
+			title.textContent = getDialogText('openProjectTitle');
 			title.style.fontSize = '14px';
 			title.style.fontWeight = '700';
 
@@ -612,17 +691,17 @@
 
 			const browseButton = document.createElement('button');
 			browseButton.type = 'button';
-			browseButton.textContent = '파일 선택';
+			browseButton.textContent = getDialogText('chooseFile');
 			applyButtonStyle(browseButton);
 
 			const openButton = document.createElement('button');
 			openButton.type = 'button';
-			openButton.textContent = '열기';
+			openButton.textContent = getDialogText('open');
 			applyButtonStyle(openButton);
 
 			const cancelButton = document.createElement('button');
 			cancelButton.type = 'button';
-			cancelButton.textContent = '취소';
+			cancelButton.textContent = getDialogText('cancel');
 			applyButtonStyle(cancelButton);
 
 			function updateOpenEnabled() {
@@ -637,7 +716,7 @@
 				list.innerHTML = '';
 				if (visibleItems.length === 0) {
 					const empty = document.createElement('div');
-					empty.textContent = '저장된 프로젝트가 없습니다. 또는 아래 파일 선택으로 직접 파일을 고르세요.';
+					empty.textContent = getDialogText('emptyProjects');
 					empty.style.fontSize = '12px';
 					empty.style.color = '#a1a1aa';
 					list.appendChild(empty);
@@ -713,12 +792,12 @@
 							text
 						};
 						selectedIndex = -1;
-						fileStatus.textContent = '선택된 파일: ' + file.name;
+						fileStatus.textContent = `${getDialogText('selectedFile')} ${file.name}`;
 						updateFileStatusVisibility();
 						renderList();
 						updateOpenEnabled();
 					} catch (error) {
-						window.alert('파일을 읽을 수 없습니다: ' + (error && error.message ? error.message : error));
+						window.alert(getDialogText('fileReadError') + ' ' + (error && error.message ? error.message : error));
 					}
 				}, { once: true });
 
@@ -786,12 +865,12 @@
 			dialog.style.boxSizing = 'border-box';
 
 			const title = document.createElement('div');
-			title.textContent = '프로젝트 저장';
+			title.textContent = getDialogText('saveProjectTitle');
 			title.style.fontSize = '14px';
 			title.style.fontWeight = '700';
 
 			const label = document.createElement('div');
-			label.textContent = '프로젝트 이름';
+			label.textContent = getDialogText('projectName');
 			label.style.fontSize = '12px';
 			label.style.color = '#d4d4d8';
 
@@ -807,7 +886,7 @@
 			input.style.font = '13px "Segoe UI", "Malgun Gothic", sans-serif';
 
 			const directoryLabel = document.createElement('div');
-			directoryLabel.textContent = '프로젝트 저장 위치';
+			directoryLabel.textContent = getDialogText('projectSaveDirectory');
 			directoryLabel.style.fontSize = '12px';
 			directoryLabel.style.color = '#d4d4d8';
 
@@ -817,7 +896,7 @@
 
 			const directoryInput = document.createElement('input');
 			directoryInput.type = 'text';
-			directoryInput.placeholder = '예: D:\\ComfileWeb\\Projects';
+			directoryInput.placeholder = getDialogText('directoryPlaceholder');
 			directoryInput.style.height = '34px';
 			directoryInput.style.padding = '0 10px';
 			directoryInput.style.border = '1px solid #3f3f46';
@@ -831,12 +910,12 @@
 			const browseButton = document.createElement('button');
 			browseButton.type = 'button';
 			browseButton.textContent = '...';
-			browseButton.title = '폴더 선택';
+			browseButton.title = getDialogText('chooseFolder');
 			applyButtonStyle(browseButton);
 			browseButton.style.flex = '0 0 auto';
 
 			const directoryHelp = document.createElement('div');
-			directoryHelp.textContent = '경로를 직접 입력하거나 ... 버튼으로 폴더를 선택한 뒤 저장을 누르세요.';
+			directoryHelp.textContent = getDialogText('directoryHelp');
 			directoryHelp.style.fontSize = '12px';
 			directoryHelp.style.color = '#a1a1aa';
 
@@ -850,12 +929,12 @@
 
 			const saveButton = document.createElement('button');
 			saveButton.type = 'button';
-			saveButton.textContent = '저장';
+			saveButton.textContent = getDialogText('save');
 			applyButtonStyle(saveButton);
 
 			const cancelButton = document.createElement('button');
 			cancelButton.type = 'button';
-			cancelButton.textContent = '취소';
+			cancelButton.textContent = getDialogText('cancel');
 			applyButtonStyle(cancelButton);
 
 			function close(result) {
