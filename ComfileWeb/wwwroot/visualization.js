@@ -393,7 +393,7 @@ const designSurface = document.getElementById('designSurface');
             'Font': '글꼴',
             'Text': '텍스트',
             'Direction': '방향',
-            'Marking': '눈금',
+            'Marking': '눈금표시',
             'Gauge Type': '게이지 종류',
             'Scale': '스케일',
             'Color': '색상',
@@ -406,6 +406,7 @@ const designSurface = document.getElementById('designSurface');
             'Maximum': '최대값',
             'RAW Minimum': '원본 최소값',
             'RAW Maximum': '원본 최대값',
+            'Decimals': '소수점 자릿수',
             'Value': '값',
             'Page Name': '페이지 이름',
             'Page Back Color': '배경색',
@@ -1851,6 +1852,7 @@ const designSurface = document.getElementById('designSurface');
                     Address: '',
                     'Gauge Type': 'Default',
                     Scale: 'Off',
+                    Decimals: '0',
                     X: String(cellX),
                     Y: String(cellY),
                     Minimum: '0',
@@ -1880,10 +1882,14 @@ const designSurface = document.getElementById('designSurface');
                     Address: '',
                     Direction: 'Horizontal',
                     Marking: 'On',
+                    Scale: 'Off',
+                    Decimals: '0',
                     X: String(cellX),
                     Y: String(cellY),
                     Minimum: '0',
                     Maximum: '100',
+                    'RAW Minimum': '0',
+                    'RAW Maximum': '4094',
                     DisplayColor: themeDefaults.progressDisplay,
                     Value: '0'
                 }
@@ -1906,6 +1912,7 @@ const designSurface = document.getElementById('designSurface');
                     Address: '',
                     Direction: 'Horizontal',
                     Scale: 'Off',
+                    Decimals: '0',
                     X: String(cellX),
                     Y: String(cellY),
                     Minimum: '0',
@@ -2517,7 +2524,7 @@ const designSurface = document.getElementById('designSurface');
                 valueText.setAttribute('fill', 'color-mix(in srgb, var(--text) 96%, transparent)');
                 valueText.setAttribute('font-size', '16');
                 valueText.setAttribute('font-weight', '700');
-                valueText.textContent = formatValueWithUnit(Math.round(value * 10) / 10, gaugeUnit);
+                valueText.textContent = formatValueWithUnit(formatValueWithDecimals(value, getWidgetDecimals(widget)), gaugeUnit);
                 svg.appendChild(valueText);
 
                 element.appendChild(svg);
@@ -2587,7 +2594,7 @@ const designSurface = document.getElementById('designSurface');
                 valueText.setAttribute('fill', 'color-mix(in srgb, var(--text) 96%, transparent)');
                 valueText.setAttribute('font-size', '14');
                 valueText.setAttribute('font-weight', '700');
-                valueText.textContent = formatValueWithUnit(Math.round(value * 10) / 10, gaugeUnit);
+                valueText.textContent = formatValueWithUnit(formatValueWithDecimals(value, getWidgetDecimals(widget)), gaugeUnit);
                 svg.appendChild(valueText);
 
                 const minLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -2597,7 +2604,7 @@ const designSurface = document.getElementById('designSurface');
                 minLabel.setAttribute('fill', 'color-mix(in srgb, var(--text) 80%, transparent)');
                 minLabel.setAttribute('font-size', '9');
                 minLabel.setAttribute('font-weight', '700');
-                minLabel.textContent = String(Math.round(minimum));
+                minLabel.textContent = formatValueWithDecimals(minimum, getWidgetDecimals(widget));
                 svg.appendChild(minLabel);
 
                 const maxLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -2607,7 +2614,7 @@ const designSurface = document.getElementById('designSurface');
                 maxLabel.setAttribute('fill', 'color-mix(in srgb, var(--text) 80%, transparent)');
                 maxLabel.setAttribute('font-size', '9');
                 maxLabel.setAttribute('font-weight', '700');
-                maxLabel.textContent = String(Math.round(maximum));
+                maxLabel.textContent = formatValueWithDecimals(maximum, getWidgetDecimals(widget));
                 svg.appendChild(maxLabel);
 
                 element.appendChild(svg);
@@ -2762,7 +2769,7 @@ const designSurface = document.getElementById('designSurface');
             valueText.setAttribute('text-anchor', 'middle');
             valueText.setAttribute('fill', 'var(--text)');
             valueText.setAttribute('font-size', '10');
-            valueText.textContent = formatValueWithUnit(value, gaugeUnit);
+            valueText.textContent = formatValueWithUnit(formatValueWithDecimals(value, getWidgetDecimals(widget)), gaugeUnit);
             svg.appendChild(valueText);
 
             element.appendChild(svg);
@@ -3108,7 +3115,8 @@ const designSurface = document.getElementById('designSurface');
             const themeDefaults = getThemeColorDefaults();
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
-                widget.properties.Value = String(runtimeValue);
+                // 스케일 On이면 RAW 값을 표시 범위로 변환
+                widget.properties.Value = String(getProgressBarDisplayValue(widget, runtimeValue));
             }
 
             normalizeSliderRangeProperties(widget);
@@ -3127,9 +3135,12 @@ const designSurface = document.getElementById('designSurface');
             element.classList.add(direction === 'Vertical' ? 'vertical' : 'horizontal');
             element.classList.add(marking === 'Off' ? 'marking-off' : 'marking-on');
 
-            const minimumText = formatProgressRangeLabel(widget.properties.Minimum);
-            const maximumText = formatProgressRangeLabel(widget.properties.Maximum);
-            const midText = formatProgressRangeLabel((toNumber(widget.properties.Minimum, 0) + toNumber(widget.properties.Maximum, 100)) / 2);
+            // 스케일 On이면 Decimals에 맞게 라벨 포맷팅
+            const decimals = getWidgetDecimals(widget);
+            const minimumText = formatValueWithDecimals(widget.properties.Minimum, decimals);
+            const maximumText = formatValueWithDecimals(widget.properties.Maximum, decimals);
+            const midValue = (toNumber(widget.properties.Minimum, 0) + toNumber(widget.properties.Maximum, 100)) / 2;
+            const midText = formatValueWithDecimals(midValue, decimals);
             const minLabel = document.createElement('span');
             minLabel.className = 'progress-range-label progress-range-min';
             minLabel.textContent = minimumText;
@@ -4237,6 +4248,7 @@ const designSurface = document.getElementById('designSurface');
                 propertyKey === 'RAW Maximum' ||
                 propertyKey === 'Minimum' ||
                 propertyKey === 'Maximum' ||
+                propertyKey === 'Decimals' ||
                 propertyKey === 'Fill Color' ||
                 propertyKey === 'Handle Color';
         }
@@ -4249,6 +4261,10 @@ const designSurface = document.getElementById('designSurface');
         function isProgressBarMultiEditableProperty(propertyKey) {
             return propertyKey === 'Direction' ||
                 propertyKey === 'Marking' ||
+                propertyKey === 'Scale' ||
+                propertyKey === 'RAW Minimum' ||
+                propertyKey === 'RAW Maximum' ||
+                propertyKey === 'Decimals' ||
                 propertyKey === 'Minimum' ||
                 propertyKey === 'Maximum' ||
                 propertyKey === 'DisplayColor';
@@ -4370,11 +4386,14 @@ const designSurface = document.getElementById('designSurface');
 
             if (widget.kind === 'ProgressBar') {
                 normalizeSliderRangeProperties(widget);
+                const rawRows = getScaleRawPropertyRows(widget);
                 return [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
                     { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Direction', value: widget.properties.Direction || 'Horizontal', editable: true },
                     { key: 'Marking', value: normalizeProgressBarMarking(widget.properties.Marking), editable: true },
+                    { key: 'Scale', value: normalizeScaleMode(widget.properties.Scale), editable: true },
+                    ...rawRows,
                     { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
                     { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
                     { key: 'Minimum', value: widget.properties.Minimum || '0', editable: true },
@@ -4511,11 +4530,20 @@ const designSurface = document.getElementById('designSurface');
                 </select>`;
             }
 
-            if (widget && (widget.kind === 'Gauge' || widget.kind === 'Slider') && key === 'Scale') {
+            if (widget && (widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && key === 'Scale') {
                 const normalizedValue = normalizeScaleMode(value);
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
                     <option value="Off" ${normalizedValue === 'Off' ? 'selected' : ''}>Off</option>
                     <option value="On" ${normalizedValue === 'On' ? 'selected' : ''}>On</option>
+                </select>`;
+            }
+
+            if (widget && (widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && key === 'Decimals') {
+                const decimals = getWidgetDecimals(widget);
+                return `<select class="property-select" data-property-key="${escapeHtml(key)}">
+                    <option value="0" ${decimals === 0 ? 'selected' : ''}>0</option>
+                    <option value="1" ${decimals === 1 ? 'selected' : ''}>1</option>
+                    <option value="2" ${decimals === 2 ? 'selected' : ''}>2</option>
                 </select>`;
             }
 
@@ -4780,7 +4808,7 @@ const designSurface = document.getElementById('designSurface');
                 pushUndoState();
                 nextValues.forEach(item => {
                     item.widget.properties[propertyKey] = item.value;
-                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value' || propertyKey === 'Scale' || propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum') {
+                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value' || propertyKey === 'Scale' || propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum' || propertyKey === 'Decimals') {
                         normalizeSliderRangeProperties(item.widget);
                     }
                 });
@@ -4809,7 +4837,7 @@ const designSurface = document.getElementById('designSurface');
                 pushUndoState();
                 nextValues.forEach(item => {
                     item.widget.properties[propertyKey] = item.value;
-                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum') {
+                    if (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Scale' || propertyKey === 'Decimals' || propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum') {
                         normalizeSliderRangeProperties(item.widget);
                     }
                 });
@@ -4928,11 +4956,11 @@ const designSurface = document.getElementById('designSurface');
                 return normalizeGaugeType(value);
             }
 
-            if ((widget.kind === 'Gauge' || widget.kind === 'Slider') && propertyKey === 'Scale') {
+            if ((widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && propertyKey === 'Scale') {
                 return normalizeScaleMode(value);
             }
 
-            if ((widget.kind === 'Gauge' || widget.kind === 'Slider') && (propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum')) {
+            if ((widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && (propertyKey === 'RAW Minimum' || propertyKey === 'RAW Maximum')) {
                 if (isWidgetRawRangeCfnetFixed(widget)) {
                     const rawRange = getDefaultRawRangeForWidget(widget);
                     return propertyKey === 'RAW Minimum' ? String(rawRange.minimum) : String(rawRange.maximum);
@@ -4943,14 +4971,20 @@ const designSurface = document.getElementById('designSurface');
                 return preview.properties[propertyKey];
             }
 
+            // Decimals 속성값 정규화 (0~2 범위)
+            if ((widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && propertyKey === 'Decimals') {
+                const decimals = Math.max(0, Math.min(2, Math.round(toNumber(value, 0))));
+                return String(decimals);
+            }
+
             if (widget.kind === 'Gauge' && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
-                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(Math.round(toNumber(value, propertyKey === 'Maximum' ? 100 : 0))) } };
+                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(toNumber(value, propertyKey === 'Maximum' ? 100 : 0)) } };
                 normalizeGaugeRangeProperties(preview);
                 return preview.properties[propertyKey];
             }
 
             if ((widget.kind === 'Slider' || widget.kind === 'ProgressBar') && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
-                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(Math.round(toNumber(value, propertyKey === 'Maximum' ? 100 : 0))) } };
+                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(toNumber(value, propertyKey === 'Maximum' ? 100 : 0)) } };
                 normalizeSliderRangeProperties(preview);
                 return preview.properties[propertyKey];
             }
@@ -5932,15 +5966,21 @@ const designSurface = document.getElementById('designSurface');
                 return false;
             }
 
-            return widget && ((widget.kind === 'Gauge' && isCfnetAdcAddress(widget.properties?.Address)) ||
-                (widget.kind === 'Slider' && isCfnetDacAddress(widget.properties?.Address)));
+            // CFNET 장치에서 ADC 주소를 사용하는 게이지/프로그래스바는 RAW 범위 0~26666 고정
+            // CFNET 장치에서 DAC 주소를 사용하는 슬라이더는 RAW 범위 0~4094 고정
+            return widget && (
+                ((widget.kind === 'Gauge' || widget.kind === 'ProgressBar') && isCfnetAdcAddress(widget.properties?.Address)) ||
+                (widget.kind === 'Slider' && isCfnetDacAddress(widget.properties?.Address))
+            );
         }
 
         function getDefaultRawRangeForWidget(widget) {
-            if (widget && widget.kind === 'Gauge') {
+            // 게이지와 프로그래스바는 ADC 범위 (0~26666)
+            if (widget && (widget.kind === 'Gauge' || widget.kind === 'ProgressBar')) {
                 return { minimum: 0, maximum: 26666 };
             }
 
+            // 슬라이더는 DAC 범위 (0~4094)
             if (widget && widget.kind === 'Slider') {
                 return { minimum: 0, maximum: 4094 };
             }
@@ -5970,10 +6010,32 @@ const designSurface = document.getElementById('designSurface');
 
             const rawRange = getRawRangeForWidget(widget);
             const editable = !isWidgetRawRangeCfnetFixed(widget);
+            const decimals = getWidgetDecimals(widget);
             return [
                 { key: 'RAW Minimum', value: String(rawRange.minimum), editable },
-                { key: 'RAW Maximum', value: String(rawRange.maximum), editable }
+                { key: 'RAW Maximum', value: String(rawRange.maximum), editable },
+                { key: 'Decimals', value: String(decimals), editable: true, options: getDecimalsOptions() }
             ];
+        }
+
+        // 소수점 자릿수 드롭다운 옵션 (0, 1, 2)
+        function getDecimalsOptions() {
+            return [
+                { value: '0', label: '0' },
+                { value: '1', label: '1' },
+                { value: '2', label: '2' }
+            ];
+        }
+
+        function getWidgetDecimals(widget) {
+            const value = toNumber(widget && widget.properties ? widget.properties.Decimals : 0, 0);
+            return Math.max(0, Math.min(2, Math.round(value)));
+        }
+
+        function formatValueWithDecimals(value, decimals) {
+            const num = toNumber(value, 0);
+            const dec = Math.max(0, Math.min(2, Math.round(toNumber(decimals, 0))));
+            return dec > 0 ? num.toFixed(dec) : String(Math.round(num));
         }
 
         function getGaugeDisplayValue(widget, rawValue) {
@@ -5991,6 +6053,16 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function getSliderDisplayValue(widget, rawValue) {
+            const rawNumber = toNumber(rawValue, getSliderMinimum(widget));
+            if (!widget || !widget.properties || normalizeScaleMode(widget.properties.Scale) !== 'On') {
+                return rawNumber;
+            }
+
+            const rawRange = getRawRangeForWidget(widget);
+            return convertRawToWidgetRange(widget, rawNumber, rawRange.minimum, rawRange.maximum);
+        }
+
+        function getProgressBarDisplayValue(widget, rawValue) {
             const rawNumber = toNumber(rawValue, getSliderMinimum(widget));
             if (!widget || !widget.properties || normalizeScaleMode(widget.properties.Scale) !== 'On') {
                 return rawNumber;
@@ -6025,12 +6097,12 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function getSliderMinimum(widget) {
-            return Math.round(toNumber(widget && widget.properties ? widget.properties.Minimum : 0, 0));
+            return toNumber(widget && widget.properties ? widget.properties.Minimum : 0, 0);
         }
 
         function getSliderMaximum(widget) {
             const minimum = getSliderMinimum(widget);
-            let maximum = Math.round(toNumber(widget && widget.properties ? widget.properties.Maximum : 100, 100));
+            let maximum = toNumber(widget && widget.properties ? widget.properties.Maximum : 100, 100);
             if (maximum <= minimum) {
                 maximum = minimum + 1;
             }
@@ -6041,7 +6113,7 @@ const designSurface = document.getElementById('designSurface');
         function getSliderValue(widget) {
             const minimum = getSliderMinimum(widget);
             const maximum = getSliderMaximum(widget);
-            const value = Math.round(toNumber(widget && widget.properties ? widget.properties.Value : minimum, minimum));
+            const value = toNumber(widget && widget.properties ? widget.properties.Value : minimum, minimum);
             return Math.max(minimum, Math.min(maximum, value));
         }
 
@@ -6070,7 +6142,10 @@ const designSurface = document.getElementById('designSurface');
             }
 
             ratio = Math.max(0, Math.min(1, ratio));
-            return Math.round(minimum + ((maximum - minimum) * ratio));
+            const rawValue = minimum + ((maximum - minimum) * ratio);
+            const decimals = getWidgetDecimals(widget);
+            const factor = Math.pow(10, decimals);
+            return Math.round(rawValue * factor) / factor;
         }
 
         function isPointerNearSliderTrack(track, direction, event) {
@@ -6241,7 +6316,7 @@ const designSurface = document.getElementById('designSurface');
 
             const minimum = getSliderMinimum(widget);
             const maximum = getSliderMaximum(widget);
-            const value = Math.round(getGaugeValue(widget));
+            const value = getGaugeValue(widget);
             widget.properties.Minimum = String(minimum);
             widget.properties.Maximum = String(maximum);
             widget.properties.Value = String(value);
