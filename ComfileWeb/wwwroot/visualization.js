@@ -3043,10 +3043,12 @@ const designSurface = document.getElementById('designSurface');
             value.className = 'number-value';
             const runtimeValue = getRuntimeWidgetValue(widget);
             let displayValue = widget.properties.Text || '123';
-            if (runtimeRunning && runtimeValue !== null) {
+            if (runtimeRunning) {
+                // 주소가 있으면 디바이스 값, 없으면 0을 기본값으로 (수식에서 변수만 사용 가능)
+                const baseValue = runtimeValue !== null ? runtimeValue : 0;
                 // Expression 수식 적용
                 const expression = widget.properties.Expression || '';
-                const expressionResult = evaluateExpression(expression, runtimeValue);
+                const expressionResult = evaluateExpression(expression, baseValue);
                 // Decimals 소수점 자릿수 적용
                 const decimals = getWidgetDecimals(widget);
                 displayValue = formatValueWithDecimals(expressionResult, decimals);
@@ -7489,6 +7491,8 @@ const designSurface = document.getElementById('designSurface');
             if (typeof window.exportCfnetAddressComments === 'function') {
                 documentModel.cfnetAddressComments = window.exportCfnetAddressComments();
             }
+            // 변수 시스템 설정 저장
+            documentModel.useVariableSystem = useVariableSystem;
             return JSON.stringify(documentModel);
         }
 
@@ -7526,6 +7530,12 @@ const designSurface = document.getElementById('designSurface');
             updateSourceSyncSettingsUi();
             normalizeVisualizationDocumentPages();
             applyGlobalWidgetFont();
+            // 변수 시스템 설정 로드 및 적용
+            useVariableSystem = !!nextDocumentModel.useVariableSystem;
+            if (variableSystemCheckbox) {
+                variableSystemCheckbox.checked = useVariableSystem;
+            }
+            storeVariableSystemEnabled(useVariableSystem);
             applyThemeLinkedColors('light', currentThemeMode);
             applyThemeLinkedColors('dark', currentThemeMode);
             activePageName = getPageByName('Page1') ? 'Page1' : (documentModel.pages[0].name || 'Page1');
