@@ -404,13 +404,22 @@ const designSurface = document.getElementById('designSurface');
             }
         }
 
+        // 변수명 정규화 (대소문자 구분 없이 소문자로 통일)
+        function normalizeVariableName(name) {
+            return String(name).toLowerCase();
+        }
+
         function getWebVariable(name) {
-            return webVariables.get(name) ?? 0;
+            return webVariables.get(normalizeVariableName(name)) ?? 0;
         }
 
         function setWebVariable(name, value) {
-            webVariables.set(name, value);
+            webVariables.set(normalizeVariableName(name), value);
             saveWebVariables();
+        }
+
+        function hasWebVariable(name) {
+            return webVariables.has(normalizeVariableName(name));
         }
 
         window.getVisualizationLanguageResources = function () {
@@ -7317,14 +7326,14 @@ const designSurface = document.getElementById('designSurface');
             // value를 숫자로 치환
             let sanitized = expression.replace(/\bvalue\b/g, String(value));
 
-            // 변수 시스템 활성화 시 웹 변수 참조 지원
+            // 변수 시스템 활성화 시 웹 변수 참조 지원 (대소문자 구분 없음)
             if (useVariableSystem) {
                 sanitized = sanitized.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (match, name) => {
                     if (name === 'value') {
                         return match; // value는 이미 치환됨
                     }
-                    if (webVariables.has(name)) {
-                        return String(webVariables.get(name));
+                    if (hasWebVariable(name)) {
+                        return String(getWebVariable(name));
                     }
                     return match; // 알 수 없는 변수는 그대로 유지 (숫자 검증에서 걸러짐)
                 });
@@ -7365,10 +7374,10 @@ const designSurface = document.getElementById('designSurface');
 
             // 표현식 평가 (변수 참조 지원)
             let evaluated = expr;
-            // 변수 참조를 값으로 치환
+            // 변수 참조를 값으로 치환 (대소문자 구분 없음)
             evaluated = evaluated.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (match, name) => {
-                if (webVariables.has(name)) {
-                    return String(webVariables.get(name));
+                if (hasWebVariable(name)) {
+                    return String(getWebVariable(name));
                 }
                 // 숫자가 아닌 알 수 없는 변수는 0으로 처리
                 return '0';
