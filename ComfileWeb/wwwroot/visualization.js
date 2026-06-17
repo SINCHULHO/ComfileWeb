@@ -4446,7 +4446,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (widget.kind === 'Number') {
-                return [
+                const baseRows = [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
                     { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Display', value: normalizeWidgetDisplayMode(widget.properties.Display), editable: true },
@@ -4455,13 +4455,17 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
                     { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
                     { key: 'Editable', value: widget.properties.Editable || 'Disable', editable: true },
-                    { key: 'Expression', value: widget.properties.Expression || '', editable: true },
                     { key: 'Decimals', value: widget.properties.Decimals || '0', editable: true },
                     { key: 'Unit', value: widget.properties.Unit || '', editable: true },
                     { key: 'Text Size', value: widget.properties['Text Size'] || '24', editable: true },
                     { key: 'Font', value: getGlobalWidgetFont(), editable: true },
                     { key: 'Text', value: widget.properties.Text || '123', editable: true }
                 ];
+                // 변수 시스템 활성화 시 Expression 속성을 맨 아래에 추가
+                if (useVariableSystem) {
+                    baseRows.push({ key: 'Expression', value: widget.properties.Expression || '', editable: true });
+                }
+                return baseRows;
             }
 
             if (widget.kind === 'Text') {
@@ -7352,7 +7356,7 @@ const designSurface = document.getElementById('designSurface');
             }
         }
 
-        // 웹 변수 Action 실행 (예: "myVar = 100", "counter = counter + 1")
+        // 웹 변수 Action 실행 (예: "myVar = 100", "counter = counter + 1", "a = 1; b = 2")
         function executeVariableAction(actionExpression) {
             if (!useVariableSystem || !actionExpression || typeof actionExpression !== 'string') {
                 return;
@@ -7363,8 +7367,17 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
+            // 세미콜론으로 여러 문장 분리하여 각각 실행
+            const statements = trimmed.split(';').map(s => s.trim()).filter(s => s);
+            for (const statement of statements) {
+                executeSingleVariableAction(statement);
+            }
+        }
+
+        // 단일 변수 할당문 실행
+        function executeSingleVariableAction(statement) {
             // 할당문 파싱: varName = expression
-            const assignMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+            const assignMatch = statement.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
             if (!assignMatch) {
                 return;
             }
