@@ -399,6 +399,7 @@ const designSurface = document.getElementById('designSurface');
             'Color': '색상',
             'Unit': '단위',
             'Editable': '편집 가능',
+            'Expression': '수식',
             'Position': '위치',
             'Alignment': '정렬',
             'Location': '세로 위치',
@@ -1911,6 +1912,7 @@ const designSurface = document.getElementById('designSurface');
                     Name: name,
                     Address: '',
                     Direction: 'Horizontal',
+                    Marking: 'Off',
                     Scale: 'Off',
                     Decimals: '0',
                     X: String(cellX),
@@ -1974,6 +1976,8 @@ const designSurface = document.getElementById('designSurface');
                     X: String(cellX),
                     Y: String(cellY),
                     Editable: 'Disable',
+                    Expression: '',
+                    Decimals: '0',
                     Unit: '',
                     'Text Size': '32',
                     Text: '123'
@@ -2392,7 +2396,9 @@ const designSurface = document.getElementById('designSurface');
             const isLightTheme = currentThemeMode === 'light';
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
-                widget.properties.Value = String(getGaugeDisplayValue(widget, runtimeValue));
+                const displayValue = getGaugeDisplayValue(widget, runtimeValue);
+                const decimals = getWidgetDecimals(widget);
+                widget.properties.Value = formatValueWithDecimals(displayValue, decimals);
             }
 
             normalizeGaugeRangeProperties(widget);
@@ -2976,7 +2982,16 @@ const designSurface = document.getElementById('designSurface');
             const value = document.createElement('span');
             value.className = 'number-value';
             const runtimeValue = getRuntimeWidgetValue(widget);
-            value.textContent = runtimeRunning && runtimeValue !== null ? String(runtimeValue) : (widget.properties.Text || '123');
+            let displayValue = widget.properties.Text || '123';
+            if (runtimeRunning && runtimeValue !== null) {
+                // Expression 수식 적용
+                const expression = widget.properties.Expression || '';
+                const expressionResult = evaluateExpression(expression, runtimeValue);
+                // Decimals 소수점 자릿수 적용
+                const decimals = getWidgetDecimals(widget);
+                displayValue = formatValueWithDecimals(expressionResult, decimals);
+            }
+            value.textContent = displayValue;
             value.style.color = normalizeCssColor(widget.properties.DisplayColor) || themeDefaults.numberDisplay;
             value.style.fontSize = `${toNumber(widget.properties['Text Size'], 24)}px`;
             marker.appendChild(value);
@@ -3050,7 +3065,9 @@ const designSurface = document.getElementById('designSurface');
             const themeDefaults = getThemeColorDefaults();
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
-                widget.properties.Value = String(getSliderDisplayValue(widget, runtimeValue));
+                const displayValue = getSliderDisplayValue(widget, runtimeValue);
+                const decimals = getWidgetDecimals(widget);
+                widget.properties.Value = formatValueWithDecimals(displayValue, decimals);
             }
 
             normalizeSliderRangeProperties(widget);
@@ -3065,7 +3082,25 @@ const designSurface = document.getElementById('designSurface');
             applyWidgetBounds(element, widget);
 
             const direction = normalizeSliderDirection(widget.properties.Direction);
+            const marking = normalizeProgressBarMarking(widget.properties.Marking);
             element.classList.add(direction === 'Vertical' ? 'vertical' : 'horizontal');
+            element.classList.add(marking === 'Off' ? 'marking-off' : 'marking-on');
+
+            // 눈금표시 라벨 생성
+            const decimals = getWidgetDecimals(widget);
+            const minimumText = formatValueWithDecimals(widget.properties.Minimum, decimals);
+            const maximumText = formatValueWithDecimals(widget.properties.Maximum, decimals);
+            const midValue = (toNumber(widget.properties.Minimum, 0) + toNumber(widget.properties.Maximum, 100)) / 2;
+            const midText = formatValueWithDecimals(midValue, decimals);
+            const minLabel = document.createElement('span');
+            minLabel.className = 'slider-range-label slider-range-min';
+            minLabel.textContent = minimumText;
+            const midLabel = document.createElement('span');
+            midLabel.className = 'slider-range-label slider-range-mid';
+            midLabel.textContent = midText;
+            const maxLabel = document.createElement('span');
+            maxLabel.className = 'slider-range-label slider-range-max';
+            maxLabel.textContent = maximumText;
 
             const track = document.createElement('div');
             track.className = 'slider-track';
@@ -3104,6 +3139,11 @@ const designSurface = document.getElementById('designSurface');
 
             element.appendChild(track);
             element.appendChild(knob);
+            if (marking === 'On') {
+                element.appendChild(minLabel);
+                element.appendChild(midLabel);
+                element.appendChild(maxLabel);
+            }
 
             appendWidgetSelectionChrome(element, widget);
             attachWidgetInteractionHandlers(element, widget);
@@ -3116,7 +3156,9 @@ const designSurface = document.getElementById('designSurface');
             const runtimeValue = getRuntimeWidgetValue(widget);
             if (runtimeRunning && runtimeValue !== null) {
                 // 스케일 On이면 RAW 값을 표시 범위로 변환
-                widget.properties.Value = String(getProgressBarDisplayValue(widget, runtimeValue));
+                const displayValue = getProgressBarDisplayValue(widget, runtimeValue);
+                const decimals = getWidgetDecimals(widget);
+                widget.properties.Value = formatValueWithDecimals(displayValue, decimals);
             }
 
             normalizeSliderRangeProperties(widget);
@@ -4243,6 +4285,7 @@ const designSurface = document.getElementById('designSurface');
 
         function isSliderMultiEditableProperty(propertyKey) {
             return propertyKey === 'Direction' ||
+                propertyKey === 'Marking' ||
                 propertyKey === 'Scale' ||
                 propertyKey === 'RAW Minimum' ||
                 propertyKey === 'RAW Maximum' ||
@@ -4341,6 +4384,8 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
                     { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
                     { key: 'Editable', value: widget.properties.Editable || 'Disable', editable: true },
+                    { key: 'Expression', value: widget.properties.Expression || '', editable: true },
+                    { key: 'Decimals', value: widget.properties.Decimals || '0', editable: true },
                     { key: 'Unit', value: widget.properties.Unit || '', editable: true },
                     { key: 'Text Size', value: widget.properties['Text Size'] || '24', editable: true },
                     { key: 'Font', value: getGlobalWidgetFont(), editable: true },
@@ -4372,6 +4417,7 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
                     { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Direction', value: widget.properties.Direction || 'Horizontal', editable: true },
+                    { key: 'Marking', value: normalizeProgressBarMarking(widget.properties.Marking), editable: true },
                     { key: 'Scale', value: normalizeScaleMode(widget.properties.Scale), editable: true },
                     ...rawRows,
                     { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
@@ -4521,6 +4567,14 @@ const designSurface = document.getElementById('designSurface');
                 </select>`;
             }
 
+            if (widget && widget.kind === 'Slider' && key === 'Marking') {
+                const normalizedValue = normalizeProgressBarMarking(value);
+                return `<select class="property-select" data-property-key="${escapeHtml(key)}">
+                    <option value="On" ${normalizedValue === 'On' ? 'selected' : ''}>On</option>
+                    <option value="Off" ${normalizedValue === 'Off' ? 'selected' : ''}>Off</option>
+                </select>`;
+            }
+
             if (key === 'Gauge Type') {
                 const normalizedValue = normalizeGaugeType(value);
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
@@ -4538,7 +4592,7 @@ const designSurface = document.getElementById('designSurface');
                 </select>`;
             }
 
-            if (widget && (widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && key === 'Decimals') {
+            if (widget && (widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar' || widget.kind === 'Number') && key === 'Decimals') {
                 const decimals = getWidgetDecimals(widget);
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
                     <option value="0" ${decimals === 0 ? 'selected' : ''}>0</option>
@@ -6866,7 +6920,8 @@ const designSurface = document.getElementById('designSurface');
                     return;
                 }
 
-                const nextValue = Math.round(value);
+                // 소수점 입력 허용 (반올림 제거)
+                const nextValue = value;
                 runtimeValues.set(address, nextValue);
                 runtimeLocalValueOverrides.set(address, {
                     value: nextValue,
@@ -7163,6 +7218,28 @@ const designSurface = document.getElementById('designSurface');
         function toNumber(value, fallback) {
             const number = Number(value);
             return Number.isFinite(number) ? number : fallback;
+        }
+
+        // 안전한 수식 계산 함수 (사칙연산, 리터럴만 지원, value는 고정 변수명)
+        function evaluateExpression(expression, value) {
+            if (!expression || typeof expression !== 'string' || !expression.trim()) {
+                return value;
+            }
+
+            // value를 숫자로 치환
+            const sanitized = expression.replace(/\bvalue\b/g, String(value));
+
+            // 허용된 문자만 통과 (숫자, 사칙연산자, 괄호, 소수점, 공백)
+            if (!/^[\d\s+\-*/().]+$/.test(sanitized)) {
+                return value; // 잘못된 수식은 원본 반환
+            }
+
+            try {
+                const result = Function('"use strict"; return (' + sanitized + ')')();
+                return Number.isFinite(result) ? result : value;
+            } catch {
+                return value; // 오류 시 원본 반환
+            }
         }
 
         function escapeHtml(value) {
