@@ -521,6 +521,7 @@ const designSurface = document.getElementById('designSurface');
             'Direction': '방향',
             'Marking': '눈금표시',
             'Gauge Type': '게이지 종류',
+            'Tank Type': 'Tank 종류',
             'Scale': '스케일',
             'Color': '색상',
             'Unit': '단위',
@@ -1879,6 +1880,8 @@ const designSurface = document.getElementById('designSurface');
                 widget = createProgressBarWidget(cellX, cellY);
             } else if (kind === 'Gauge') {
                 widget = createGaugeWidget(cellX, cellY);
+            } else if (kind === 'Tank') {
+                widget = createTankWidget(cellX, cellY);
             } else {
                 widget = createButtonWidget(cellX, cellY);
             }
@@ -1888,6 +1891,10 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function getAdaptiveWidgetTargetPixelSize(kind) {
+            if (kind === 'Tank') {
+                return { width: 130, height: 190 };
+            }
+
             if (kind === 'Gauge') {
                 return { width: 180, height: 180 };
             }
@@ -1963,7 +1970,32 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function isSupportedWidgetKind(kind) {
-            return kind === 'Button' || kind === 'Lamp' || kind === 'Toggle' || kind === 'Number' || kind === 'Text' || kind === 'Slider' || kind === 'ProgressBar' || kind === 'Gauge';
+            return kind === 'Button' || kind === 'Lamp' || kind === 'Toggle' || kind === 'Number' || kind === 'Text' || kind === 'Slider' || kind === 'ProgressBar' || kind === 'Gauge' || kind === 'Tank';
+        }
+
+        function createTankWidget(cellX, cellY) {
+            const name = createUniqueIndexedWidgetName('Tank');
+            const themeDefaults = getThemeColorDefaults();
+
+            return {
+                id: `w${nextWidgetId++}`,
+                kind: 'Tank',
+                cellX,
+                cellY,
+                cellWidth: 1,
+                cellHeight: 2,
+                properties: {
+                    Name: name,
+                    Address: '',
+                    'Tank Type': 'Default',
+                    X: String(cellX),
+                    Y: String(cellY),
+                    Minimum: '0',
+                    Maximum: '26666',
+                    DisplayColor: themeDefaults.progressDisplay,
+                    Value: '65'
+                }
+            };
         }
 
         function createGaugeWidget(cellX, cellY) {
@@ -2174,6 +2206,8 @@ const designSurface = document.getElementById('designSurface');
                     widgetElement = renderProgressBarWidget(widget);
                 } else if (widget.kind === 'Gauge') {
                     widgetElement = renderGaugeWidget(widget);
+                } else if (widget.kind === 'Tank') {
+                    widgetElement = renderTankWidget(widget);
                 }
 
                 if (widgetElement) {
@@ -3349,6 +3383,100 @@ const designSurface = document.getElementById('designSurface');
             attachWidgetInteractionHandlers(element, widget);
 
             return element;
+        }
+
+        function renderTankWidget(widget) {
+            const themeDefaults = getThemeColorDefaults();
+            ensureTankRangeDefaults(widget);
+            const runtimeValue = getRuntimeWidgetValue(widget);
+            if (runtimeRunning && runtimeValue !== null) {
+                widget.properties.Value = String(runtimeValue);
+            }
+
+            normalizeTankRangeProperties(widget);
+
+            const element = document.createElement('div');
+            element.className = 'design-widget design-widget-tank';
+            const tankType = normalizeTankType(widget.properties['Tank Type']);
+            element.classList.add(tankType === 'Line' ? 'tank-type-line' : (tankType === 'Simple' ? 'tank-type-simple' : 'tank-type-default'));
+            if (isWidgetSelected(widget)) {
+                element.classList.add('selected');
+            }
+
+            element.dataset.widgetId = widget.id;
+            applyWidgetBounds(element, widget);
+
+            const body = document.createElement('div');
+            body.className = 'tank-body';
+
+            const fill = document.createElement('div');
+            fill.className = 'tank-fill';
+            const fillRatio = getTankFillRatio(widget);
+            fill.style.height = `${fillRatio * 100}%`;
+            fill.style.backgroundColor = normalizeCssColor(widget.properties.DisplayColor) || themeDefaults.progressDisplay;
+
+            const highlight = document.createElement('div');
+            highlight.className = 'tank-highlight';
+
+            const value = document.createElement('div');
+            value.className = 'tank-value';
+            value.textContent = `${Math.round(fillRatio * 100)}%`;
+
+            body.appendChild(fill);
+            body.appendChild(highlight);
+            body.appendChild(value);
+            element.appendChild(body);
+
+            appendWidgetSelectionChrome(element, widget);
+            attachWidgetInteractionHandlers(element, widget);
+
+            return element;
+        }
+
+        function normalizeTankType(value) {
+            const text = String(value || '').trim().toLowerCase();
+            if (text === 'line' || text === '라인' || text === '선') {
+                return 'Line';
+            }
+
+            return text === 'simple' || text === 'cylinder' || text === 'silo' || text === '심플' || text === '단순' || text === '원통형' || text === '사일로' ? 'Simple' : 'Default';
+        }
+
+        function ensureTankRangeDefaults(widget) {
+            if (!widget || widget.kind !== 'Tank' || !widget.properties) {
+                return;
+            }
+
+            if (isCfnetAdcAddress(widget.properties.Address) && String(widget.properties.Maximum || '') === '100') {
+                widget.properties.Maximum = '26666';
+            }
+        }
+
+        function normalizeTankRangeProperties(widget) {
+            if (!widget || widget.kind !== 'Tank' || !widget.properties) {
+                return;
+            }
+
+            const minimum = toNumber(widget.properties.Minimum, 0);
+            let maximum = toNumber(widget.properties.Maximum, 26666);
+            if (maximum <= minimum) {
+                maximum = minimum + 1;
+            }
+
+            widget.properties.Minimum = String(minimum);
+            widget.properties.Maximum = String(maximum);
+            widget.properties.Value = String(toNumber(widget.properties.Value, minimum));
+        }
+
+        function getTankFillRatio(widget) {
+            const minimum = toNumber(widget && widget.properties ? widget.properties.Minimum : 0, 0);
+            const maximum = toNumber(widget && widget.properties ? widget.properties.Maximum : 26666, 26666);
+            const value = toNumber(widget && widget.properties ? widget.properties.Value : minimum, minimum);
+            if (maximum <= minimum) {
+                return 0;
+            }
+
+            return Math.max(0, Math.min(1, (value - minimum) / (maximum - minimum)));
         }
 
         function formatProgressRangeLabel(value) {
@@ -4603,6 +4731,22 @@ const designSurface = document.getElementById('designSurface');
                 ];
             }
 
+            if (widget.kind === 'Tank') {
+                ensureTankRangeDefaults(widget);
+                normalizeTankRangeProperties(widget);
+                return [
+                    { key: 'Name', value: widget.properties.Name || '', editable: true },
+                    { key: 'Address', value: widget.properties.Address || '', editable: true },
+                    { key: 'Tank Type', value: normalizeTankType(widget.properties['Tank Type']), editable: true },
+                    { key: 'X', value: widget.properties.X || String(widget.cellX), editable: true },
+                    { key: 'Y', value: widget.properties.Y || String(widget.cellY), editable: true },
+                    { key: 'Minimum', value: widget.properties.Minimum || '0', editable: true },
+                    { key: 'Maximum', value: widget.properties.Maximum || '100', editable: true },
+                    { key: 'DisplayColor', value: widget.properties.DisplayColor || '#50AAF5', editable: true },
+                    { key: 'Value', value: widget.properties.Value || '0', editable: true }
+                ];
+            }
+
             if (widget.kind === 'Toggle') {
                 const baseRows = [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
@@ -4667,6 +4811,15 @@ const designSurface = document.getElementById('designSurface');
                 return `<select class="property-select" data-property-key="${escapeHtml(key)}">
                     <option value="On" ${normalizedValue === 'On' ? 'selected' : ''}>On</option>
                     <option value="Off" ${normalizedValue === 'Off' ? 'selected' : ''}>Off</option>
+                </select>`;
+            }
+
+            if (key === 'Tank Type') {
+                const normalizedValue = normalizeTankType(value);
+                return `<select class="property-select" data-property-key="${escapeHtml(key)}">
+                    <option value="Default" ${normalizedValue === 'Default' ? 'selected' : ''}>Default</option>
+                    <option value="Simple" ${normalizedValue === 'Simple' ? 'selected' : ''}>Simple</option>
+                    <option value="Line" ${normalizedValue === 'Line' ? 'selected' : ''}>Line</option>
                 </select>`;
             }
 
@@ -5095,6 +5248,9 @@ const designSurface = document.getElementById('designSurface');
                         normalizeSliderRangeProperties(widget);
                     }
                 }
+                if (widget.kind === 'Tank' && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
+                    normalizeTankRangeProperties(widget);
+                }
             }
 
             renderWidgets();
@@ -5157,6 +5313,10 @@ const designSurface = document.getElementById('designSurface');
                 return normalizeGaugeType(value);
             }
 
+            if (widget.kind === 'Tank' && propertyKey === 'Tank Type') {
+                return normalizeTankType(value);
+            }
+
             if ((widget.kind === 'Gauge' || widget.kind === 'Slider' || widget.kind === 'ProgressBar') && propertyKey === 'Scale') {
                 return normalizeScaleMode(value);
             }
@@ -5187,6 +5347,12 @@ const designSurface = document.getElementById('designSurface');
             if ((widget.kind === 'Slider' || widget.kind === 'ProgressBar') && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
                 const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(toNumber(value, propertyKey === 'Maximum' ? 100 : 0)) } };
                 normalizeSliderRangeProperties(preview);
+                return preview.properties[propertyKey];
+            }
+
+            if (widget.kind === 'Tank' && (propertyKey === 'Minimum' || propertyKey === 'Maximum' || propertyKey === 'Value')) {
+                const preview = { ...widget, properties: { ...widget.properties, [propertyKey]: String(toNumber(value, propertyKey === 'Maximum' ? 26666 : 0)) } };
+                normalizeTankRangeProperties(preview);
                 return preview.properties[propertyKey];
             }
 
@@ -5816,6 +5982,10 @@ const designSurface = document.getElementById('designSurface');
                 widget.properties['Display Address'] = address || '';
             } else {
                 widget.properties.Address = address || '';
+                if (widget.kind === 'Tank' && isCfnetAdcAddress(address)) {
+                    ensureTankRangeDefaults(widget);
+                    normalizeTankRangeProperties(widget);
+                }
             }
             pushUndoState();
             setSelectedWidgets([widget.id]);
@@ -6504,7 +6674,7 @@ const designSurface = document.getElementById('designSurface');
             widget.properties.Maximum = String(maximum);
             widget.properties.Value = String(value);
             widget.properties.Direction = normalizeSliderDirection(widget.properties.Direction);
-            if (widget.kind === 'Slider') {
+            if (widget.kind === 'Slider' || widget.kind === 'Tank') {
                 widget.properties.Scale = normalizeScaleMode(widget.properties.Scale);
                 normalizeScaleRawRangeProperties(widget);
             }

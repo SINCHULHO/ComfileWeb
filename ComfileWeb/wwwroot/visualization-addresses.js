@@ -297,7 +297,7 @@ function getAddressPickerMode(widget, propertyKey) {
         return 'BitOnly';
     }
 
-    if (widget.kind === 'Number' || widget.kind === 'Gauge' || widget.kind === 'ProgressBar' || widget.kind === 'Slider') {
+    if (widget.kind === 'Number' || widget.kind === 'Gauge' || widget.kind === 'ProgressBar' || widget.kind === 'Slider' || widget.kind === 'Tank') {
         return 'DataOnly';
     }
 
