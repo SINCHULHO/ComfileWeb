@@ -111,7 +111,7 @@
                         <div class="app-settings-tabs" role="tablist" aria-label="Settings tabs">
                             <button id="settingsLinkTab" class="app-settings-tab active" type="button" role="tab" data-settings-tab="link" data-i18n="link">링크</button>
                             <button id="settingsSourceSyncTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="source" data-i18n="addressLadderSync">주소/래더 동기화</button>
-                            <button id="settingsScreenTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="screen" data-i18n="screenSetup">화면 셋업 (Setup)</button>
+                            <button id="settingsScreenTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="screen" data-i18n="projectSetup">프로젝트 셋업</button>
                             <button id="settingsGeneralTab" class="app-settings-tab" type="button" role="tab" data-settings-tab="general" data-i18n="projectSaveLocation">프로젝트 저장 위치</button>
                         </div>
                         <section id="settingsLinkPanel" class="settings-link-panel app-settings-tab-panel active" data-settings-panel="link" aria-label="Link settings" role="tabpanel">
@@ -213,6 +213,10 @@
                                     <option value="en">English</option>
                                     <option value="ko" selected>Korean</option>
                                 </select>
+                            </label>
+                            <label class="app-settings-field screen-settings-field app-settings-checkbox-row">
+                                <span data-i18n="useVariableSystem">변수 시스템 사용</span>
+                                <input id="variableSystemCheckbox" type="checkbox" />
                             </label>
                         </section>
                         <section id="settingsGeneralPanel" class="app-settings-tab-panel" data-settings-panel="general" role="tabpanel">

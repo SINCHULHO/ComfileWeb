@@ -10,6 +10,7 @@ const designSurface = document.getElementById('designSurface');
         const gridYSlider = document.getElementById('gridYSlider');
         const themeModeSelect = document.getElementById('themeModeSelect');
         const languageModeSelect = document.getElementById('languageModeSelect');
+        const variableSystemCheckbox = document.getElementById('variableSystemCheckbox');
         const gridXValue = document.getElementById('gridXValue');
         const gridYValue = document.getElementById('gridYValue');
         const gridVisibleCheckbox = document.getElementById('gridVisibleCheckbox');
@@ -226,7 +227,7 @@ const designSurface = document.getElementById('designSurface');
                 cancel: '취소',
                 settings: '설정',
                 settingsClose: '설정 닫기',
-                screenSetup: '화면 셋업 (Setup)',
+                projectSetup: '프로젝트 셋업',
                 projectSaveLocation: '프로젝트 저장 위치',
                 projectSaveLocationHelp: '경로를 직접 입력하거나 [...] 버튼으로 폴더를 선택한 뒤 적용을 누르세요.',
                 addressLadderSync: '주소/래더 동기화',
@@ -241,6 +242,7 @@ const designSurface = document.getElementById('designSurface');
                 autoSyncSourceFile: '파일 변경 시 자동 동기화',
                 sourceSyncUnsupported: 'CUBLOC2 장치를 선택하면 소스 파일 동기화를 사용할 수 있습니다.',
                 sourceSyncHelp: 'CUBLOC2 Studio 프로젝트 파일에서 Alias, Comment, Ladder 정보를 가져와 주소 테이블과 LD 모니터링에 사용합니다.',
+                useVariableSystem: '변수 시스템 사용',
                 linkStep1: '1. 대상 장치 선택',
                 linkStep2: '2. 연결 방식 선택',
                 linkStep3: '3. 포트/주소 설정',
@@ -303,7 +305,7 @@ const designSurface = document.getElementById('designSurface');
                 cancel: 'Cancel',
                 settings: 'Settings',
                 settingsClose: 'Close Settings',
-                screenSetup: 'Screen Setup',
+                projectSetup: 'Project Setup',
                 projectSaveLocation: 'Project save location',
                 projectSaveLocationHelp: 'Enter a path directly or choose a folder with [...], then click Apply.',
                 addressLadderSync: 'Address/Ladder Sync',
@@ -318,6 +320,7 @@ const designSurface = document.getElementById('designSurface');
                 autoSyncSourceFile: 'Auto sync when file changes',
                 sourceSyncUnsupported: 'Select CUBLOC2 as the target device to use source file synchronization.',
                 sourceSyncHelp: 'Imports Alias, Comment, and Ladder information from a CUBLOC2 Studio project file for the address table and LD monitoring.',
+                useVariableSystem: 'Use Variable System',
                 linkStep1: '1. Select Target Device',
                 linkStep2: '2. Select Connection Type',
                 linkStep3: '3. Set Port/Address',
@@ -335,6 +338,12 @@ const designSurface = document.getElementById('designSurface');
         };
         let useKoreanLanguage = true;
         let currentThemeMode = 'dark';
+        let useVariableSystem = false;
+
+        // 웹 변수 저장소 (LocalStorage 연동)
+        const webVariables = new Map();
+        const webVariablesStorageKey = 'comfileweb_web_variables';
+        const variableSystemStorageKey = 'comfileweb_variable_system_enabled';
 
         function getVisualizationResources() {
             return useKoreanLanguage ? visualizationTextResources.ko : visualizationTextResources.en;
@@ -354,6 +363,54 @@ const designSurface = document.getElementById('designSurface');
                 localStorage.setItem(languagePreferenceStorageKey, useKorean ? 'ko' : 'en');
             } catch {
             }
+        }
+
+        // 변수 시스템 설정 저장/로드
+        function getStoredVariableSystemEnabled() {
+            try {
+                return localStorage.getItem(variableSystemStorageKey) === 'true';
+            } catch {
+                return false;
+            }
+        }
+
+        function storeVariableSystemEnabled(enabled) {
+            try {
+                localStorage.setItem(variableSystemStorageKey, enabled ? 'true' : 'false');
+            } catch {
+            }
+        }
+
+        // 웹 변수 LocalStorage 저장/로드
+        function loadWebVariables() {
+            try {
+                const stored = localStorage.getItem(webVariablesStorageKey);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    webVariables.clear();
+                    for (const [key, value] of Object.entries(parsed)) {
+                        webVariables.set(key, value);
+                    }
+                }
+            } catch {
+            }
+        }
+
+        function saveWebVariables() {
+            try {
+                const obj = Object.fromEntries(webVariables);
+                localStorage.setItem(webVariablesStorageKey, JSON.stringify(obj));
+            } catch {
+            }
+        }
+
+        function getWebVariable(name) {
+            return webVariables.get(name) ?? 0;
+        }
+
+        function setWebVariable(name, value) {
+            webVariables.set(name, value);
+            saveWebVariables();
         }
 
         window.getVisualizationLanguageResources = function () {
@@ -409,6 +466,9 @@ const designSurface = document.getElementById('designSurface');
             'RAW Maximum': '원본 최대값',
             'Decimals': '소수점 자릿수',
             'Value': '값',
+            'On Click Action': '클릭 시 동작',
+            'On Action': 'ON 동작',
+            'Off Action': 'OFF 동작',
             'Page Name': '페이지 이름',
             'Page Back Color': '배경색',
             'Grid X': '격자 X',
@@ -4469,7 +4529,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (widget.kind === 'Toggle') {
-                return [
+                const baseRows = [
                     { key: 'Name', value: widget.properties.Name || '', editable: true },
                     { key: 'Address', value: widget.properties.Address || '', editable: true },
                     { key: 'Border', value: widget.properties.Border || 'Off', editable: true },
@@ -4480,9 +4540,16 @@ const designSurface = document.getElementById('designSurface');
                     { key: 'Text Size', value: widget.properties['Text Size'] || '16', editable: true },
                     { key: 'Text', value: widget.properties.Text || '', editable: true }
                 ];
+                // 변수 시스템 활성화 시 Action 속성 추가
+                if (useVariableSystem) {
+                    baseRows.push({ key: 'On Action', value: widget.properties['On Action'] || '', editable: true });
+                    baseRows.push({ key: 'Off Action', value: widget.properties['Off Action'] || '', editable: true });
+                }
+                return baseRows;
             }
 
-            return [
+            // Button (기본 케이스)
+            const baseRows = [
                 { key: 'Name', value: widget.properties.Name || '', editable: true },
                 { key: 'Address', value: widget.properties.Address || '', editable: true },
                 { key: 'Display', value: normalizeWidgetDisplayMode(widget.properties.Display), editable: true },
@@ -4499,6 +4566,11 @@ const designSurface = document.getElementById('designSurface');
                 { key: 'Font', value: getGlobalWidgetFont(), editable: true },
                 { key: 'Text', value: widget.properties.Text || '', editable: true }
             ];
+            // 변수 시스템 활성화 시 Button에 Action 속성 추가
+            if (useVariableSystem) {
+                baseRows.push({ key: 'On Click Action', value: widget.properties['On Click Action'] || '', editable: true });
+            }
+            return baseRows;
         }
 
         function renderPropertyEditor(key, value) {
@@ -6817,6 +6889,15 @@ const designSurface = document.getElementById('designSurface');
             const currentValue = getRuntimeWidgetValue(widget);
             const nextValue = widget.kind === 'Toggle' && currentValue !== null && currentValue !== 0 ? 0 : 1;
             writeRuntimeWidgetValue(widget, nextValue, true);
+
+            // 변수 시스템 활성화 시 Toggle Action 실행
+            if (useVariableSystem) {
+                if (nextValue === 1 && widget.properties['On Action']) {
+                    executeVariableAction(widget.properties['On Action']);
+                } else if (nextValue === 0 && widget.properties['Off Action']) {
+                    executeVariableAction(widget.properties['Off Action']);
+                }
+            }
         }
 
         function showRuntimeNumberInput(widget) {
@@ -7105,6 +7186,11 @@ const designSurface = document.getElementById('designSurface');
 
             writeRuntimeWidgetValue(widget, 1, false);
 
+            // 변수 시스템 활성화 시 On Click Action 실행
+            if (useVariableSystem && widget.properties['On Click Action']) {
+                executeVariableAction(widget.properties['On Click Action']);
+            }
+
             const endPress = () => {
                 runtimePressedWidgetIds.delete(widget.id);
                 element.classList.remove('runtime-pressed');
@@ -7227,7 +7313,20 @@ const designSurface = document.getElementById('designSurface');
             }
 
             // value를 숫자로 치환
-            const sanitized = expression.replace(/\bvalue\b/g, String(value));
+            let sanitized = expression.replace(/\bvalue\b/g, String(value));
+
+            // 변수 시스템 활성화 시 웹 변수 참조 지원
+            if (useVariableSystem) {
+                sanitized = sanitized.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (match, name) => {
+                    if (name === 'value') {
+                        return match; // value는 이미 치환됨
+                    }
+                    if (webVariables.has(name)) {
+                        return String(webVariables.get(name));
+                    }
+                    return match; // 알 수 없는 변수는 그대로 유지 (숫자 검증에서 걸러짐)
+                });
+            }
 
             // 허용된 문자만 통과 (숫자, 사칙연산자, 괄호, 소수점, 공백)
             if (!/^[\d\s+\-*/().]+$/.test(sanitized)) {
@@ -7239,6 +7338,52 @@ const designSurface = document.getElementById('designSurface');
                 return Number.isFinite(result) ? result : value;
             } catch {
                 return value; // 오류 시 원본 반환
+            }
+        }
+
+        // 웹 변수 Action 실행 (예: "myVar = 100", "counter = counter + 1")
+        function executeVariableAction(actionExpression) {
+            if (!useVariableSystem || !actionExpression || typeof actionExpression !== 'string') {
+                return;
+            }
+
+            const trimmed = actionExpression.trim();
+            if (!trimmed) {
+                return;
+            }
+
+            // 할당문 파싱: varName = expression
+            const assignMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+            if (!assignMatch) {
+                return;
+            }
+
+            const varName = assignMatch[1];
+            const expr = assignMatch[2].trim();
+
+            // 표현식 평가 (변수 참조 지원)
+            let evaluated = expr;
+            // 변수 참조를 값으로 치환
+            evaluated = evaluated.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (match, name) => {
+                if (webVariables.has(name)) {
+                    return String(webVariables.get(name));
+                }
+                // 숫자가 아닌 알 수 없는 변수는 0으로 처리
+                return '0';
+            });
+
+            // 허용된 문자만 통과
+            if (!/^[\d\s+\-*/().]+$/.test(evaluated)) {
+                return;
+            }
+
+            try {
+                const result = Function('"use strict"; return (' + evaluated + ')')();
+                if (Number.isFinite(result)) {
+                    setWebVariable(varName, result);
+                }
+            } catch {
+                // 오류 시 무시
             }
         }
 
@@ -9013,6 +9158,13 @@ const designSurface = document.getElementById('designSurface');
                 notifyVisualizationDirty();
             });
         }
+        if (variableSystemCheckbox) {
+            variableSystemCheckbox.addEventListener('change', () => {
+                useVariableSystem = !!variableSystemCheckbox.checked;
+                storeVariableSystemEnabled(useVariableSystem);
+                renderProperties();
+            });
+        }
         if (projectAddPageButton) {
             projectAddPageButton.addEventListener('click', () => addProjectTreePage());
         }
@@ -9188,6 +9340,12 @@ const designSurface = document.getElementById('designSurface');
         document.addEventListener('keydown', handleDesignerKeyDown);
         applyVisualizationTheme({ useDarkTheme: true });
         applyVisualizationLanguage({ useKorean: getStoredLanguageMode() !== 'en', persist: false });
+        // 변수 시스템 설정 로드
+        useVariableSystem = getStoredVariableSystemEnabled();
+        if (variableSystemCheckbox) {
+            variableSystemCheckbox.checked = useVariableSystem;
+        }
+        loadWebVariables();
         tryLoadStandaloneVisualizationDocument();
         renderProjectTree();
         updateActivePageLabel();
