@@ -11,6 +11,9 @@ const designSurface = document.getElementById('designSurface');
         const themeModeSelect = document.getElementById('themeModeSelect');
         const languageModeSelect = document.getElementById('languageModeSelect');
         const variableSystemCheckbox = document.getElementById('variableSystemCheckbox');
+        const variableListSection = document.getElementById('variableListSection');
+        const variableListBody = document.getElementById('variableListBody');
+        const clearAllVariablesButton = document.getElementById('clearAllVariablesButton');
         const gridXValue = document.getElementById('gridXValue');
         const gridYValue = document.getElementById('gridYValue');
         const gridVisibleCheckbox = document.getElementById('gridVisibleCheckbox');
@@ -243,6 +246,9 @@ const designSurface = document.getElementById('designSurface');
                 sourceSyncUnsupported: 'CUBLOC2 장치를 선택하면 소스 파일 동기화를 사용할 수 있습니다.',
                 sourceSyncHelp: 'CUBLOC2 Studio 프로젝트 파일에서 Alias, Comment, Ladder 정보를 가져와 주소 테이블과 LD 모니터링에 사용합니다.',
                 useVariableSystem: '변수 시스템 사용',
+                variableList: '변수 목록',
+                noVariables: '등록된 변수가 없습니다',
+                confirmClearAllVariables: '모든 변수를 삭제하시겠습니까?',
                 linkStep1: '1. 대상 장치 선택',
                 linkStep2: '2. 연결 방식 선택',
                 linkStep3: '3. 포트/주소 설정',
@@ -321,6 +327,9 @@ const designSurface = document.getElementById('designSurface');
                 sourceSyncUnsupported: 'Select CUBLOC2 as the target device to use source file synchronization.',
                 sourceSyncHelp: 'Imports Alias, Comment, and Ladder information from a CUBLOC2 Studio project file for the address table and LD monitoring.',
                 useVariableSystem: 'Use Variable System',
+                variableList: 'Variable List',
+                noVariables: 'No variables registered',
+                confirmClearAllVariables: 'Delete all variables?',
                 linkStep1: '1. Select Target Device',
                 linkStep2: '2. Select Connection Type',
                 linkStep3: '3. Set Port/Address',
@@ -416,10 +425,61 @@ const designSurface = document.getElementById('designSurface');
         function setWebVariable(name, value) {
             webVariables.set(normalizeVariableName(name), value);
             saveWebVariables();
+            renderVariableList();
         }
 
         function hasWebVariable(name) {
             return webVariables.has(normalizeVariableName(name));
+        }
+
+        function deleteWebVariable(name) {
+            webVariables.delete(normalizeVariableName(name));
+            saveWebVariables();
+            renderVariableList();
+        }
+
+        function clearAllWebVariables() {
+            webVariables.clear();
+            saveWebVariables();
+            renderVariableList();
+        }
+
+        // 변수 목록 UI 렌더링
+        function renderVariableList() {
+            if (!variableListBody) {
+                return;
+            }
+
+            // 변수 시스템 비활성화 시 섹션 숨김
+            if (variableListSection) {
+                variableListSection.style.display = useVariableSystem ? 'block' : 'none';
+            }
+
+            if (!useVariableSystem) {
+                return;
+            }
+
+            const resources = getVisualizationResources();
+
+            if (webVariables.size === 0) {
+                variableListBody.innerHTML = `<div class="variable-list-empty" data-i18n="noVariables">${resources.noVariables || '등록된 변수가 없습니다'}</div>`;
+                return;
+            }
+
+            const items = [];
+            for (const [name, value] of webVariables) {
+                const displayValue = typeof value === 'number' && !Number.isInteger(value)
+                    ? value.toFixed(2)
+                    : String(value);
+                items.push(`
+                    <div class="variable-list-item">
+                        <span class="variable-item-name">${escapeHtml(name)}</span>
+                        <span class="variable-item-value" title="${escapeHtml(String(value))}">${escapeHtml(displayValue)}</span>
+                        <button class="variable-item-delete" data-var-name="${escapeHtml(name)}" title="${resources.delete || '삭제'}">🗑</button>
+                    </div>
+                `);
+            }
+            variableListBody.innerHTML = items.join('');
         }
 
         window.getVisualizationLanguageResources = function () {
@@ -9194,7 +9254,27 @@ const designSurface = document.getElementById('designSurface');
             variableSystemCheckbox.addEventListener('change', () => {
                 useVariableSystem = !!variableSystemCheckbox.checked;
                 storeVariableSystemEnabled(useVariableSystem);
+                renderVariableList();
                 renderProperties();
+            });
+        }
+        if (clearAllVariablesButton) {
+            clearAllVariablesButton.addEventListener('click', () => {
+                const resources = getVisualizationResources();
+                if (webVariables.size === 0) {
+                    return;
+                }
+                if (confirm(resources.confirmClearAllVariables || '모든 변수를 삭제하시겠습니까?')) {
+                    clearAllWebVariables();
+                }
+            });
+        }
+        if (variableListBody) {
+            variableListBody.addEventListener('click', event => {
+                const deleteButton = event.target.closest('.variable-item-delete');
+                if (deleteButton && deleteButton.dataset.varName) {
+                    deleteWebVariable(deleteButton.dataset.varName);
+                }
             });
         }
         if (projectAddPageButton) {
@@ -9378,6 +9458,7 @@ const designSurface = document.getElementById('designSurface');
             variableSystemCheckbox.checked = useVariableSystem;
         }
         loadWebVariables();
+        renderVariableList();
         tryLoadStandaloneVisualizationDocument();
         renderProjectTree();
         updateActivePageLabel();

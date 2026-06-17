@@ -218,6 +218,15 @@
                                 <input id="variableSystemCheckbox" type="checkbox" />
                                 <span data-i18n="useVariableSystem">변수 시스템 사용</span>
                             </label>
+                            <div id="variableListSection" class="variable-list-section" style="display: none;">
+                                <div class="variable-list-header">
+                                    <span data-i18n="variableList">변수 목록</span>
+                                    <button id="clearAllVariablesButton" class="variable-clear-button" type="button" title="모두 삭제">🗑</button>
+                                </div>
+                                <div id="variableListBody" class="variable-list-body">
+                                    <div class="variable-list-empty" data-i18n="noVariables">등록된 변수가 없습니다</div>
+                                </div>
+                            </div>
                         </section>
                         <section id="settingsGeneralPanel" class="app-settings-tab-panel" data-settings-panel="general" role="tabpanel">
                             <label class="app-settings-field">

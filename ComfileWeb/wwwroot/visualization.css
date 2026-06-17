@@ -1462,6 +1462,117 @@
             accent-color: var(--button-bg);
         }
 
+        /* 변수 목록 섹션 */
+        .variable-list-section {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--button-border);
+            max-width: 320px;
+        }
+
+        .variable-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .variable-clear-button {
+            padding: 4px 8px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .variable-clear-button:hover {
+            opacity: 1;
+            background: var(--button-hover-bg);
+        }
+
+        .variable-list-body {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--property-border);
+            border-radius: 4px;
+            background: var(--input-bg);
+        }
+
+        .variable-list-empty {
+            padding: 16px;
+            text-align: center;
+            color: var(--property-muted);
+            font-size: 12px;
+        }
+
+        .variable-list-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-bottom: 1px solid var(--property-border);
+            font-size: 12px;
+        }
+
+        .variable-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .variable-list-item:hover {
+            background: color-mix(in srgb, var(--focus) 10%, transparent);
+        }
+
+        .variable-item-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-weight: 500;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .variable-item-value {
+            flex: 0 0 auto;
+            min-width: 60px;
+            max-width: 100px;
+            padding: 2px 6px;
+            margin: 0 8px;
+            border: 1px solid var(--property-border);
+            border-radius: 3px;
+            background: var(--panel-bg);
+            color: #5ec4ff;
+            font-family: monospace;
+            font-size: 11px;
+            text-align: right;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .variable-item-delete {
+            flex: 0 0 auto;
+            padding: 2px 6px;
+            border: none;
+            border-radius: 3px;
+            background: transparent;
+            color: var(--property-muted);
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        .variable-item-delete:hover {
+            opacity: 1;
+            color: #f06060;
+            background: color-mix(in srgb, #f06060 15%, transparent);
+        }
+
         .app-settings-actions {
             display: flex;
             justify-content: flex-start;
