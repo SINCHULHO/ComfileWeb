@@ -320,6 +320,16 @@ function isAddressAreaAllowedForMode(area, mode) {
     return true;
 }
 
+function getAllowedAddressPickerAreas(state) {
+    if (!state?.provider) {
+        return [];
+    }
+
+    return state.provider.areas
+        .filter(area => isAddressAreaAllowedForMode(area, state.mode))
+        .filter(area => !state.onlyDetectedCfnetAreas || state.provider.metadataMode !== 'commentOnly' || isCfnetAreaDetected(area));
+}
+
 function getAddressAreaEntries(provider, area, searchText, jumpStart) {
     if (!provider || !area) {
         return [];
@@ -507,6 +517,50 @@ function openAddressPicker(widget, propertyKey, currentAddress) {
     bindAddressPickerEvents(backdrop, state);
     renderAddressPickerRows(backdrop, state);
 }
+
+function openVisualizationTrendAddressPicker(currentAddress, onSelected) {
+    syncImportedAddressMetadataFromDocumentModel();
+
+    const provider = getCurrentAddressTableProvider();
+    if (!provider) {
+        window.alert(useKoreanLanguage ? '선택한 디바이스의 주소 테이블이 없습니다.' : 'No address table is available for the selected device.');
+        return;
+    }
+
+    const state = {
+        widgetId: '',
+        propertyKey: 'Trend Address',
+        provider,
+        mode: 'Full',
+        currentAddress: String(currentAddress || '').trim(),
+        selectedAddress: String(currentAddress || '').trim(),
+        usedAddressKeys: new Set(),
+        jumpThousands: null,
+        jumpHundreds: null,
+        searchText: '',
+        readOnlyComments: true,
+        onlyDetectedCfnetAreas: true,
+        onSelected
+    };
+    const allowedAreas = getAllowedAddressPickerAreas(state);
+    if (allowedAreas.length === 0) {
+        window.alert(useKoreanLanguage ? '선택 가능한 주소 영역이 없습니다.' : 'No selectable address area is available.');
+        return;
+    }
+    state.selectedAreaPrefix = findAddressAreaPrefix(provider, currentAddress, allowedAreas) || allowedAreas[0].prefix;
+
+    document.querySelectorAll('.address-picker-backdrop').forEach(element => element.remove());
+    initializeAddressJumpState(state);
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'address-picker-backdrop';
+    backdrop.innerHTML = renderAddressPickerMarkup(state, allowedAreas);
+    document.body.appendChild(backdrop);
+    bindAddressPickerEvents(backdrop, state);
+    renderAddressPickerRows(backdrop, state);
+}
+
+window.openVisualizationTrendAddressPicker = openVisualizationTrendAddressPicker;
 
 function findAddressAreaPrefix(provider, address, allowedAreas) {
     const key = normalizeVisualizationAddressKey(address);
@@ -726,7 +780,7 @@ function renderAddressPickerSidebar(backdrop, state) {
         return;
     }
 
-    const allowedAreas = state.provider.areas.filter(area => isAddressAreaAllowedForMode(area, state.mode));
+    const allowedAreas = getAllowedAddressPickerAreas(state);
     sidebar.innerHTML = renderAddressPickerSidebarMarkup(state, allowedAreas);
 }
 
@@ -1230,7 +1284,7 @@ function bindAddressPickerEvents(backdrop, state) {
 
     backdrop.addEventListener('change', event => {
         const input = event.target.closest('.address-picker-comment-input');
-        if (!input) {
+        if (!input || state.readOnlyComments) {
             return;
         }
 
@@ -1245,9 +1299,9 @@ function bindAddressPickerEvents(backdrop, state) {
 }
 
 function renderAddressPickerRows(backdrop, state) {
-    let area = state.provider.areas.find(item => item.prefix === state.selectedAreaPrefix);
+    const allowedAreas = getAllowedAddressPickerAreas(state);
+    let area = allowedAreas.find(item => item.prefix === state.selectedAreaPrefix);
     if (!area && state.provider?.metadataMode === 'commentOnly') {
-        const allowedAreas = state.provider.areas.filter(item => isAddressAreaAllowedForMode(item, state.mode));
         area = allowedAreas[0] || null;
         state.selectedAreaPrefix = area?.prefix || '';
         renderAddressPickerSidebar(backdrop, state);
@@ -1267,7 +1321,7 @@ function renderAddressPickerRows(backdrop, state) {
             const isUsed = state.usedAddressKeys instanceof Set && state.usedAddressKeys.has(normalizeVisualizationAddressKey(row.address));
             const displayAddress = row.address;
             const commentCell = isCommentOnly
-                ? `<td><input class="address-picker-comment-input" type="text" value="${escapeHtml(row.comment)}" data-address-comment="${escapeHtml(row.address)}" /></td>`
+                ? `<td><input class="address-picker-comment-input" type="text" value="${escapeHtml(row.comment)}" data-address-comment="${escapeHtml(row.address)}" ${state.readOnlyComments ? 'readonly tabindex="-1"' : ''} /></td>`
                 : `<td>${escapeHtml(row.comment)}</td>`;
             const dataCells = isCommentOnly
                 ? `<td class="address-picker-check-cell" aria-label="${isCurrent ? (useKoreanLanguage ? '현재 적용된 주소' : 'Current address') : ''}">${isCurrent ? '✓' : ''}</td><td>${escapeHtml(displayAddress)}</td>${commentCell}<td>${escapeHtml(row.type)}</td>`
@@ -1304,5 +1358,10 @@ function updateAddressPickerSelection(backdrop, state) {
 }
 
 function applyAddressPickerSelection(state) {
+    if (typeof state.onSelected === 'function') {
+        state.onSelected(state.selectedAddress);
+        return;
+    }
+
     applyVisualizationWidgetAddress(state.widgetId, state.selectedAddress, state.propertyKey);
 }

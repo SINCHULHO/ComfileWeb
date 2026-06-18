@@ -689,6 +689,11 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var doModule = cfheader0.DigitalOutputModules[moduleIndex];
+                    if (!IsCfnetModuleReady(doModule, "DO", moduleIndex))
+                    {
+                        continue;
+                    }
+
                     if (channelIndex >= doModule.Channels.Count)
                     {
                         continue;
@@ -704,6 +709,11 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var diModule = cfheader0.DigitalInputModules[moduleIndex];
+                    if (!IsCfnetModuleReady(diModule, "DI", moduleIndex))
+                    {
+                        continue;
+                    }
+
                     if (channelIndex >= diModule.Channels.Count)
                     {
                         continue;
@@ -719,6 +729,11 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var analogInputModule = cfheader0.AnalogInputModules[moduleIndex];
+                    if (!IsCfnetModuleReady(analogInputModule, "ADC", moduleIndex))
+                    {
+                        continue;
+                    }
+
                     if (channelIndex >= analogInputModule.Channels.Count)
                     {
                         continue;
@@ -740,6 +755,11 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var analogOutputModule = cfheader0.AnalogOutputModules[moduleIndex];
+                    if (!IsCfnetModuleReady(analogOutputModule, "DAC", moduleIndex))
+                    {
+                        continue;
+                    }
+
                     if (channelIndex >= analogOutputModule.Channels.Count)
                     {
                         continue;
@@ -804,6 +824,29 @@ public sealed class VisualizationRuntimeService
         }
     }
 
+    private bool IsCfnetModuleReady(IIOModule module, string moduleKind, int moduleIndex)
+    {
+        if (module.I2cStatus == I2cResult.Success)
+        {
+            return true;
+        }
+
+        string message = $"CFNET {moduleKind} module I2C communication failed: Index={moduleIndex}, Address={module.Address}, Status={module.I2cStatus}";
+        _lastError = message;
+        _logger.LogWarning(message);
+
+        try
+        {
+            module.AcknowledgeI2cFailure();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CFNET I2C failure acknowledge failed: Module={ModuleKind}, Index={ModuleIndex}, Address={Address}", moduleKind, moduleIndex, module.Address);
+        }
+
+        return false;
+    }
+
     private void ApplyPendingCfnetWrites()
     {
         if (_pendingWrites.Count == 0)
@@ -842,6 +885,11 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var module = cfheader0.DigitalOutputModules[moduleIndex];
+                    if (!IsCfnetModuleReady(module, "DO", moduleIndex))
+                    {
+                        continue;
+                    }
+
                     if (channelIndex >= module.Channels.Count)
                     {
                         _lastError = $"CFNET DO bit out of range: {channelIndex}";
@@ -859,6 +907,11 @@ public sealed class VisualizationRuntimeService
                     }
 
                     var module = cfheader0.AnalogOutputModules[moduleIndex];
+                    if (!IsCfnetModuleReady(module, "DAC", moduleIndex))
+                    {
+                        continue;
+                    }
+
                     if (channelIndex >= module.Channels.Count)
                     {
                         _lastError = $"CFNET DAC channel out of range: {channelIndex}";

@@ -1311,6 +1311,7 @@
 
         .work-area.runtime-pages-visible {
             justify-content: flex-start;
+            position: relative;
         }
 
         .canvas-shell {
@@ -1869,6 +1870,165 @@
 
         .design-surface.runtime-running {
             background-image: none !important;
+        }
+
+        .design-surface.runtime-trend-page-active {
+            visibility: hidden;
+        }
+
+        .runtime-trend-graph-page {
+            position: fixed;
+            left: clamp(10px, 1.8vw, 24px);
+            right: clamp(10px, 1.8vw, 24px);
+            top: clamp(10px, 1.8vw, 24px);
+            bottom: calc(clamp(10px, 1.8vw, 24px) + clamp(54px, 7vh, 92px));
+            z-index: 5000;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: stretch;
+            gap: 8px;
+            border: 2px solid color-mix(in srgb, var(--focus) 58%, transparent);
+            border-radius: 12px;
+            background: linear-gradient(135deg,
+                color-mix(in srgb, var(--surface-bg) 86%, #1f7cff),
+                color-mix(in srgb, var(--surface-bg) 94%, #1f7cff));
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.24);
+            color: var(--text);
+            pointer-events: auto;
+            padding: 10px;
+            box-sizing: border-box;
+            text-align: left;
+        }
+
+        .runtime-trend-toolbar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 36px;
+            padding: 4px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel-bg) 72%, transparent);
+            box-sizing: border-box;
+        }
+
+        .runtime-trend-title {
+            margin-right: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .runtime-trend-button,
+        .runtime-trend-select {
+            height: 28px;
+            border: 1px solid var(--button-border);
+            border-radius: 5px;
+            background: var(--button-bg);
+            color: var(--text);
+            font: inherit;
+            font-size: 13px;
+        }
+
+        .runtime-trend-button {
+            padding: 0 10px;
+            cursor: pointer;
+        }
+
+        .runtime-trend-button:hover {
+            background: var(--button-hover-bg);
+            border-color: var(--button-hover-border);
+        }
+
+        .runtime-trend-run-button {
+            min-width: 68px;
+            font-weight: 700;
+        }
+
+        .runtime-trend-run-button.is-stopped {
+            border-color: color-mix(in srgb, #ffc107 72%, var(--button-border));
+            background: color-mix(in srgb, #ffc107 22%, var(--button-bg));
+        }
+
+        .runtime-trend-select-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: color-mix(in srgb, var(--text) 88%, transparent);
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .runtime-trend-channel-list {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 36px;
+            overflow-x: auto;
+            padding: 2px 0;
+        }
+
+        .runtime-trend-empty {
+            color: color-mix(in srgb, var(--text) 62%, transparent);
+            font-size: 13px;
+            padding: 0 6px;
+        }
+
+        .runtime-trend-channel-chip {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 260px;
+            height: 30px;
+            padding: 0 6px;
+            border: 1px solid var(--surface-border);
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--panel-bg) 84%, transparent);
+            box-sizing: border-box;
+        }
+
+        .runtime-trend-channel-color {
+            flex: 0 0 auto;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .runtime-trend-channel-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .runtime-trend-channel-remove {
+            flex: 0 0 auto;
+            width: 22px;
+            height: 22px;
+            border: 1px solid var(--button-border);
+            border-radius: 4px;
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .runtime-trend-graph-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+            border: 1px solid color-mix(in srgb, var(--surface-border) 78%, transparent);
+            border-radius: 8px;
+            background: #05070a;
+        }
+
+        .runtime-trend-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
 
         .runtime-page-navigation {

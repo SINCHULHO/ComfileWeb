@@ -11,6 +11,7 @@ const designSurface = document.getElementById('designSurface');
         const themeModeSelect = document.getElementById('themeModeSelect');
         const languageModeSelect = document.getElementById('languageModeSelect');
         const variableSystemCheckbox = document.getElementById('variableSystemCheckbox');
+        const trendGraphPageCheckbox = document.getElementById('trendGraphPageCheckbox');
         const variableListSection = document.getElementById('variableListSection');
         const variableListBody = document.getElementById('variableListBody');
         const clearAllVariablesButton = document.getElementById('clearAllVariablesButton');
@@ -246,6 +247,7 @@ const designSurface = document.getElementById('designSurface');
                 sourceSyncUnsupported: 'CUBLOC2 장치를 선택하면 소스 파일 동기화를 사용할 수 있습니다.',
                 sourceSyncHelp: 'CUBLOC2 Studio 프로젝트 파일에서 Alias, Comment, Ladder 정보를 가져와 주소 테이블과 LD 모니터링에 사용합니다.',
                 useVariableSystem: '변수 시스템 사용',
+                useTrendGraphPage: '트랜드 그래프 페이지 사용',
                 variableList: '변수 목록',
                 noVariables: '등록된 변수가 없습니다',
                 confirmClearAllVariables: '모든 변수를 삭제하시겠습니까?',
@@ -327,6 +329,7 @@ const designSurface = document.getElementById('designSurface');
                 sourceSyncUnsupported: 'Select CUBLOC2 as the target device to use source file synchronization.',
                 sourceSyncHelp: 'Imports Alias, Comment, and Ladder information from a CUBLOC2 Studio project file for the address table and LD monitoring.',
                 useVariableSystem: 'Use Variable System',
+                useTrendGraphPage: 'Use Trend Graph Page',
                 variableList: 'Variable List',
                 noVariables: 'No variables registered',
                 confirmClearAllVariables: 'Delete all variables?',
@@ -348,6 +351,94 @@ const designSurface = document.getElementById('designSurface');
         let useKoreanLanguage = true;
         let currentThemeMode = 'dark';
         let useVariableSystem = false;
+        let useTrendGraphPage = false;
+        const trendGraphRuntimePageName = '트랜드 그래프';
+        const maxTrendGraphChannels = 8;
+        const trendGraphSampleRetentionMilliseconds = 10 * 60 * 1000;
+        const trendGraphPalette = ['#00BCD4', '#FFC107', '#4CAF50', '#F44336', '#9C27B0', '#FF9800', '#2196F3', '#CDDC39'];
+        let trendGraphState = createDefaultTrendGraphState();
+        let trendGraphRenderRequestId = 0;
+
+        function createDefaultTrendGraphState() {
+            return {
+                isRunning: true,
+                displayDurationMilliseconds: 30000,
+                sampleIntervalMilliseconds: 250,
+                lastSampleTimestamp: 0,
+                pausedEndTimestamp: 0,
+                channels: []
+            };
+        }
+
+        function normalizeTrendGraphState(value) {
+            const source = value && typeof value === 'object' ? value : {};
+            const state = createDefaultTrendGraphState();
+            const displayDuration = Number(source.displayDurationMilliseconds);
+            const sampleInterval = Number(source.sampleIntervalMilliseconds);
+            const pausedEndTimestamp = Number(source.pausedEndTimestamp);
+            state.isRunning = source.isRunning !== false;
+            if (Number.isFinite(displayDuration) && displayDuration > 0) {
+                state.displayDurationMilliseconds = displayDuration;
+            }
+            if (Number.isFinite(sampleInterval) && sampleInterval > 0) {
+                state.sampleIntervalMilliseconds = sampleInterval;
+            }
+            if (!state.isRunning && Number.isFinite(pausedEndTimestamp) && pausedEndTimestamp > 0) {
+                state.pausedEndTimestamp = pausedEndTimestamp;
+            }
+            state.channels = Array.isArray(source.channels)
+                ? source.channels.slice(0, maxTrendGraphChannels).map((channel, index) => normalizeTrendGraphChannel(channel, index)).filter(Boolean)
+                : [];
+            return state;
+        }
+
+        function normalizeTrendGraphChannel(channel, index) {
+            const address = normalizeTrendGraphAddress(channel?.address || '');
+            if (!address) {
+                return null;
+            }
+
+            const displayName = String(channel?.displayName || address).trim() || address;
+            const color = normalizeCssColor(channel?.color) || trendGraphPalette[index % trendGraphPalette.length];
+            return {
+                address,
+                displayName,
+                kind: getTrendGraphChannelKind(address),
+                color,
+                isVisible: channel?.isVisible !== false,
+                samples: []
+            };
+        }
+
+        function normalizeTrendGraphAddress(value) {
+            return String(value || '').trim().toUpperCase();
+        }
+
+        function getTrendGraphChannelKind(address) {
+            const text = normalizeTrendGraphAddress(address);
+            return /^(I|Q|X|Y|M|S|R|TS|CS|DI\.\d+\.|DO\.\d+\.)/.test(text) ? 'Bit' : 'Data';
+        }
+
+        function shouldShowTrendGraphNumericValue(address) {
+            return /^(ADC|DAC)\.\d+\./.test(normalizeTrendGraphAddress(address));
+        }
+
+        function exportTrendGraphSettings() {
+            const state = normalizeTrendGraphState(trendGraphState);
+            return {
+                isRunning: state.isRunning !== false,
+                displayDurationMilliseconds: state.displayDurationMilliseconds,
+                sampleIntervalMilliseconds: state.sampleIntervalMilliseconds,
+                pausedEndTimestamp: state.isRunning === false ? state.pausedEndTimestamp : 0,
+                channels: state.channels.map(channel => ({
+                    address: channel.address,
+                    displayName: channel.displayName,
+                    kind: channel.kind,
+                    color: channel.color,
+                    isVisible: channel.isVisible !== false
+                }))
+            };
+        }
 
         // 웹 변수 저장소 (LocalStorage 연동)
         const webVariables = new Map();
@@ -730,10 +821,19 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function getCurrentPage() {
+            if (isTrendGraphRuntimePageActive()) {
+                return createTrendGraphRuntimePage();
+            }
+
             return ensureVisualizationPage(activePageName);
         }
 
         function setActiveVisualizationPage(pageName) {
+            if (runtimeRunning && useTrendGraphPage && String(pageName || '') === trendGraphRuntimePageName) {
+                showRuntimeTrendGraphPage();
+                return;
+            }
+
             const page = ensureVisualizationPage(pageName);
             activePageName = page.name || 'Page1';
             setSelectedWidgets([]);
@@ -745,6 +845,34 @@ const designSurface = document.getElementById('designSurface');
             if (runtimeRunning && !wasRuntimeRunning && typeof loadUsbCdcPorts === 'function') {
                 loadUsbCdcPorts(String(linkComPortSelect?.value || '').trim()).catch(error => console.warn(error));
             }
+        }
+
+        function showRuntimeTrendGraphPage() {
+            activePageName = trendGraphRuntimePageName;
+            setSelectedWidgets([]);
+            selectedCell = null;
+            updateGridControlsFromCurrentPage();
+            updateActivePageLabel();
+            renderProjectTree();
+            renderWidgets();
+            if (!document.querySelector('.runtime-trend-graph-page')) {
+                renderRuntimeTrendGraphPage();
+            }
+        }
+
+        function isTrendGraphRuntimePageActive() {
+            return runtimeRunning && useTrendGraphPage && activePageName === trendGraphRuntimePageName;
+        }
+
+        function createTrendGraphRuntimePage() {
+            const basePage = documentModel.pages?.[0] || createVisualizationPage('Page1');
+            return {
+                name: trendGraphRuntimePageName,
+                properties: {
+                    ...(basePage.properties || {})
+                },
+                widgets: []
+            };
         }
 
         function createNewVisualizationProject() {
@@ -792,7 +920,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             normalizeVisualizationDocumentPages();
-            if (!getPageByName(activePageName)) {
+            if (!isTrendGraphRuntimePageActive() && !getPageByName(activePageName)) {
                 activePageName = documentModel.pages[0].name || 'Page1';
             }
 
@@ -1577,7 +1705,7 @@ const designSurface = document.getElementById('designSurface');
             documentModel.version = snapshot.documentModel.version;
             documentModel.pages = JSON.parse(JSON.stringify(snapshot.documentModel.pages || []));
             normalizeVisualizationDocumentPages();
-            if (!getPageByName(activePageName)) {
+            if (!isTrendGraphRuntimePageActive() && !getPageByName(activePageName)) {
                 activePageName = documentModel.pages[0].name || 'Page1';
             }
             nextWidgetId = snapshot.nextWidgetId;
@@ -2180,13 +2308,26 @@ const designSurface = document.getElementById('designSurface');
 
             const page = getCurrentPage();
             designSurface.classList.toggle('runtime-running', runtimeRunning);
+            designSurface.classList.toggle('runtime-trend-page-active', isTrendGraphRuntimePageActive());
             designSurface.querySelectorAll('.design-widget').forEach(widgetElement => widgetElement.remove());
+            designSurface.querySelectorAll('.runtime-trend-graph-page').forEach(element => element.remove());
+            if (workArea) {
+                workArea.querySelectorAll('.runtime-trend-graph-page').forEach(element => element.remove());
+            }
+            document.body.querySelectorAll('.runtime-trend-graph-page').forEach(element => element.remove());
             designSurface.querySelectorAll('.selected-widget-address-popup').forEach(element => element.remove());
             designSurface.querySelectorAll('.multi-selection-box').forEach(element => element.remove());
             removeRuntimePageNavigationElement();
             renderRuntimePageNavigation();
             removeCellCursorElement();
             removeSelectionMarqueeElement();
+
+            if (isTrendGraphRuntimePageActive()) {
+                renderRuntimeTrendGraphPage();
+                updatePlaceholderVisibility();
+                renderProperties();
+                return;
+            }
 
             page.widgets.forEach(widget => {
                 let widgetElement = null;
@@ -2222,6 +2363,538 @@ const designSurface = document.getElementById('designSurface');
                 renderMultiSelectionBox();
             }
             renderProperties();
+        }
+
+        function renderRuntimeTrendGraphPage() {
+            const trendPage = document.createElement('section');
+            trendPage.className = 'runtime-trend-graph-page';
+            trendPage.setAttribute('aria-label', trendGraphRuntimePageName);
+
+            const toolbar = document.createElement('div');
+            toolbar.className = 'runtime-trend-toolbar';
+
+            const title = document.createElement('strong');
+            title.className = 'runtime-trend-title';
+            title.textContent = trendGraphRuntimePageName;
+            toolbar.appendChild(title);
+
+            const runButton = document.createElement('button');
+            runButton.type = 'button';
+            runButton.className = 'runtime-trend-button runtime-trend-run-button';
+            runButton.dataset.trendRunButton = 'true';
+            runButton.textContent = getTrendGraphRunButtonText();
+            runButton.addEventListener('pointerdown', stopRuntimeTrendPagePointerEvent);
+            runButton.addEventListener('pointerup', event => {
+                stopRuntimeTrendPagePointerEvent(event);
+                toggleTrendGraphRunning();
+            });
+            toolbar.appendChild(runButton);
+
+            const addButton = document.createElement('button');
+            addButton.type = 'button';
+            addButton.className = 'runtime-trend-button';
+            addButton.textContent = useKoreanLanguage ? '주소 추가' : 'Add Address';
+            addButton.addEventListener('pointerdown', stopRuntimeTrendPagePointerEvent);
+            addButton.addEventListener('pointerup', event => {
+                stopRuntimeTrendPagePointerEvent(event);
+                addTrendGraphChannelFromUserInput();
+            });
+            toolbar.appendChild(addButton);
+
+            const clearButton = document.createElement('button');
+            clearButton.type = 'button';
+            clearButton.className = 'runtime-trend-button';
+            clearButton.textContent = useKoreanLanguage ? '전체 지우기' : 'Clear All';
+            clearButton.addEventListener('pointerdown', stopRuntimeTrendPagePointerEvent);
+            clearButton.addEventListener('pointerup', event => {
+                stopRuntimeTrendPagePointerEvent(event);
+                clearTrendGraphSamples();
+            });
+            toolbar.appendChild(clearButton);
+
+            toolbar.appendChild(createTrendGraphSelect(useKoreanLanguage ? '표시 시간' : 'Display Time', 'displayDurationMilliseconds', [
+                ['10000', '10s'],
+                ['30000', '30s'],
+                ['60000', '1m'],
+                ['300000', '5m']
+            ]));
+            toolbar.appendChild(createTrendGraphSelect(useKoreanLanguage ? '샘플 주기' : 'Sampling', 'sampleIntervalMilliseconds', [
+                ['100', '100ms'],
+                ['250', '250ms'],
+                ['500', '500ms'],
+                ['1000', '1s']
+            ]));
+
+            const channelList = document.createElement('div');
+            channelList.className = 'runtime-trend-channel-list';
+            channelList.dataset.trendChannelList = 'true';
+
+            const graphWrap = document.createElement('div');
+            graphWrap.className = 'runtime-trend-graph-wrap';
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'runtime-trend-canvas';
+            canvas.dataset.trendCanvas = 'true';
+            graphWrap.appendChild(canvas);
+
+            trendPage.appendChild(toolbar);
+            trendPage.appendChild(channelList);
+            trendPage.appendChild(graphWrap);
+            document.body.appendChild(trendPage);
+            renderTrendGraphChannelList();
+            renderTrendGraphCanvas();
+            requestTrendGraphRender();
+        }
+
+        function stopRuntimeTrendPagePointerEvent(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        function getTrendGraphRunButtonText() {
+            return trendGraphState.isRunning !== false
+                ? (useKoreanLanguage ? '중지' : 'Stop')
+                : (useKoreanLanguage ? '시작' : 'Start');
+        }
+
+        function updateTrendGraphRunButton() {
+            const button = document.querySelector('[data-trend-run-button="true"]');
+            if (!button) {
+                return;
+            }
+
+            button.textContent = getTrendGraphRunButtonText();
+            button.classList.toggle('is-stopped', trendGraphState.isRunning === false);
+        }
+
+        function toggleTrendGraphRunning() {
+            const nextRunning = trendGraphState.isRunning === false;
+            trendGraphState.isRunning = nextRunning;
+            trendGraphState.lastSampleTimestamp = 0;
+            trendGraphState.pausedEndTimestamp = nextRunning
+                ? 0
+                : getTrendGraphEndTimestamp(Date.now(), (trendGraphState.channels || []).filter(channel => channel.isVisible !== false));
+            documentModel.trendGraph = exportTrendGraphSettings();
+            notifyVisualizationDirty();
+            updateTrendGraphRunButton();
+            renderTrendGraphCanvas();
+        }
+
+        function createTrendGraphSelect(labelText, propertyName, options) {
+            const label = document.createElement('label');
+            label.className = 'runtime-trend-select-label';
+            label.textContent = `${labelText}: `;
+
+            const select = document.createElement('select');
+            select.className = 'runtime-trend-select';
+            options.forEach(([value, text]) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = text;
+                select.appendChild(option);
+            });
+            select.value = String(trendGraphState[propertyName]);
+            select.addEventListener('pointerdown', event => event.stopPropagation());
+            select.addEventListener('change', () => {
+                trendGraphState[propertyName] = Number(select.value);
+                documentModel.trendGraph = exportTrendGraphSettings();
+                notifyVisualizationDirty();
+                renderTrendGraphCanvas();
+            });
+
+            label.appendChild(select);
+            return label;
+        }
+
+        function addTrendGraphChannelFromUserInput() {
+            if (trendGraphState.channels.length >= maxTrendGraphChannels) {
+                alert(useKoreanLanguage ? '트랜드 채널은 최대 8개까지 추가할 수 있습니다.' : 'Up to 8 trend channels can be added.');
+                return;
+            }
+
+            if (typeof window.openVisualizationTrendAddressPicker === 'function') {
+                window.openVisualizationTrendAddressPicker('', address => {
+                    const selectedAddress = normalizeTrendGraphAddress(address || '');
+                    if (selectedAddress) {
+                        addTrendGraphChannel(selectedAddress);
+                    }
+                });
+                return;
+            }
+
+            const input = prompt(useKoreanLanguage ? '추가할 주소를 입력하세요. 예: M0, D10, DI.0.0' : 'Enter an address. Example: M0, D10, DI.0.0', '');
+            const address = normalizeTrendGraphAddress(input || '');
+            if (address) {
+                addTrendGraphChannel(address);
+            }
+        }
+
+        function addTrendGraphChannel(address) {
+            const normalizedAddress = normalizeTrendGraphAddress(address);
+            if (!normalizedAddress) {
+                return;
+            }
+
+            if (trendGraphState.channels.some(channel => channel.address === normalizedAddress)) {
+                alert(useKoreanLanguage ? '이미 추가된 주소입니다.' : 'This address is already added.');
+                return;
+            }
+
+            if (trendGraphState.channels.length >= maxTrendGraphChannels) {
+                return;
+            }
+
+            trendGraphState.channels.push({
+                address: normalizedAddress,
+                displayName: normalizedAddress,
+                kind: getTrendGraphChannelKind(normalizedAddress),
+                color: trendGraphPalette[trendGraphState.channels.length % trendGraphPalette.length],
+                isVisible: true,
+                samples: []
+            });
+            trendGraphState = normalizeTrendGraphState(trendGraphState);
+            documentModel.trendGraph = exportTrendGraphSettings();
+            addRuntimeTrendGraphAddress(normalizedAddress);
+            addImmediateTrendGraphSample(normalizedAddress);
+            notifyVisualizationDirty();
+            renderTrendGraphChannelList();
+            renderTrendGraphCanvas();
+        }
+
+        function addImmediateTrendGraphSample(address) {
+            const normalizedAddress = normalizeTrendGraphAddress(address);
+            const channel = trendGraphState.channels.find(item => item.address === normalizedAddress);
+            if (!channel) {
+                return;
+            }
+
+            if (trendGraphState.isRunning === false) {
+                return;
+            }
+
+            const value = runtimeValues.has(normalizedAddress) ? Number(runtimeValues.get(normalizedAddress)) : 0;
+            if (!Number.isFinite(value)) {
+                return;
+            }
+
+            if (!Array.isArray(channel.samples)) {
+                channel.samples = [];
+            }
+            channel.samples.push({ timestamp: Date.now(), value });
+            pruneTrendGraphSamples(Date.now());
+        }
+
+        function addRuntimeTrendGraphAddress(address) {
+            if (!runtimeRunning || !runtimeConnection || runtimeConnection.state !== 'Connected') {
+                return;
+            }
+
+            runtimeConnection.invoke('AddAddresses', {
+                addresses: [{ address, widgetId: `trend_${address}`, kind: 'TrendGraph' }]
+            }).then(() => {
+                collectTrendGraphSamples(true);
+                requestTrendGraphRender();
+            }).catch(error => console.warn(error));
+        }
+
+        function clearTrendGraphSamples() {
+            (trendGraphState.channels || []).forEach(channel => channel.samples = []);
+            trendGraphState.lastSampleTimestamp = 0;
+            renderTrendGraphCanvas();
+        }
+
+        function renderTrendGraphChannelList() {
+            const container = document.querySelector('[data-trend-channel-list="true"]');
+            if (!container) {
+                return;
+            }
+
+            container.innerHTML = '';
+            if (!trendGraphState.channels.length) {
+                const empty = document.createElement('div');
+                empty.className = 'runtime-trend-empty';
+                empty.textContent = useKoreanLanguage ? '주소를 추가하면 라이브 그래프가 표시됩니다.' : 'Add an address to show the live graph.';
+                container.appendChild(empty);
+                return;
+            }
+
+            trendGraphState.channels.forEach((channel, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'runtime-trend-channel-chip';
+
+                const visible = document.createElement('input');
+                visible.type = 'checkbox';
+                visible.checked = channel.isVisible !== false;
+                visible.addEventListener('pointerdown', event => event.stopPropagation());
+                visible.addEventListener('change', () => {
+                    channel.isVisible = visible.checked;
+                    documentModel.trendGraph = exportTrendGraphSettings();
+                    notifyVisualizationDirty();
+                    renderTrendGraphCanvas();
+                });
+                chip.appendChild(visible);
+
+                const color = document.createElement('span');
+                color.className = 'runtime-trend-channel-color';
+                color.style.backgroundColor = channel.color;
+                chip.appendChild(color);
+
+                const name = document.createElement('span');
+                name.className = 'runtime-trend-channel-name';
+                name.textContent = `${channel.displayName} [${channel.kind === 'Bit' ? (useKoreanLanguage ? '비트' : 'Bit') : (useKoreanLanguage ? '데이터' : 'Data')}]`;
+                chip.appendChild(name);
+
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'runtime-trend-channel-remove';
+                removeButton.textContent = '×';
+                removeButton.addEventListener('pointerdown', stopRuntimeTrendPagePointerEvent);
+                removeButton.addEventListener('pointerup', event => {
+                    stopRuntimeTrendPagePointerEvent(event);
+                    trendGraphState.channels.splice(index, 1);
+                    documentModel.trendGraph = exportTrendGraphSettings();
+                    notifyVisualizationDirty();
+                    renderTrendGraphChannelList();
+                    renderTrendGraphCanvas();
+                });
+                chip.appendChild(removeButton);
+                container.appendChild(chip);
+            });
+        }
+
+        function getTrendGraphNumericValueText(channel) {
+            const samples = Array.isArray(channel?.samples) ? channel.samples : [];
+            const sampleValue = samples.length > 0 ? Number(samples[samples.length - 1].value) : NaN;
+            const runtimeValue = runtimeValues.has(channel.address) ? Number(runtimeValues.get(channel.address)) : NaN;
+            const value = Number.isFinite(runtimeValue) ? runtimeValue : sampleValue;
+            return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 3 }) : '-';
+        }
+
+        function renderTrendGraphCanvas() {
+            const canvas = document.querySelector('[data-trend-canvas="true"]');
+            if (!canvas) {
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const width = Math.max(1, Math.floor(rect.width));
+            const height = Math.max(1, Math.floor(rect.height));
+            const scale = window.devicePixelRatio || 1;
+            if (canvas.width !== Math.floor(width * scale) || canvas.height !== Math.floor(height * scale)) {
+                canvas.width = Math.floor(width * scale);
+                canvas.height = Math.floor(height * scale);
+            }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                return;
+            }
+
+            ctx.setTransform(scale, 0, 0, scale, 0, 0);
+            const colors = getTrendGraphCanvasColors();
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = colors.background;
+            ctx.fillRect(0, 0, width, height);
+            drawTrendGraphGrid(ctx, width, height, colors);
+
+            const visibleChannels = (trendGraphState.channels || []).filter(channel => channel.isVisible !== false);
+            if (visibleChannels.length === 0) {
+                drawTrendGraphEmptyMessage(ctx, width, height, useKoreanLanguage ? '표시할 주소가 없습니다.' : 'No addresses to display.');
+                return;
+            }
+
+            const now = Date.now();
+            const endTime = getTrendGraphEndTimestamp(now, visibleChannels);
+            const startTime = endTime - trendGraphState.displayDurationMilliseconds;
+            const labelWidth = Math.min(130, Math.max(78, width * 0.18));
+            const plotLeft = labelWidth;
+            const plotWidth = Math.max(1, width - labelWidth - 10);
+            const laneHeight = Math.max(32, height / visibleChannels.length);
+
+            visibleChannels.forEach((channel, index) => {
+                const laneTop = index * laneHeight;
+                const laneBottom = index === visibleChannels.length - 1 ? height : (index + 1) * laneHeight;
+                const laneBounds = {
+                    left: plotLeft,
+                    top: laneTop + 6,
+                    width: plotWidth,
+                    height: Math.max(1, laneBottom - laneTop - 12)
+                };
+
+                drawTrendGraphChannelLabel(ctx, channel, 6, laneTop, labelWidth - 12, laneBottom - laneTop, colors);
+                ctx.strokeStyle = colors.separator;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, laneBottom - 0.5);
+                ctx.lineTo(width, laneBottom - 0.5);
+                ctx.stroke();
+
+                if (channel.kind === 'Bit') {
+                    drawTrendGraphBitChannel(ctx, channel, laneBounds, startTime, endTime);
+                } else {
+                    drawTrendGraphDataChannel(ctx, channel, laneBounds, startTime, endTime, colors);
+                }
+            });
+        }
+
+        function getTrendGraphCanvasColors() {
+            const styles = getComputedStyle(document.documentElement);
+            return {
+                background: currentThemeMode === 'light' ? '#ffffff' : '#05070a',
+                grid: currentThemeMode === 'light' ? '#e2e6ef' : '#27303b',
+                separator: currentThemeMode === 'light' ? '#cfd5df' : '#343d4a',
+                text: styles.getPropertyValue('--text').trim() || (currentThemeMode === 'light' ? '#111827' : '#e5e7eb'),
+                muted: styles.getPropertyValue('--property-muted').trim() || '#8b95a1'
+            };
+        }
+
+        function drawTrendGraphGrid(ctx, width, height, colors) {
+            ctx.strokeStyle = colors.grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i <= 10; i += 1) {
+                const x = Math.round((width * i) / 10) + 0.5;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+            }
+            for (let i = 0; i <= 6; i += 1) {
+                const y = Math.round((height * i) / 6) + 0.5;
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+            }
+            ctx.stroke();
+        }
+
+        function drawTrendGraphEmptyMessage(ctx, width, height, text) {
+            const colors = getTrendGraphCanvasColors();
+            ctx.fillStyle = colors.muted;
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, width / 2, height / 2);
+        }
+
+        function getTrendGraphEndTimestamp(now, channels) {
+            if (trendGraphState.isRunning === false && trendGraphState.pausedEndTimestamp > 0) {
+                return trendGraphState.pausedEndTimestamp;
+            }
+
+            const latest = channels.reduce((max, channel) => {
+                const samples = Array.isArray(channel.samples) ? channel.samples : [];
+                const last = samples.length > 0 ? Number(samples[samples.length - 1].timestamp) : 0;
+                return Math.max(max, Number.isFinite(last) ? last : 0);
+            }, 0);
+            return runtimeRunning ? now : (latest || now);
+        }
+
+        function drawTrendGraphChannelLabel(ctx, channel, x, y, width, height, colors) {
+            const centerY = y + height / 2;
+            ctx.fillStyle = channel.color;
+            ctx.fillRect(x, centerY - 13, 12, 12);
+            ctx.fillStyle = colors.text;
+            ctx.font = '13px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            const text = String(channel.displayName || channel.address || '');
+            ctx.fillText(truncateCanvasText(ctx, text, Math.max(20, width - 18)), x + 18, centerY - 7);
+
+            if (shouldShowTrendGraphNumericValue(channel.address)) {
+                ctx.fillStyle = colors.muted;
+                ctx.font = '12px sans-serif';
+                ctx.fillText(truncateCanvasText(ctx, getTrendGraphNumericValueText(channel), Math.max(20, width - 18)), x + 18, centerY + 10);
+            }
+        }
+
+        function truncateCanvasText(ctx, text, maxWidth) {
+            if (ctx.measureText(text).width <= maxWidth) {
+                return text;
+            }
+
+            let next = text;
+            while (next.length > 1 && ctx.measureText(`${next}…`).width > maxWidth) {
+                next = next.slice(0, -1);
+            }
+            return `${next}…`;
+        }
+
+        function timeToTrendGraphX(timestamp, startTime, endTime, bounds) {
+            const ratio = (timestamp - startTime) / Math.max(1, endTime - startTime);
+            return bounds.left + (Math.max(0, Math.min(1, ratio)) * bounds.width);
+        }
+
+        function drawTrendGraphBitChannel(ctx, channel, bounds, startTime, endTime) {
+            const samples = getTrendGraphVisibleSamples(channel, startTime, endTime);
+            if (samples.length === 0) {
+                return;
+            }
+
+            const yOn = bounds.top + Math.max(3, bounds.height * 0.18);
+            const yOff = bounds.top + Math.max(3, bounds.height * 0.82);
+            ctx.strokeStyle = channel.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            samples.forEach((sample, index) => {
+                const x = timeToTrendGraphX(sample.timestamp, startTime, endTime, bounds);
+                const y = Math.abs(Number(sample.value)) > 0.000001 ? yOn : yOff;
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    const previous = samples[index - 1];
+                    const previousY = Math.abs(Number(previous.value)) > 0.000001 ? yOn : yOff;
+                    ctx.lineTo(x, previousY);
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+        }
+
+        function drawTrendGraphDataChannel(ctx, channel, bounds, startTime, endTime, colors) {
+            const samples = getTrendGraphVisibleSamples(channel, startTime, endTime);
+            if (samples.length === 0) {
+                return;
+            }
+
+            const values = samples.map(sample => Number(sample.value)).filter(Number.isFinite);
+            if (values.length === 0) {
+                return;
+            }
+
+            let min = Math.min(...values);
+            let max = Math.max(...values);
+            if (Math.abs(max - min) < 0.000001) {
+                min -= 1;
+                max += 1;
+            }
+
+            ctx.fillStyle = colors.muted;
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText(max.toFixed(1), bounds.left - 4, bounds.top);
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(min.toFixed(1), bounds.left - 4, bounds.top + bounds.height);
+
+            ctx.strokeStyle = channel.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            samples.forEach((sample, index) => {
+                const x = timeToTrendGraphX(sample.timestamp, startTime, endTime, bounds);
+                const ratio = (Number(sample.value) - min) / (max - min);
+                const y = bounds.top + bounds.height - (Math.max(0, Math.min(1, ratio)) * bounds.height);
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+        }
+
+        function getTrendGraphVisibleSamples(channel, startTime, endTime) {
+            const samples = Array.isArray(channel.samples) ? channel.samples : [];
+            const previous = [...samples].reverse().find(sample => Number(sample.timestamp) < startTime);
+            const visible = samples.filter(sample => Number(sample.timestamp) >= startTime && Number(sample.timestamp) <= endTime);
+            return previous ? [previous, ...visible] : visible;
         }
 
         function getSelectedPageWidgets() {
@@ -2293,6 +2966,10 @@ const designSurface = document.getElementById('designSurface');
                 .map((page, index) => String(page?.name || `Page${index + 1}`).trim())
                 .filter(pageName => pageName);
 
+            if (useTrendGraphPage && !runtimePages.includes(trendGraphRuntimePageName)) {
+                runtimePages.push(trendGraphRuntimePageName);
+            }
+
             const navigation = document.createElement('nav');
             navigation.className = 'runtime-page-navigation';
             navigation.setAttribute('aria-label', useKoreanLanguage ? '시각화 페이지 이동' : 'Visualization page navigation');
@@ -2300,11 +2977,12 @@ const designSurface = document.getElementById('designSurface');
             const pageList = document.createElement('div');
             pageList.className = 'runtime-page-list';
 
-            if (documentModel.pages.length > 1) {
+            if (runtimePages.length > 1) {
                 runtimePages.forEach(pageName => {
                     const pageButton = document.createElement('button');
                     pageButton.type = 'button';
                     pageButton.className = 'runtime-page-button';
+                    pageButton.dataset.runtimePageName = pageName;
                     pageButton.textContent = pageName;
                     if (pageName === activePageName) {
                         pageButton.classList.add('active');
@@ -2313,14 +2991,18 @@ const designSurface = document.getElementById('designSurface');
                     pageButton.addEventListener('pointerdown', event => {
                         event.preventDefault();
                         event.stopPropagation();
-                        if (pageName !== activePageName) {
+                        if (pageName === trendGraphRuntimePageName) {
+                            showRuntimeTrendGraphPage();
+                        } else if (pageName !== activePageName) {
                             setActiveVisualizationPage(pageName);
                         }
                     });
                     pageButton.addEventListener('click', event => {
                         event.preventDefault();
                         event.stopPropagation();
-                        if (pageName !== activePageName) {
+                        if (pageName === trendGraphRuntimePageName) {
+                            showRuntimeTrendGraphPage();
+                        } else if (pageName !== activePageName) {
                             setActiveVisualizationPage(pageName);
                         }
                     });
@@ -2329,6 +3011,21 @@ const designSurface = document.getElementById('designSurface');
             }
 
             if (pageList.childElementCount > 0) {
+                pageList.addEventListener('pointerdown', event => {
+                    const pageButton = event.target.closest('.runtime-page-button[data-runtime-page-name]');
+                    if (!pageButton) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const pageName = pageButton.dataset.runtimePageName || '';
+                    if (pageName === trendGraphRuntimePageName) {
+                        showRuntimeTrendGraphPage();
+                    } else if (pageName && pageName !== activePageName) {
+                        setActiveVisualizationPage(pageName);
+                    }
+                }, true);
                 navigation.appendChild(pageList);
             }
 
@@ -2395,8 +3092,11 @@ const designSurface = document.getElementById('designSurface');
             if (workArea) {
                 workArea.classList.remove('runtime-pages-visible');
                 workArea.querySelectorAll('.runtime-page-navigation').forEach(element => element.remove());
+                workArea.querySelectorAll('.runtime-trend-graph-page').forEach(element => element.remove());
             }
             designSurface.querySelectorAll('.runtime-page-navigation').forEach(element => element.remove());
+            designSurface.querySelectorAll('.runtime-trend-graph-page').forEach(element => element.remove());
+            document.body.querySelectorAll('.runtime-trend-graph-page').forEach(element => element.remove());
         }
 
         function renderButtonWidget(widget) {
@@ -6761,7 +7461,25 @@ const designSurface = document.getElementById('designSurface');
                 });
             });
 
+            collectTrendGraphRuntimeAddresses(addresses, seen);
+
             return addresses;
+        }
+
+        function collectTrendGraphRuntimeAddresses(addresses, seen) {
+            if (!useTrendGraphPage || !trendGraphState || !Array.isArray(trendGraphState.channels)) {
+                return;
+            }
+
+            trendGraphState.channels.forEach((channel, index) => {
+                const address = normalizeTrendGraphAddress(channel?.address || '');
+                if (!address || seen.has(address)) {
+                    return;
+                }
+
+                seen.add(address);
+                addresses.push({ address, widgetId: `trend_${index}`, kind: 'TrendGraph' });
+            });
         }
 
         function createRuntimeHubConnection() {
@@ -6912,12 +7630,80 @@ const designSurface = document.getElementById('designSurface');
 
                 runtimeValues.set(address, override.value);
             });
+            collectTrendGraphSamples();
             if (runtimeDraggingSliderIds.size === 0 && !activeNumberInputPopup) {
-                renderWidgets();
+                if (isTrendGraphRuntimePageActive()) {
+                    if (trendGraphState.isRunning !== false) {
+                        requestTrendGraphRender();
+                    }
+                } else {
+                    renderWidgets();
+                }
             }
             if (ldMonitor && ldMonitor.isSplitMode()) {
                 ldMonitor.renderDiagram();
             }
+        }
+
+        function collectTrendGraphSamples(force = false) {
+            if (!runtimeRunning || trendGraphState.isRunning === false || !useTrendGraphPage || !trendGraphState || !Array.isArray(trendGraphState.channels) || trendGraphState.channels.length === 0) {
+                return;
+            }
+
+            const now = Date.now();
+            if (!force && trendGraphState.lastSampleTimestamp && now - trendGraphState.lastSampleTimestamp < trendGraphState.sampleIntervalMilliseconds) {
+                return;
+            }
+
+            let hasSample = false;
+            trendGraphState.channels.forEach(channel => {
+                const address = normalizeTrendGraphAddress(channel?.address || '');
+                if (!address || !runtimeValues.has(address)) {
+                    return;
+                }
+
+                const value = Number(runtimeValues.get(address));
+                if (!Number.isFinite(value)) {
+                    return;
+                }
+
+                if (!Array.isArray(channel.samples)) {
+                    channel.samples = [];
+                }
+                channel.samples.push({ timestamp: now, value });
+                hasSample = true;
+            });
+
+            if (!hasSample) {
+                return;
+            }
+
+            trendGraphState.lastSampleTimestamp = now;
+            pruneTrendGraphSamples(now);
+            requestTrendGraphRender();
+        }
+
+        function pruneTrendGraphSamples(now) {
+            const cutoff = now - trendGraphSampleRetentionMilliseconds;
+            (trendGraphState.channels || []).forEach(channel => {
+                if (!Array.isArray(channel.samples)) {
+                    channel.samples = [];
+                    return;
+                }
+
+                channel.samples = channel.samples.filter(sample => sample && Number(sample.timestamp) >= cutoff);
+            });
+        }
+
+        function requestTrendGraphRender() {
+            if (!isTrendGraphRuntimePageActive() || trendGraphRenderRequestId) {
+                return;
+            }
+
+            trendGraphRenderRequestId = window.requestAnimationFrame(() => {
+                trendGraphRenderRequestId = 0;
+                renderTrendGraphCanvas();
+            });
         }
 
         function applyRuntimeState(payload) {
@@ -7074,6 +7860,10 @@ const designSurface = document.getElementById('designSurface');
 
             runtimeRunning = false;
             runtimeValues = new Map();
+            if (trendGraphRenderRequestId) {
+                window.cancelAnimationFrame(trendGraphRenderRequestId);
+                trendGraphRenderRequestId = 0;
+            }
             if (ldMonitor) {
                 ldMonitor.stop();
             }
@@ -7081,6 +7871,9 @@ const designSurface = document.getElementById('designSurface');
             runtimePressedWidgetIds.clear();
             document.body.classList.remove('runtime-running');
             designSurface.classList.remove('runtime-running');
+            if (activePageName === trendGraphRuntimePageName) {
+                activePageName = runtimeStartPageName || documentModel.pages?.[0]?.name || 'Page1';
+            }
             runtimeStartPageName = '';
             updateRuntimeButtons();
             updateGridControlsFromCurrentPage();
@@ -7745,6 +8538,8 @@ const designSurface = document.getElementById('designSurface');
             }
             // 변수 시스템 설정 저장
             documentModel.useVariableSystem = useVariableSystem;
+            documentModel.useTrendGraphPage = useTrendGraphPage;
+            documentModel.trendGraph = exportTrendGraphSettings();
             return JSON.stringify(documentModel);
         }
 
@@ -7788,6 +8583,11 @@ const designSurface = document.getElementById('designSurface');
                 variableSystemCheckbox.checked = useVariableSystem;
             }
             storeVariableSystemEnabled(useVariableSystem);
+            useTrendGraphPage = !!nextDocumentModel.useTrendGraphPage;
+            if (trendGraphPageCheckbox) {
+                trendGraphPageCheckbox.checked = useTrendGraphPage;
+            }
+            trendGraphState = normalizeTrendGraphState(nextDocumentModel.trendGraph);
             applyThemeLinkedColors('light', currentThemeMode);
             applyThemeLinkedColors('dark', currentThemeMode);
             activePageName = getPageByName('Page1') ? 'Page1' : (documentModel.pages[0].name || 'Page1');
@@ -9428,6 +10228,17 @@ const designSurface = document.getElementById('designSurface');
                 renderProperties();
             });
         }
+        if (trendGraphPageCheckbox) {
+            trendGraphPageCheckbox.addEventListener('change', () => {
+                useTrendGraphPage = !!trendGraphPageCheckbox.checked;
+                documentModel.useTrendGraphPage = useTrendGraphPage;
+                documentModel.trendGraph = exportTrendGraphSettings();
+                if (runtimeRunning) {
+                    renderWidgets();
+                }
+                notifyVisualizationDirty();
+            });
+        }
         if (clearAllVariablesButton) {
             clearAllVariablesButton.addEventListener('click', () => {
                 const resources = getVisualizationResources();
@@ -9626,6 +10437,9 @@ const designSurface = document.getElementById('designSurface');
         useVariableSystem = getStoredVariableSystemEnabled();
         if (variableSystemCheckbox) {
             variableSystemCheckbox.checked = useVariableSystem;
+        }
+        if (trendGraphPageCheckbox) {
+            trendGraphPageCheckbox.checked = useTrendGraphPage;
         }
         loadWebVariables();
         renderVariableList();
