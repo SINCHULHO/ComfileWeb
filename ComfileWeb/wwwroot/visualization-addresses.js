@@ -264,6 +264,7 @@ function syncImportedAddressMetadataFromDocumentModel() {
 window.exportImportedAddressMetadata = exportImportedAddressMetadata;
 window.exportImportedAddressMetadataSourceFileName = exportImportedAddressMetadataSourceFileName;
 window.importSavedAddressMetadata = importSavedAddressMetadata;
+window.getImportedAddressMetadata = getImportedAddressMetadata;
 window.getCfnetAddressComment = getCfnetAddressComment;
 window.exportCfnetAddressComments = exportCfnetAddressComments;
 window.importSavedCfnetAddressComments = importSavedCfnetAddressComments;

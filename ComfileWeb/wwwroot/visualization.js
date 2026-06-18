@@ -2886,6 +2886,8 @@ const designSurface = document.getElementById('designSurface');
 
         function drawTrendGraphChannelLabel(ctx, channel, x, y, width, height, colors) {
             const centerY = y + height / 2;
+            const maxTextWidth = Math.max(20, width - 18);
+            const comment = getTrendGraphChannelComment(channel.address);
             ctx.fillStyle = channel.color;
             ctx.fillRect(x, centerY - 13, 12, 12);
             ctx.fillStyle = colors.text;
@@ -2893,13 +2895,43 @@ const designSurface = document.getElementById('designSurface');
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             const text = String(channel.displayName || channel.address || '');
-            ctx.fillText(truncateCanvasText(ctx, text, Math.max(20, width - 18)), x + 18, centerY - 7);
+            ctx.fillText(truncateCanvasText(ctx, text, maxTextWidth), x + 18, centerY - (comment ? 15 : 7));
+
+            if (comment) {
+                ctx.fillStyle = colors.muted;
+                ctx.font = '11px sans-serif';
+                ctx.fillText(truncateCanvasText(ctx, comment, maxTextWidth), x + 18, centerY + 1);
+            }
 
             if (shouldShowTrendGraphNumericValue(channel.address)) {
                 ctx.fillStyle = colors.muted;
                 ctx.font = '12px sans-serif';
-                ctx.fillText(truncateCanvasText(ctx, getTrendGraphNumericValueText(channel), Math.max(20, width - 18)), x + 18, centerY + 10);
+                ctx.fillText(truncateCanvasText(ctx, getTrendGraphNumericValueText(channel), maxTextWidth), x + 18, centerY + (comment ? 17 : 10));
             }
+        }
+
+        function getTrendGraphChannelComment(address) {
+            const normalizedAddress = normalizeTrendGraphAddress(address);
+            if (!normalizedAddress) {
+                return '';
+            }
+
+            if (typeof window.getCfnetAddressComment === 'function') {
+                const cfnetComment = String(window.getCfnetAddressComment(normalizedAddress) || '').trim();
+                if (cfnetComment) {
+                    return cfnetComment;
+                }
+            }
+
+            if (typeof window.getImportedAddressMetadata === 'function') {
+                const metadata = window.getImportedAddressMetadata(normalizedAddress);
+                const comment = String(metadata?.comment || '').trim();
+                if (comment) {
+                    return comment;
+                }
+            }
+
+            return '';
         }
 
         function truncateCanvasText(ctx, text, maxWidth) {
