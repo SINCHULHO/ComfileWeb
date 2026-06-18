@@ -1904,6 +1904,7 @@
         .runtime-trend-toolbar {
             flex: 0 0 auto;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 8px;
             min-height: 36px;
@@ -1921,7 +1922,7 @@
         }
 
         .runtime-trend-button,
-        .runtime-trend-select {
+        .runtime-trend-option-button {
             height: 28px;
             border: 1px solid var(--button-border);
             border-radius: 5px;
@@ -1931,12 +1932,14 @@
             font-size: 13px;
         }
 
-        .runtime-trend-button {
+        .runtime-trend-button,
+        .runtime-trend-option-button {
             padding: 0 10px;
             cursor: pointer;
         }
 
-        .runtime-trend-button:hover {
+        .runtime-trend-button:hover,
+        .runtime-trend-option-button:hover {
             background: var(--button-hover-bg);
             border-color: var(--button-hover-border);
         }
@@ -1951,13 +1954,35 @@
             background: color-mix(in srgb, #ffc107 22%, var(--button-bg));
         }
 
-        .runtime-trend-select-label {
+        .runtime-trend-option-group {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
+            gap: 5px;
             color: color-mix(in srgb, var(--text) 88%, transparent);
             font-size: 13px;
             white-space: nowrap;
+        }
+
+        .runtime-trend-option-label {
+            font-weight: 600;
+        }
+
+        .runtime-trend-option-buttons {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .runtime-trend-option-button {
+            min-width: 48px;
+            padding: 0 8px;
+        }
+
+        .runtime-trend-option-button.is-selected {
+            border-color: var(--focus);
+            background: color-mix(in srgb, var(--focus) 34%, var(--button-bg));
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent);
+            font-weight: 700;
         }
 
         .runtime-trend-channel-list {

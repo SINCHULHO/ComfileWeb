@@ -99,6 +99,9 @@ const designSurface = document.getElementById('designSurface');
             ldMonitorDocument: null,
             ldMonitorSourceFileName: '',
             font: 'Pretendard',
+            useVariableSystem: false,
+            useTrendGraphPage: false,
+            trendGraph: createDefaultTrendGraphState(),
             pages: [
                 {
                     name: 'Page1',
@@ -366,6 +369,7 @@ const designSurface = document.getElementById('designSurface');
                 sampleIntervalMilliseconds: 250,
                 lastSampleTimestamp: 0,
                 pausedEndTimestamp: 0,
+                cursorTimestamp: 0,
                 channels: []
             };
         }
@@ -376,6 +380,7 @@ const designSurface = document.getElementById('designSurface');
             const displayDuration = Number(source.displayDurationMilliseconds);
             const sampleInterval = Number(source.sampleIntervalMilliseconds);
             const pausedEndTimestamp = Number(source.pausedEndTimestamp);
+            const cursorTimestamp = Number(source.cursorTimestamp);
             state.isRunning = source.isRunning !== false;
             if (Number.isFinite(displayDuration) && displayDuration > 0) {
                 state.displayDurationMilliseconds = displayDuration;
@@ -385,6 +390,9 @@ const designSurface = document.getElementById('designSurface');
             }
             if (!state.isRunning && Number.isFinite(pausedEndTimestamp) && pausedEndTimestamp > 0) {
                 state.pausedEndTimestamp = pausedEndTimestamp;
+            }
+            if (!state.isRunning && Number.isFinite(cursorTimestamp) && cursorTimestamp > 0) {
+                state.cursorTimestamp = cursorTimestamp;
             }
             state.channels = Array.isArray(source.channels)
                 ? source.channels.slice(0, maxTrendGraphChannels).map((channel, index) => normalizeTrendGraphChannel(channel, index)).filter(Boolean)
@@ -400,12 +408,16 @@ const designSurface = document.getElementById('designSurface');
 
             const displayName = String(channel?.displayName || address).trim() || address;
             const color = normalizeCssColor(channel?.color) || trendGraphPalette[index % trendGraphPalette.length];
+            const minValue = Number(channel?.minValue);
+            const maxValue = Number(channel?.maxValue);
             return {
                 address,
                 displayName,
                 kind: getTrendGraphChannelKind(address),
                 color,
                 isVisible: channel?.isVisible !== false,
+                minValue: Number.isFinite(minValue) ? minValue : null,
+                maxValue: Number.isFinite(maxValue) ? maxValue : null,
                 samples: []
             };
         }
@@ -430,14 +442,22 @@ const designSurface = document.getElementById('designSurface');
                 displayDurationMilliseconds: state.displayDurationMilliseconds,
                 sampleIntervalMilliseconds: state.sampleIntervalMilliseconds,
                 pausedEndTimestamp: state.isRunning === false ? state.pausedEndTimestamp : 0,
+                cursorTimestamp: state.isRunning === false ? state.cursorTimestamp : 0,
                 channels: state.channels.map(channel => ({
                     address: channel.address,
                     displayName: channel.displayName,
                     kind: channel.kind,
                     color: channel.color,
-                    isVisible: channel.isVisible !== false
+                    isVisible: channel.isVisible !== false,
+                    minValue: Number.isFinite(Number(channel.minValue)) ? Number(channel.minValue) : null,
+                    maxValue: Number.isFinite(Number(channel.maxValue)) ? Number(channel.maxValue) : null
                 }))
             };
+        }
+
+        function syncTrendGraphDocumentSettings() {
+            documentModel.useTrendGraphPage = useTrendGraphPage;
+            documentModel.trendGraph = exportTrendGraphSettings();
         }
 
         // 웹 변수 저장소 (LocalStorage 연동)
@@ -892,7 +912,20 @@ const designSurface = document.getElementById('designSurface');
             redoStack.length = 0;
             documentModel.version = 1;
             documentModel.deviceConnection = deviceConnection;
+            documentModel.addressMetadata = [];
+            documentModel.addressMetadataSourceFileName = '';
+            documentModel.cfnetAddressComments = [];
+            documentModel.ldMonitorDocument = null;
+            documentModel.ldMonitorSourceFileName = '';
+            documentModel.useVariableSystem = useVariableSystem;
+            useTrendGraphPage = false;
+            documentModel.useTrendGraphPage = false;
+            trendGraphState = createDefaultTrendGraphState();
+            documentModel.trendGraph = exportTrendGraphSettings();
             documentModel.pages = [createVisualizationPage('Page1')];
+            if (trendGraphPageCheckbox) {
+                trendGraphPageCheckbox.checked = false;
+            }
             activePageName = 'Page1';
             selectedWidgetId = null;
             selectedWidgetIds = [];
@@ -2412,13 +2445,13 @@ const designSurface = document.getElementById('designSurface');
             });
             toolbar.appendChild(clearButton);
 
-            toolbar.appendChild(createTrendGraphSelect(useKoreanLanguage ? '표시 시간' : 'Display Time', 'displayDurationMilliseconds', [
+            toolbar.appendChild(createTrendGraphOptionButtons(useKoreanLanguage ? '표시 시간' : 'Display Time', 'displayDurationMilliseconds', [
                 ['10000', '10s'],
                 ['30000', '30s'],
                 ['60000', '1m'],
                 ['300000', '5m']
             ]));
-            toolbar.appendChild(createTrendGraphSelect(useKoreanLanguage ? '샘플 주기' : 'Sampling', 'sampleIntervalMilliseconds', [
+            toolbar.appendChild(createTrendGraphOptionButtons(useKoreanLanguage ? '샘플 주기' : 'Sampling', 'sampleIntervalMilliseconds', [
                 ['100', '100ms'],
                 ['250', '250ms'],
                 ['500', '500ms'],
@@ -2435,6 +2468,7 @@ const designSurface = document.getElementById('designSurface');
             const canvas = document.createElement('canvas');
             canvas.className = 'runtime-trend-canvas';
             canvas.dataset.trendCanvas = 'true';
+            canvas.addEventListener('pointerdown', handleTrendGraphCanvasPointer);
             graphWrap.appendChild(canvas);
 
             trendPage.appendChild(toolbar);
@@ -2449,6 +2483,33 @@ const designSurface = document.getElementById('designSurface');
         function stopRuntimeTrendPagePointerEvent(event) {
             event.preventDefault();
             event.stopPropagation();
+        }
+
+        function handleTrendGraphCanvasPointer(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (trendGraphState.isRunning !== false) {
+                return;
+            }
+
+            const canvas = event.currentTarget;
+            const rect = canvas.getBoundingClientRect();
+            const visibleChannels = (trendGraphState.channels || []).filter(channel => channel.isVisible !== false);
+            if (visibleChannels.length === 0 || rect.width <= 0) {
+                return;
+            }
+
+            const labelWidth = Math.min(130, Math.max(78, rect.width * 0.18));
+            const plotLeft = labelWidth;
+            const plotWidth = Math.max(1, rect.width - labelWidth - 10);
+            const x = Math.max(plotLeft, Math.min(plotLeft + plotWidth, event.clientX - rect.left));
+            const endTime = getTrendGraphEndTimestamp(Date.now(), visibleChannels);
+            const startTime = endTime - trendGraphState.displayDurationMilliseconds;
+            const ratio = (x - plotLeft) / plotWidth;
+            trendGraphState.cursorTimestamp = startTime + (Math.max(0, Math.min(1, ratio)) * (endTime - startTime));
+            syncTrendGraphDocumentSettings();
+            notifyVisualizationDirty();
+            renderTrendGraphCanvas();
         }
 
         function getTrendGraphRunButtonText() {
@@ -2474,36 +2535,56 @@ const designSurface = document.getElementById('designSurface');
             trendGraphState.pausedEndTimestamp = nextRunning
                 ? 0
                 : getTrendGraphEndTimestamp(Date.now(), (trendGraphState.channels || []).filter(channel => channel.isVisible !== false));
-            documentModel.trendGraph = exportTrendGraphSettings();
+            if (nextRunning) {
+                trendGraphState.cursorTimestamp = 0;
+            }
+            syncTrendGraphDocumentSettings();
             notifyVisualizationDirty();
             updateTrendGraphRunButton();
             renderTrendGraphCanvas();
         }
 
-        function createTrendGraphSelect(labelText, propertyName, options) {
-            const label = document.createElement('label');
-            label.className = 'runtime-trend-select-label';
-            label.textContent = `${labelText}: `;
+        function createTrendGraphOptionButtons(labelText, propertyName, options) {
+            const group = document.createElement('div');
+            group.className = 'runtime-trend-option-group';
 
-            const select = document.createElement('select');
-            select.className = 'runtime-trend-select';
+            const label = document.createElement('span');
+            label.className = 'runtime-trend-option-label';
+            label.textContent = `${labelText}:`;
+            group.appendChild(label);
+
+            const buttons = document.createElement('div');
+            buttons.className = 'runtime-trend-option-buttons';
             options.forEach(([value, text]) => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = text;
-                select.appendChild(option);
-            });
-            select.value = String(trendGraphState[propertyName]);
-            select.addEventListener('pointerdown', event => event.stopPropagation());
-            select.addEventListener('change', () => {
-                trendGraphState[propertyName] = Number(select.value);
-                documentModel.trendGraph = exportTrendGraphSettings();
-                notifyVisualizationDirty();
-                renderTrendGraphCanvas();
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'runtime-trend-option-button';
+                button.textContent = text;
+                button.setAttribute('aria-pressed', String(Number(trendGraphState[propertyName]) === Number(value)));
+                button.classList.toggle('is-selected', Number(trendGraphState[propertyName]) === Number(value));
+                button.addEventListener('pointerdown', stopRuntimeTrendPagePointerEvent);
+                button.addEventListener('pointerup', event => {
+                    stopRuntimeTrendPagePointerEvent(event);
+                    trendGraphState[propertyName] = Number(value);
+                    trendGraphState.lastSampleTimestamp = 0;
+                    if (trendGraphState.isRunning === false) {
+                        trendGraphState.pausedEndTimestamp = getTrendGraphEndTimestamp(Date.now(), (trendGraphState.channels || []).filter(channel => channel.isVisible !== false));
+                        trendGraphState.cursorTimestamp = 0;
+                    }
+                    syncTrendGraphDocumentSettings();
+                    notifyVisualizationDirty();
+                    buttons.querySelectorAll('.runtime-trend-option-button').forEach(item => {
+                        const selected = item === button;
+                        item.classList.toggle('is-selected', selected);
+                        item.setAttribute('aria-pressed', String(selected));
+                    });
+                    renderTrendGraphCanvas();
+                });
+                buttons.appendChild(button);
             });
 
-            label.appendChild(select);
-            return label;
+            group.appendChild(buttons);
+            return group;
         }
 
         function addTrendGraphChannelFromUserInput() {
@@ -2550,10 +2631,12 @@ const designSurface = document.getElementById('designSurface');
                 kind: getTrendGraphChannelKind(normalizedAddress),
                 color: trendGraphPalette[trendGraphState.channels.length % trendGraphPalette.length],
                 isVisible: true,
+                minValue: null,
+                maxValue: null,
                 samples: []
             });
             trendGraphState = normalizeTrendGraphState(trendGraphState);
-            documentModel.trendGraph = exportTrendGraphSettings();
+            syncTrendGraphDocumentSettings();
             addRuntimeTrendGraphAddress(normalizedAddress);
             addImmediateTrendGraphSample(normalizedAddress);
             notifyVisualizationDirty();
@@ -2581,6 +2664,7 @@ const designSurface = document.getElementById('designSurface');
                 channel.samples = [];
             }
             channel.samples.push({ timestamp: Date.now(), value });
+            updateTrendGraphChannelRange(channel, value);
             pruneTrendGraphSamples(Date.now());
         }
 
@@ -2598,8 +2682,14 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function clearTrendGraphSamples() {
-            (trendGraphState.channels || []).forEach(channel => channel.samples = []);
+            (trendGraphState.channels || []).forEach(channel => {
+                channel.samples = [];
+                channel.minValue = null;
+                channel.maxValue = null;
+            });
             trendGraphState.lastSampleTimestamp = 0;
+            trendGraphState.cursorTimestamp = 0;
+            syncTrendGraphDocumentSettings();
             renderTrendGraphCanvas();
         }
 
@@ -2628,7 +2718,7 @@ const designSurface = document.getElementById('designSurface');
                 visible.addEventListener('pointerdown', event => event.stopPropagation());
                 visible.addEventListener('change', () => {
                     channel.isVisible = visible.checked;
-                    documentModel.trendGraph = exportTrendGraphSettings();
+                    syncTrendGraphDocumentSettings();
                     notifyVisualizationDirty();
                     renderTrendGraphCanvas();
                 });
@@ -2652,7 +2742,7 @@ const designSurface = document.getElementById('designSurface');
                 removeButton.addEventListener('pointerup', event => {
                     stopRuntimeTrendPagePointerEvent(event);
                     trendGraphState.channels.splice(index, 1);
-                    documentModel.trendGraph = exportTrendGraphSettings();
+                    syncTrendGraphDocumentSettings();
                     notifyVisualizationDirty();
                     renderTrendGraphChannelList();
                     renderTrendGraphCanvas();
@@ -2710,6 +2800,7 @@ const designSurface = document.getElementById('designSurface');
             const plotLeft = labelWidth;
             const plotWidth = Math.max(1, width - labelWidth - 10);
             const laneHeight = Math.max(32, height / visibleChannels.length);
+            const laneInfos = [];
 
             visibleChannels.forEach((channel, index) => {
                 const laneTop = index * laneHeight;
@@ -2720,6 +2811,7 @@ const designSurface = document.getElementById('designSurface');
                     width: plotWidth,
                     height: Math.max(1, laneBottom - laneTop - 12)
                 };
+                laneInfos.push({ channel, bounds: laneBounds });
 
                 drawTrendGraphChannelLabel(ctx, channel, 6, laneTop, labelWidth - 12, laneBottom - laneTop, colors);
                 ctx.strokeStyle = colors.separator;
@@ -2735,6 +2827,8 @@ const designSurface = document.getElementById('designSurface');
                     drawTrendGraphDataChannel(ctx, channel, laneBounds, startTime, endTime, colors);
                 }
             });
+
+            drawTrendGraphCursor(ctx, laneInfos, startTime, endTime, plotLeft, plotWidth, height, colors);
         }
 
         function getTrendGraphCanvasColors() {
@@ -2744,7 +2838,10 @@ const designSurface = document.getElementById('designSurface');
                 grid: currentThemeMode === 'light' ? '#e2e6ef' : '#27303b',
                 separator: currentThemeMode === 'light' ? '#cfd5df' : '#343d4a',
                 text: styles.getPropertyValue('--text').trim() || (currentThemeMode === 'light' ? '#111827' : '#e5e7eb'),
-                muted: styles.getPropertyValue('--property-muted').trim() || '#8b95a1'
+                muted: styles.getPropertyValue('--property-muted').trim() || '#8b95a1',
+                cursor: currentThemeMode === 'light' ? '#111827' : '#f8fafc',
+                cursorBackground: currentThemeMode === 'light' ? 'rgba(255, 255, 255, 0.92)' : 'rgba(0, 0, 0, 0.78)',
+                cursorText: currentThemeMode === 'light' ? '#111827' : '#ffffff'
             };
         }
 
@@ -2859,8 +2956,8 @@ const designSurface = document.getElementById('designSurface');
                 return;
             }
 
-            let min = Math.min(...values);
-            let max = Math.max(...values);
+            let min = Number.isFinite(Number(channel.minValue)) ? Number(channel.minValue) : Math.min(...values);
+            let max = Number.isFinite(Number(channel.maxValue)) ? Number(channel.maxValue) : Math.max(...values);
             if (Math.abs(max - min) < 0.000001) {
                 min -= 1;
                 max += 1;
@@ -2879,8 +2976,7 @@ const designSurface = document.getElementById('designSurface');
             ctx.beginPath();
             samples.forEach((sample, index) => {
                 const x = timeToTrendGraphX(sample.timestamp, startTime, endTime, bounds);
-                const ratio = (Number(sample.value) - min) / (max - min);
-                const y = bounds.top + bounds.height - (Math.max(0, Math.min(1, ratio)) * bounds.height);
+                const y = getTrendGraphDataY(channel, Number(sample.value), bounds);
                 if (index === 0) {
                     ctx.moveTo(x, y);
                 } else {
@@ -2888,6 +2984,144 @@ const designSurface = document.getElementById('designSurface');
                 }
             });
             ctx.stroke();
+        }
+
+        function drawTrendGraphCursor(ctx, laneInfos, startTime, endTime, plotLeft, plotWidth, height, colors) {
+            if (trendGraphState.isRunning !== false || !Number.isFinite(Number(trendGraphState.cursorTimestamp))) {
+                return;
+            }
+
+            const timestamp = Number(trendGraphState.cursorTimestamp);
+            if (timestamp < startTime || timestamp > endTime) {
+                return;
+            }
+
+            const x = timeToTrendGraphX(timestamp, startTime, endTime, { left: plotLeft, width: plotWidth });
+            ctx.save();
+            ctx.strokeStyle = colors.cursor || '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(Math.round(x) + 0.5, 0);
+            ctx.lineTo(Math.round(x) + 0.5, height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            const values = laneInfos
+                .map(info => ({ info, sample: getTrendGraphSampleAtTimestamp(info.channel, timestamp) }))
+                .filter(item => item.sample);
+            if (values.length === 0) {
+                ctx.restore();
+                return;
+            }
+
+            ctx.font = '12px sans-serif';
+            ctx.textBaseline = 'middle';
+            values.forEach(({ info, sample }) => {
+                const text = formatTrendGraphCursorValue(info.channel, sample.value);
+                const textWidth = Math.ceil(ctx.measureText(text).width);
+                const boxWidth = Math.min(92, Math.max(44, textWidth + 14));
+                const boxHeight = 22;
+                const preferRight = x + boxWidth + 10 <= plotLeft + plotWidth;
+                const boxX = preferRight ? x + 6 : x - boxWidth - 6;
+                const numericValue = Number(sample.value);
+                const y = info.channel.kind === 'Bit'
+                    ? (Math.abs(numericValue) > 0.000001 ? info.bounds.top + Math.max(3, info.bounds.height * 0.18) : info.bounds.top + Math.max(3, info.bounds.height * 0.82))
+                    : getTrendGraphDataY(info.channel, numericValue, info.bounds);
+                const boxY = Math.max(info.bounds.top, Math.min(info.bounds.top + info.bounds.height - boxHeight, y - boxHeight / 2));
+                ctx.fillStyle = colors.cursorBackground || 'rgba(0, 0, 0, 0.78)';
+                ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+                ctx.strokeStyle = info.channel.color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxWidth - 1, boxHeight - 1);
+                ctx.fillStyle = colors.cursorText || '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.fillText(text, boxX + boxWidth / 2, boxY + boxHeight / 2);
+            });
+            drawTrendGraphCursorTime(ctx, x, timestamp, plotLeft, plotWidth, height, colors);
+            ctx.restore();
+        }
+
+        function drawTrendGraphCursorTime(ctx, x, timestamp, plotLeft, plotWidth, height, colors) {
+            const text = formatTrendGraphCursorTime(timestamp);
+            ctx.font = '12px sans-serif';
+            ctx.textBaseline = 'middle';
+            const textWidth = Math.ceil(ctx.measureText(text).width);
+            const boxWidth = Math.min(150, Math.max(78, textWidth + 14));
+            const boxHeight = 22;
+            const minX = plotLeft;
+            const maxX = plotLeft + plotWidth - boxWidth;
+            const boxX = Math.max(minX, Math.min(maxX, x - boxWidth / 2));
+            const boxY = Math.max(0, height - boxHeight - 4);
+            ctx.fillStyle = colors.cursorBackground || 'rgba(0, 0, 0, 0.78)';
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+            ctx.strokeStyle = colors.cursor || '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxWidth - 1, boxHeight - 1);
+            ctx.fillStyle = colors.cursorText || '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, boxX + boxWidth / 2, boxY + boxHeight / 2);
+        }
+
+        function formatTrendGraphCursorTime(timestamp) {
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) {
+                return '-';
+            }
+
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+            return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+        }
+
+        function getTrendGraphSampleAtTimestamp(channel, timestamp) {
+            const samples = Array.isArray(channel?.samples) ? channel.samples : [];
+            if (samples.length === 0) {
+                return null;
+            }
+
+            let nearest = null;
+            let nearestDistance = Number.POSITIVE_INFINITY;
+            samples.forEach(sample => {
+                const sampleTime = Number(sample.timestamp);
+                if (!Number.isFinite(sampleTime)) {
+                    return;
+                }
+
+                const distance = Math.abs(sampleTime - timestamp);
+                if (distance < nearestDistance) {
+                    nearest = sample;
+                    nearestDistance = distance;
+                }
+            });
+            return nearest;
+        }
+
+        function formatTrendGraphCursorValue(channel, value) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return '-';
+            }
+
+            if (channel?.kind === 'Bit') {
+                return Math.abs(numericValue) > 0.000001 ? 'ON' : 'OFF';
+            }
+
+            return numericValue.toLocaleString(undefined, { maximumFractionDigits: 3 });
+        }
+
+        function getTrendGraphDataY(channel, value, bounds) {
+            let min = Number.isFinite(Number(channel.minValue)) ? Number(channel.minValue) : value;
+            let max = Number.isFinite(Number(channel.maxValue)) ? Number(channel.maxValue) : value;
+            if (Math.abs(max - min) < 0.000001) {
+                min -= 1;
+                max += 1;
+            }
+
+            const ratio = (value - min) / (max - min);
+            return bounds.top + bounds.height - (Math.max(0, Math.min(1, ratio)) * bounds.height);
         }
 
         function getTrendGraphVisibleSamples(channel, startTime, endTime) {
@@ -7671,6 +7905,7 @@ const designSurface = document.getElementById('designSurface');
                     channel.samples = [];
                 }
                 channel.samples.push({ timestamp: now, value });
+                updateTrendGraphChannelRange(channel, value);
                 hasSample = true;
             });
 
@@ -7693,6 +7928,18 @@ const designSurface = document.getElementById('designSurface');
 
                 channel.samples = channel.samples.filter(sample => sample && Number(sample.timestamp) >= cutoff);
             });
+        }
+
+        function updateTrendGraphChannelRange(channel, value) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return;
+            }
+
+            const currentMin = Number(channel.minValue);
+            const currentMax = Number(channel.maxValue);
+            channel.minValue = Number.isFinite(currentMin) ? Math.min(currentMin, numericValue) : numericValue;
+            channel.maxValue = Number.isFinite(currentMax) ? Math.max(currentMax, numericValue) : numericValue;
         }
 
         function requestTrendGraphRender() {
@@ -8538,8 +8785,7 @@ const designSurface = document.getElementById('designSurface');
             }
             // 변수 시스템 설정 저장
             documentModel.useVariableSystem = useVariableSystem;
-            documentModel.useTrendGraphPage = useTrendGraphPage;
-            documentModel.trendGraph = exportTrendGraphSettings();
+            syncTrendGraphDocumentSettings();
             return JSON.stringify(documentModel);
         }
 
@@ -8588,6 +8834,7 @@ const designSurface = document.getElementById('designSurface');
                 trendGraphPageCheckbox.checked = useTrendGraphPage;
             }
             trendGraphState = normalizeTrendGraphState(nextDocumentModel.trendGraph);
+            syncTrendGraphDocumentSettings();
             applyThemeLinkedColors('light', currentThemeMode);
             applyThemeLinkedColors('dark', currentThemeMode);
             activePageName = getPageByName('Page1') ? 'Page1' : (documentModel.pages[0].name || 'Page1');
@@ -10231,8 +10478,7 @@ const designSurface = document.getElementById('designSurface');
         if (trendGraphPageCheckbox) {
             trendGraphPageCheckbox.addEventListener('change', () => {
                 useTrendGraphPage = !!trendGraphPageCheckbox.checked;
-                documentModel.useTrendGraphPage = useTrendGraphPage;
-                documentModel.trendGraph = exportTrendGraphSettings();
+                syncTrendGraphDocumentSettings();
                 if (runtimeRunning) {
                     renderWidgets();
                 }
