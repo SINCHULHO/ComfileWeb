@@ -6,6 +6,10 @@ using ComfileWeb.Models;
 using ComfileWeb.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+// 외부 네트워크에서 접속 가능하도록 모든 인터페이스에 바인드
+// 개발용 HTTPS 포트(launchSettings.json의 7261)도 함께 바인드하여
+// Visual Studio가 기다리는 HTTPS 엔드포인트가 열리도록 함.
+builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://localhost:7261");
 builder.Services.AddSingleton<ProjectStorageService>();
 builder.Services.AddSingleton<UsbCdcService>();
 builder.Services.AddSingleton<VisualizationRuntimeService>();
@@ -334,9 +338,9 @@ cfnetApi.MapPost("/disconnect", (CfnetAddressRequest? request, ILoggerFactory lo
 });
 
 const string applicationUrl = "http://localhost:5000";
-bool isDevelopment = app.Environment.IsDevelopment();
-
-if (!isDevelopment)
+// 앱은 UseUrls로 바인드 주소를 설정하므로 항상 Run()을 호출합니다.
+// 비개발(프로덕션) 환경에서는 여전히 기본 브라우저를 열기 위해 applicationUrl을 사용합니다.
+if (!app.Environment.IsDevelopment())
 {
     app.Lifetime.ApplicationStarted.Register(() =>
     {
@@ -354,14 +358,7 @@ if (!isDevelopment)
     });
 }
 
-if (isDevelopment)
-{
-    app.Run();
-}
-else
-{
-    app.Run(applicationUrl);
-}
+app.Run();
 
 static Cfheader GetCfheader(int? requestedAddress)
 {
