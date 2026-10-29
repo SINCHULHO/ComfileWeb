@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- 배포 버전과 빌드번호는 이 파일에서 관리한다. -->
     <ComfileWebVersion>0.9</ComfileWebVersion>
-    <ComfileWebBuild>1932</ComfileWebBuild>
+    <ComfileWebBuild>1933</ComfileWebBuild>
     <Version>$(ComfileWebVersion).$(ComfileWebBuild)</Version>
   </PropertyGroup>
 </Project>

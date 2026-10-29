@@ -11,7 +11,20 @@ if (args.Contains("--mcp", StringComparer.Ordinal))
     return;
 }
 
-var builder = WebApplication.CreateBuilder(args);
+// 테스트와 백그라운드 실행에서만 브라우저 자동 열기를 명시적으로 끈다.
+var openBrowser = !args.Contains("--no-browser", StringComparer.Ordinal);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args.Where(arg => arg != "--no-browser").ToArray(),
+    // 실행 위치가 달라도 게시된 웹 파일은 실행 파일 옆에서 찾는다.
+    ContentRootPath = Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")) ? AppContext.BaseDirectory : null
+});
+var browserUrl = BrowserStartup.GetBrowserUrl(builder.Configuration["urls"]);
+if (openBrowser && await BrowserStartup.IsExistingInstanceAsync(browserUrl))
+{
+    BrowserStartup.Open(browserUrl);
+    return;
+}
 // 명시된 주소를 우선하며, 설치본에는 개발용 HTTPS 인증서를 요구하지 않는다.
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
 {
@@ -390,25 +403,10 @@ cfnetApi.MapPost("/disconnect", (CfnetAddressRequest? request, ILoggerFactory lo
     }
 });
 
-const string applicationUrl = "http://localhost:5000";
-// 앱은 UseUrls로 바인드 주소를 설정하므로 항상 Run()을 호출합니다.
-// 비개발(프로덕션) 환경에서는 여전히 기본 브라우저를 열기 위해 applicationUrl을 사용합니다.
-if (!app.Environment.IsDevelopment())
+// 개발 환경에서도 실행 파일 자체가 브라우저를 열며, IDE의 중복 열기는 끈다.
+if (openBrowser)
 {
-    app.Lifetime.ApplicationStarted.Register(() =>
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = applicationUrl,
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
-        }
-    });
+    app.Lifetime.ApplicationStarted.Register(() => BrowserStartup.Open(browserUrl));
 }
 
 app.Run();

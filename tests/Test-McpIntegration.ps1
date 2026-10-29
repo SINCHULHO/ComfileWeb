@@ -39,7 +39,7 @@ function Read-Socket {
 }
 $web = $null; $rpc = $null; $socket = $null
 try {
-    $web = Start-TestProcess "`"$dll`" --urls $base --contentRoot `"$(Join-Path $root 'ComfileWeb')`""
+    $web = Start-TestProcess "`"$dll`" --no-browser --urls $base --contentRoot `"$(Join-Path $root 'ComfileWeb')`""
     $webLog = $web.StandardOutput.ReadToEndAsync()
     $webErr = $web.StandardError.ReadToEndAsync()
     for ($i = 0; $i -lt 60; $i++) {
