@@ -196,7 +196,10 @@ public sealed class VisualizationRuntimeService
                             ? Math.Clamp(cfheaderAddressElement.GetInt32(), 0, 7)
                             : 0;
 
-                        if (!_usbCdc.IsConnected)
+                        bool isCfnet = _cfnetEntries.Count > 0
+                            || (usbCdc.TryGetProperty("device", out JsonElement deviceElement)
+                                && string.Equals(deviceElement.GetString(), "CFNET", StringComparison.OrdinalIgnoreCase));
+                        if (!isCfnet && !_usbCdc.IsConnected)
                         {
                             if (string.IsNullOrWhiteSpace(requestedPort))
                             {

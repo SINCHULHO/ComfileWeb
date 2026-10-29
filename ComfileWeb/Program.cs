@@ -411,7 +411,6 @@ cfnetApi.MapPost("/scan-modules", (CfnetAddressRequest? request, ILoggerFactory 
         try
         {
             var cfheader0 = GetCfheader(request?.Address);
-            bool wasOpen = cfheader0.IsOpen;
             if (!cfheader0.IsOpen)
             {
                 cfheader0.Open();
@@ -441,14 +440,9 @@ cfnetApi.MapPost("/scan-modules", (CfnetAddressRequest? request, ILoggerFactory 
                 .ThenBy(module => module.type)
                 .ToArray();
 
-            if (!wasOpen && cfheader0.IsOpen)
-            {
-                cfheader0.Close();
-            }
-
             return Results.Ok(new
             {
-                isConnected = true,
+                isConnected = cfheader0.IsOpen,
                 address = cfheader0.Address,
                 modules
             });

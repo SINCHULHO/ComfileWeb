@@ -645,23 +645,15 @@ async function checkCubloc2Connection() {
     }
 }
 
-async function connectCfnetAndScanModules() {
+async function connectCfnetAndScanModules(forRuntimeStart = false) {
     if (!isCfnetFieldIoSelected()) {
+        if (forRuntimeStart) {
+            alert(useKoreanLanguage ? '실행할 수 없습니다. 연결 설정에서 CFNET 장치를 선택하세요.' : 'Cannot start runtime. Select the CFNET device in connection settings.');
+        }
         return false;
     }
 
     try {
-        if (usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk) {
-            const response = await fetch('/api/cfnet/disconnect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ address: getSelectedCfheaderAddress() })
-            });
-            if (!response.ok) {
-                throw new Error(`CFNET disconnect failed: ${response.status}`);
-            }
-        }
-
         cfnetConnectionInProgress = true;
         clearCfnetDetectedModules();
         updateUsbConnectionUi({
@@ -680,6 +672,9 @@ async function connectCfnetAndScanModules() {
         }
 
         const payload = await response.json();
+        if (!payload?.isConnected) {
+            throw new Error(payload?.detail || 'CFNET connection is not open.');
+        }
         cfnetConnectionInProgress = false;
         renderCfnetDetectedModules(payload?.modules);
         updateUsbConnectionUi({
@@ -699,7 +694,10 @@ async function connectCfnetAndScanModules() {
             testOk: false,
             testPortName: ''
         });
-        alert(useKoreanLanguage ? 'CFNET 모듈 감지에 실패했습니다.' : 'CFNET module scan failed.');
+        const message = forRuntimeStart
+            ? (useKoreanLanguage ? '실행할 수 없습니다. CFNET 연결 또는 모듈 감지에 실패했습니다. 장치 전원, USB 연결 및 CFHEADER 주소를 확인하세요.' : 'Cannot start runtime. CFNET connection or module detection failed. Check device power, the USB connection, and the CFHEADER address.')
+            : (useKoreanLanguage ? 'CFNET 모듈 감지에 실패했습니다.' : 'CFNET module scan failed.');
+        alert(`${message}\n\n${error instanceof Error ? error.message : String(error)}`);
         await loadUsbCdcPorts('');
         return false;
     }

@@ -8057,14 +8057,18 @@ const designSurface = document.getElementById('designSurface');
                 && !(usbCdcConnectionState?.isConnected || usbCdcConnectionState?.testOk)) {
                 const shouldConnect = confirm(useKoreanLanguage ? 'CFNET에 연결하시겠습니까?' : 'Connect to CFNET?');
                 if (!shouldConnect) {
+                    alert(useKoreanLanguage ? '실행이 취소되었습니다. CFNET 장치가 연결되지 않았습니다. 장치를 연결한 뒤 다시 실행하세요.' : 'Runtime start canceled. The CFNET device is not connected. Connect the device and try again.');
                     return;
                 }
 
                 if (typeof window.connectCfnetAndScanModules === 'function') {
-                    const connected = await window.connectCfnetAndScanModules();
+                    const connected = await window.connectCfnetAndScanModules(true);
                     if (!connected) {
                         return;
                     }
+                } else {
+                    alert(useKoreanLanguage ? '실행할 수 없습니다. CFNET 연결 기능을 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.' : 'Cannot start runtime. CFNET connection support failed to load. Refresh the page and try again.');
+                    return;
                 }
             }
 
