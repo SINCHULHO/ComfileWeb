@@ -350,7 +350,8 @@ const designSurface = document.getElementById('designSurface');
                 action: 'Action'
             }
         };
-        let useKoreanLanguage = true;
+        let useKoreanLanguage = getStoredLanguageMode() === 'ko';
+        window.comfileWebUseKoreanLanguage = useKoreanLanguage;
         let currentThemeMode = 'dark';
         let useVariableSystem = false;
         let useTrendGraphPage = false;
@@ -471,10 +472,10 @@ const designSurface = document.getElementById('designSurface');
         function getStoredLanguageMode() {
             try {
                 const value = localStorage.getItem(languagePreferenceStorageKey);
-                return value === 'en' ? 'en' : 'ko';
+                if (value === 'en' || value === 'ko') return value;
             } catch {
-                return 'ko';
             }
+            return (window.comfileWebSystemLanguage || navigator.language || 'en').toLowerCase().startsWith('ko') ? 'ko' : 'en';
         }
 
         function storeLanguageMode(useKorean) {
@@ -1052,20 +1053,20 @@ const designSurface = document.getElementById('designSurface');
             }
 
             const defaultName = getNextPageName();
-            const input = window.prompt('새 페이지 이름을 입력하세요.', defaultName);
+            const input = window.prompt(useKoreanLanguage ? '새 페이지 이름을 입력하세요.' : 'Enter a name for the new page.', defaultName);
             if (input === null) {
                 return;
             }
 
             const pageName = String(input).trim();
             if (!pageName) {
-                window.alert('페이지 이름을 입력하세요.');
+                window.alert(useKoreanLanguage ? '페이지 이름을 입력하세요.' : 'Enter a page name.');
                 return;
             }
 
             normalizeVisualizationDocumentPages();
             if (getPageByName(pageName)) {
-                window.alert('같은 이름의 페이지가 이미 있습니다.');
+                window.alert(useKoreanLanguage ? '같은 이름의 페이지가 이미 있습니다.' : 'A page with this name already exists.');
                 return;
             }
 
@@ -1086,7 +1087,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             const oldName = String(pageName || activePageName || 'Page1').trim();
-            const input = window.prompt('페이지 이름을 입력하세요.', oldName);
+            const input = window.prompt(useKoreanLanguage ? '페이지 이름을 입력하세요.' : 'Enter a page name.', oldName);
             if (input === null) {
                 return;
             }
@@ -1098,7 +1099,7 @@ const designSurface = document.getElementById('designSurface');
 
             normalizeVisualizationDocumentPages();
             if (documentModel.pages.some(page => String(page.name || '') === nextName)) {
-                window.alert('같은 이름의 페이지가 이미 있습니다.');
+                window.alert(useKoreanLanguage ? '같은 이름의 페이지가 이미 있습니다.' : 'A page with this name already exists.');
                 return;
             }
 
@@ -1118,11 +1119,11 @@ const designSurface = document.getElementById('designSurface');
 
             normalizeVisualizationDocumentPages();
             if (documentModel.pages.length <= 1) {
-                window.alert('최소 한 개의 페이지는 필요합니다.');
+                window.alert(useKoreanLanguage ? '최소 한 개의 페이지는 필요합니다.' : 'At least one page is required.');
                 return;
             }
 
-            if (!window.confirm(`'${name}' 페이지를 삭제하시겠습니까?`)) {
+            if (!window.confirm(useKoreanLanguage ? `'${name}' 페이지를 삭제하시겠습니까?` : `Delete page '${name}'?`)) {
                 return;
             }
 
@@ -1149,10 +1150,10 @@ const designSurface = document.getElementById('designSurface');
                 title.className = 'project-tree-context-menu-title';
                 title.textContent = targetPageName;
                 menu.appendChild(title);
-                appendProjectTreeMenuItem(menu, '이름 변경', () => renameProjectTreePage(targetPageName));
-                appendProjectTreeMenuItem(menu, '삭제', () => deleteProjectTreePage(targetPageName), documentModel.pages.length <= 1);
+                appendProjectTreeMenuItem(menu, useKoreanLanguage ? '이름 변경' : 'Rename', () => renameProjectTreePage(targetPageName));
+                appendProjectTreeMenuItem(menu, useKoreanLanguage ? '삭제' : 'Delete', () => deleteProjectTreePage(targetPageName), documentModel.pages.length <= 1);
             } else {
-                appendProjectTreeMenuItem(menu, '페이지 추가', () => addProjectTreePage());
+                appendProjectTreeMenuItem(menu, useKoreanLanguage ? '페이지 추가' : 'Add page', () => addProjectTreePage());
             }
 
             document.body.appendChild(menu);
@@ -1518,7 +1519,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             deployWebServerButton.disabled = deployServerStarting;
-            deployWebServerButton.textContent = deployServerStarting ? '배포중...' : '웹서버 배포';
+            deployWebServerButton.textContent = deployServerStarting ? (useKoreanLanguage ? '배포중...' : 'Deploying...') : (useKoreanLanguage ? '웹서버 배포' : 'Deploy web server');
         }
 
         function onVisualizationDeployServerResult(result) {
@@ -1593,7 +1594,7 @@ const designSurface = document.getElementById('designSurface');
                 }
 
                 if (!window.chrome || !window.chrome.webview) {
-                    alert('웹서버 배포는 CUBLOC2 Studio 환경에서만 실행할 수 있습니다.');
+                    alert(useKoreanLanguage ? '웹서버 배포는 CUBLOC2 Studio 환경에서만 실행할 수 있습니다.' : 'Web server deployment is only available in CUBLOC2 Studio.');
                     closeDialog();
                     return;
                 }
@@ -6555,16 +6556,16 @@ const designSurface = document.getElementById('designSurface');
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
                 event.preventDefault();
                 if (event.shiftKey) {
-                    window.alert('이 화면에서는 Ctrl+Shift+S를 사용할 수 없습니다. 상단 툴바의 Save As 메뉴를 사용해 주세요.');
+                    window.alert(useKoreanLanguage ? '이 화면에서는 Ctrl+Shift+S를 사용할 수 없습니다. 상단 툴바의 Save As 메뉴를 사용해 주세요.' : 'Ctrl+Shift+S is unavailable here. Use Save As in the toolbar.');
                 } else {
-                    window.alert('이 화면에서는 Ctrl+S를 사용할 수 없습니다. 상단 툴바의 디스크 아이콘을 눌러 저장해 주세요.');
+                    window.alert(useKoreanLanguage ? '이 화면에서는 Ctrl+S를 사용할 수 없습니다. 상단 툴바의 디스크 아이콘을 눌러 저장해 주세요.' : 'Ctrl+S is unavailable here. Use Save in the toolbar.');
                 }
                 return;
             }
 
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r') {
                 event.preventDefault();
-                window.alert('이 화면에서는 Ctrl+R을 사용할 수 없습니다. 상단 툴바의 다운로드 아이콘을 눌러 실행해 주세요.');
+                window.alert(useKoreanLanguage ? '이 화면에서는 Ctrl+R을 사용할 수 없습니다. 상단 툴바의 다운로드 아이콘을 눌러 실행해 주세요.' : 'Ctrl+R is unavailable here. Use Run in the toolbar.');
                 return;
             }
 
@@ -7145,6 +7146,13 @@ const designSurface = document.getElementById('designSurface');
         }
 
         function getNumberUnitOptions() {
+            if (!useKoreanLanguage) return [
+                ['', 'None'], ['°C', 'Celsius (°C)'], ['°F', 'Fahrenheit (°F)'], ['%', 'Percent (%)'],
+                ['bar', 'Pressure (bar)'], ['kPa', 'Pressure (kPa)'], ['MPa', 'Pressure (MPa)'],
+                ['V', 'Voltage (V)'], ['A', 'Current (A)'], ['mA', 'Current (mA)'], ['Hz', 'Frequency (Hz)'],
+                ['rpm', 'Speed (rpm)'], ['mm', 'Length (mm)'], ['L/min', 'Flow (L/min)'], ['m³/h', 'Flow (m³/h)'],
+                ['ms', 'Time (ms)'], ['s', 'Time (s)']
+            ].map(([value, label]) => ({ value, label }));
             return [
                 { value: '', label: '없음' },
                 { value: '°C', label: '섭씨 (°C)' },
@@ -8015,7 +8023,12 @@ const designSurface = document.getElementById('designSurface');
             }
             updateRuntimeButtons();
             if (payload && payload.error) {
-                const nextError = String(payload.error || '');
+                const originalError = String(payload.error || '');
+                const errorTranslations = {
+                    'CUBLOC2 USB 연결이 끊어졌습니다.': 'CUBLOC2 USB connection was lost.',
+                    'CFNET 연결이 끊어졌습니다.': 'CFNET connection was lost.'
+                };
+                const nextError = useKoreanLanguage ? originalError : (errorTranslations[originalError] || originalError);
                 console.warn(nextError);
                 if (nextError && nextError !== lastRuntimeErrorMessage) {
                     lastRuntimeErrorMessage = nextError;
@@ -8104,7 +8117,7 @@ const designSurface = document.getElementById('designSurface');
                 applyRuntimeState({
                     running: false,
                     error: message === 'Failed to fetch'
-                        ? '시각화 서버에 연결할 수 없습니다. 잠시 후 다시 실행하거나 시각화 페이지를 다시 열어주세요.'
+                        ? (useKoreanLanguage ? '시각화 서버에 연결할 수 없습니다. 잠시 후 다시 실행하거나 시각화 페이지를 다시 열어주세요.' : 'Cannot connect to the visualization server. Try again shortly or reopen the page.')
                         : message
                 });
             }
@@ -9590,8 +9603,16 @@ const designSurface = document.getElementById('designSurface');
         function applyVisualizationLanguage(language) {
             useKoreanLanguage = language && typeof language.useKorean === 'boolean'
                 ? language.useKorean
-                : true;
+                : getStoredLanguageMode() === 'ko';
             window.comfileWebUseKoreanLanguage = useKoreanLanguage;
+            document.documentElement.lang = useKoreanLanguage ? 'ko' : 'en';
+            const appLanguageSelect = document.getElementById('appLanguageSelect');
+            appLanguageSelect.value = useKoreanLanguage ? 'ko' : 'en';
+            document.getElementById('appLanguageLabel').textContent = useKoreanLanguage ? '언어' : 'Language';
+            for (const select of [appLanguageSelect, languageModeSelect]) {
+                select.querySelector('[value="ko"]').textContent = useKoreanLanguage ? '한국어' : 'Korean';
+                select.setAttribute('aria-label', useKoreanLanguage ? '언어' : 'Language');
+            }
             renderBackgroundStatus();
             document.getElementById('pageSvgLoadButton').textContent = useKoreanLanguage ? 'SVG 배경 불러오기' : 'Load SVG background';
             document.getElementById('pageSvgRemoveButton').textContent = useKoreanLanguage ? '배경 제거' : 'Remove background';
@@ -9608,6 +9629,34 @@ const designSurface = document.getElementById('designSurface');
                     element.textContent = resources[key];
                 }
             });
+            // 텍스트뿐 아니라 툴팁, 접근성 이름, 입력 안내도 함께 전환한다.
+            const translatedAttributes = [
+                ['#fileMenuButton', ['title', 'aria-label'], '파일 메뉴', 'File menu'],
+                ['.division-control-grid:has(#gridVisibleCheckbox)', ['title'], '격자 표시', 'Show grid'],
+                ['.division-control-grid:has(#toolbarDarkThemeCheckbox)', ['title'], '다크 테마', 'Dark theme'],
+                ['.canvas-header', ['aria-label'], '현재 페이지', 'Current page'],
+                ['#designSurface', ['aria-label'], '시각화 디자인 영역', 'Visualization design area'],
+                ['#clearAllVariablesButton', ['title'], '모두 삭제', 'Delete all'],
+                ['#projectSaveDirectoryInput', ['placeholder'], '예: D:\\ComfileWeb\\Projects', 'Example: D:\\ComfileWeb\\Projects'],
+                ['#projectSaveDirectoryBrowseButton', ['title', 'aria-label'], '폴더 선택', 'Choose folder'],
+                ['#propertySplitter', ['title', 'aria-label'], '속성창 크기 조정', 'Resize properties panel'],
+                ['#projectTree', ['aria-label'], '프로젝트 트리', 'Project tree'],
+                ['#rightPanelSplitter', ['title', 'aria-label'], '프로젝트/속성 영역 크기 조정', 'Resize project and properties panels']
+            ];
+            for (const [selector, attributes, ko, en] of translatedAttributes) {
+                document.querySelectorAll(selector).forEach(element => attributes.forEach(attribute => element.setAttribute(attribute, useKoreanLanguage ? ko : en)));
+            }
+            document.getElementById('deployWebServerButton').textContent = useKoreanLanguage ? '웹서버 배포' : 'Deploy web server';
+            if (usbConnectButton) usbConnectButton.textContent = useKoreanLanguage ? '연결 체크' : 'Connection check';
+            renderVariableList();
+            if (typeof updateLinkWizardStepState === 'function') updateLinkWizardStepState();
+            if (typeof updateDeviceConnectionStatusBar === 'function') updateDeviceConnectionStatusBar();
+            if (linkComPortSelect) {
+                for (const option of linkComPortSelect.options) {
+                    if (!option.value) option.textContent = String(linkModelSelect?.value || '') ? (useKoreanLanguage ? '포트 없음' : 'No ports') : (useKoreanLanguage ? '미정' : 'Not set');
+                    else if (/\((저장됨|saved)\)$/.test(option.textContent)) option.textContent = `${option.value} (${useKoreanLanguage ? '저장됨' : 'saved'})`;
+                }
+            }
             const projectAddButton = document.getElementById('projectAddPageButton');
             if (projectAddButton) {
                 projectAddButton.title = useKoreanLanguage ? '페이지 추가' : 'Add page';
@@ -10812,6 +10861,9 @@ const designSurface = document.getElementById('designSurface');
         });
         document.addEventListener('keydown', handleDesignerKeyDown);
         // 분리된 장치 연결 스크립트가 로드된 뒤 화면을 초기화한다.
+        document.getElementById('appLanguageSelect').addEventListener('change', event => {
+            applyVisualizationLanguage({ useKorean: event.target.value === 'ko' });
+        });
         document.addEventListener('DOMContentLoaded', () => {
         applyVisualizationTheme({ useDarkTheme: true });
         applyVisualizationLanguage({ useKorean: getStoredLanguageMode() !== 'en', persist: false });

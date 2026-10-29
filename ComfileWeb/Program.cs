@@ -65,6 +65,14 @@ var app = builder.Build();
 
 app.UseWebSockets();
 app.UseDefaultFiles();
+// 최초 화면 언어는 서버 PC의 Windows 표시 언어를 사용한다.
+app.MapGet("/api/ui-language.js", (HttpContext context) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var culture = System.Globalization.CultureInfo.CurrentUICulture;
+    var mode = culture.TwoLetterISOLanguageName == "ko" ? "ko" : "en";
+    return Results.Text($"window.comfileWebSystemLanguage = '{mode}';", "application/javascript");
+});
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = context =>

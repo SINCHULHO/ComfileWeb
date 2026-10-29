@@ -53,9 +53,12 @@ internal static class BrowserStartup
 
     internal static void ShowLegacyUpdateNotice(string existing, string next)
     {
-        var message = $"현재 {existing} 버전이 실행 중입니다. 새 버전은 {next}입니다.\n\n이전 버전에는 자동 전환 기능이 없습니다. 작업을 저장하고 실행 중인 ComfileWEB을 종료한 뒤 새 버전을 다시 실행하세요.";
+        var korean = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ko";
+        var message = korean
+            ? $"현재 {existing} 버전이 실행 중입니다. 새 버전은 {next}입니다.\n\n이전 버전에는 자동 전환 기능이 없습니다. 작업을 저장하고 실행 중인 ComfileWEB을 종료한 뒤 새 버전을 다시 실행하세요."
+            : $"Version {existing} is running. The new version is {next}.\n\nThe previous version cannot update automatically. Save your work, close ComfileWEB, and launch the new version.";
         Console.WriteLine(message);
-        if (OperatingSystem.IsWindows()) MessageBoxW(IntPtr.Zero, message, "ComfileWEB 업데이트 안내", 0x40);
+        if (OperatingSystem.IsWindows()) MessageBoxW(IntPtr.Zero, message, korean ? "ComfileWEB 업데이트 안내" : "ComfileWEB update", 0x40);
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]

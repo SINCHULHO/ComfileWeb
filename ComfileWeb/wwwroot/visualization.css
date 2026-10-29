@@ -4387,3 +4387,6 @@
 .ai-actions button { padding: 9px 14px; border-radius: 6px; border: 1px solid #64748b; background: #334155; color: white; cursor: pointer; }
 .ai-actions .ai-register { background: #2463b4; }
 .ai-actions button:disabled { opacity: .6; cursor: default; }
+.app-language-control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.app-language-control select { background: var(--panel-bg, #26394b); color: inherit; border: 1px solid #64748b; padding: 4px; border-radius: 4px; }
+html:not([data-language-mode]) .designer { visibility: hidden; }

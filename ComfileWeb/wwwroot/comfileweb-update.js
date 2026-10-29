@@ -10,8 +10,8 @@
     banner.append(label, button); document.body.append(banner);
     const korean = () => window.comfileWebUseKoreanLanguage !== false;
     let info, checking = false, restartTimer, restarting = false;
-    let lockVersion, lockTime;
-    function message(ko, en) { banner.hidden = false; label.textContent = korean() ? ko : en; }
+    let lockVersion, lockTime, lastMessage;
+    function message(ko, en) { lastMessage = [ko, en]; banner.hidden = false; label.textContent = korean() ? ko : en; }
     function unlock() {
         window.comfileUpdateLocked = false;
         document.querySelector('.designer').inert = false;
@@ -104,7 +104,11 @@
         }
         await check();
     }
-    document.addEventListener('visualization-language-changed', check);
+    window.addEventListener('visualization-language-changed', () => {
+        if (lastMessage) label.textContent = lastMessage[korean() ? 0 : 1];
+        button.textContent = korean() ? '저장 후 업데이트' : 'Save and update';
+        check();
+    });
     window.addEventListener('pageshow', check);
     window.addEventListener('focus', check);
     setInterval(check, 10000);

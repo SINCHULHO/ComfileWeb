@@ -44,6 +44,6 @@
         } catch { state = 'failed'; }
         render();
     });
-    document.addEventListener('visualization-language-changed', render);
+    window.addEventListener('visualization-language-changed', render);
     render();
 })();
