@@ -58,6 +58,7 @@ builder.Services.AddSingleton<UsbCdcService>();
 builder.Services.AddSingleton<VisualizationRuntimeService>();
 builder.Services.AddSingleton<McpEditorBridge>();
 builder.Services.AddSingleton<AppUpdateService>();
+builder.Services.AddSingleton<CodexSetupService>();
 builder.Services.AddHostedService<McpPipeService>();
 
 var app = builder.Build();
@@ -133,6 +134,23 @@ app.MapPost("/api/app/update", async (HttpContext context, AppUpdateService upda
     {
         if (!restartScheduled) { runtime.CancelUpdate(); await bridge.UnlockAfterUpdateAsync(); }
         updates.Gate.Release();
+    }
+});
+
+// Codex 설정 변경은 이 PC의 동일 출처 화면에서 명시적으로 요청한 경우만 허용한다.
+app.MapPost("/api/ai/codex/setup", (HttpContext context, AppUpdateService updates, CodexSetupService setup) =>
+{
+    if (context.Connection.RemoteIpAddress is not { } ip || !System.Net.IPAddress.IsLoopback(ip)
+        || context.Request.Headers.Origin != $"{context.Request.Scheme}://{context.Request.Host}"
+        || context.Request.Headers["X-Comfile-Update-Token"] != updates.Token) return Results.StatusCode(403);
+    try
+    {
+        setup.Install(CodexSetupService.ConfigPath, CodexSetupService.Executable, Environment.GetEnvironmentVariable("COMFILEWEB_MCP_INSTANCE"));
+        return Results.Ok(new { configured = true });
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or Tomlyn.TomlException)
+    {
+        return Results.BadRequest(new { configured = false });
     }
 });
 

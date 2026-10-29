@@ -49,7 +49,7 @@ try {
         'appsettings.json', 'wwwroot\index.html', 'wwwroot\visualization.js',
         'wwwroot\visualization.css', 'wwwroot\visualization-addresses.js',
         'wwwroot\visualization-device-link.js', 'wwwroot\visualization.ldmonitor.js',
-        'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'wwwroot\comfileweb-update.js', 'Mcp\README.md',
+        'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'wwwroot\comfileweb-update.js', 'wwwroot\comfileweb-ai.js', 'Mcp\README.md',
         'ComfileTech.Cfnet.Cfheader.Native.dll', 'libusb-1.0.dll'
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory $requiredFile))) {
