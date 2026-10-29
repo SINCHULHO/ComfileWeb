@@ -71,7 +71,17 @@ public sealed class ProjectStorageService
         string fullPath = Path.Combine(ProjectsDirectory, fileName);
 
         string json = BuildJsonText(request);
-        await File.WriteAllTextAsync(fullPath, json, new UTF8Encoding(false), cancellationToken);
+        if (request.FailIfExists)
+        {
+            // 생성 시점에 존재 여부를 검사하여 동시 저장으로 기존 파일을 덮지 않는다.
+            await using var stream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true);
+            await using var writer = new StreamWriter(stream, new UTF8Encoding(false));
+            await writer.WriteAsync(json.AsMemory(), cancellationToken);
+        }
+        else
+        {
+            await File.WriteAllTextAsync(fullPath, json, new UTF8Encoding(false), cancellationToken);
+        }
 
         DateTimeOffset savedAt = File.GetLastWriteTime(fullPath);
         return new ProjectSaveResult(safeName, fileName, fullPath, savedAt);

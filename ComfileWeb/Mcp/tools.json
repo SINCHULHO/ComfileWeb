@@ -1,0 +1,409 @@
+[
+  {
+    "name": "list_editors",
+    "description": "List local browser editor IDs. Open ComfileWEB in a local browser first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_projects",
+    "description": "List saved .cweb projects in the app's configured project directory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_document",
+    "description": "Read current project, all pages and document revision. Always read before editing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "editorId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_widget_catalog",
+    "description": "Read real widget defaults and CFNET address patterns. Layout uses grid cells.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "editorId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "apply_changes",
+    "description": "Apply 1..100 page/widget operations atomically; one undo step. Requires stopped runtime and current revision. dryRun validates only.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": "string"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create_page",
+                  "add",
+                  "update",
+                  "delete",
+                  "set_page"
+                ]
+              },
+              "pageName": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "Button",
+                  "Lamp",
+                  "Toggle",
+                  "Number",
+                  "Text",
+                  "Slider",
+                  "ProgressBar",
+                  "Gauge",
+                  "Tank"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "cellX": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 97
+              },
+              "cellY": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 83
+              },
+              "cellWidth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 98
+              },
+              "cellHeight": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 84
+              },
+              "properties": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "op",
+              "pageName"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "editorId",
+        "expectedRevision",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "edit_history",
+    "description": "Undo/redo one editor action; requires current document revision and stopped runtime.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "undo",
+            "redo"
+          ]
+        }
+      },
+      "required": [
+        "editorId",
+        "expectedRevision",
+        "direction"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "open_project",
+    "description": "Load a saved project into this editor. Rejects unsaved work unless discardUnsaved=true. Requires current revision.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "discardUnsaved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "editorId",
+        "expectedRevision",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "save_project",
+    "description": "Save current editor document. Existing files require overwrite=true. Does not change device output.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "editorId",
+        "expectedRevision",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "device_status",
+    "description": "Read CFHEADER open state; no connect.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "headerAddress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        }
+      },
+      "required": [
+        "headerAddress"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "device_connect",
+    "description": "Explicitly open a real CFHEADER.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "headerAddress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        }
+      },
+      "required": [
+        "headerAddress"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "device_disconnect",
+    "description": "Close CFHEADER. Stop runtime in UI first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "headerAddress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        }
+      },
+      "required": [
+        "headerAddress"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "device_read",
+    "description": "Read fresh CFNET values. Requires explicit prior connection. DI/DO bits, ADC/DAC raw values. Never returns stale cached data as success.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "headerAddress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "addresses": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "headerAddress",
+        "addresses"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "device_write",
+    "description": "Write ONE real CFNET output now; not a screen edit. Requires connected header and confirmed=true. DO accepts 0/1; DAC 0..4094. Input writes rejected. Returns synchronized readback, not independent physical confirmation. On failure outcome may be unknown; read before retrying.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "headerAddress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "address": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4094
+        },
+        "confirmed": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        }
+      },
+      "required": [
+        "headerAddress",
+        "address",
+        "value",
+        "confirmed"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  }
+]

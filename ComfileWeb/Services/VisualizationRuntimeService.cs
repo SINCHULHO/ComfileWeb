@@ -12,7 +12,7 @@ public sealed class VisualizationRuntimeService
     private const char RecordSeparator = (char)0x1e;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly object _sync = new();
+    private readonly object _sync = CfnetMcpAccess.SyncRoot;
     private readonly UsbCdcService _usbCdc;
     private readonly ILogger<VisualizationRuntimeService> _logger;
     private readonly Dictionary<string, int> _values = new(StringComparer.OrdinalIgnoreCase);
@@ -36,6 +36,24 @@ public sealed class VisualizationRuntimeService
     {
         _usbCdc = usbCdc;
         _logger = logger;
+    }
+
+    public System.Text.Json.Nodes.JsonObject ExecuteMcpDevice(string name, System.Text.Json.Nodes.JsonObject arguments)
+    {
+        lock (_sync)
+        {
+            if (_running && name is "device_disconnect" or "device_write" or "device_connect")
+                return McpPipeService.Failure("RUNTIME_ACTIVE", "Stop visualization runtime in the browser before changing device state through MCP.");
+            try
+            {
+                CfnetMcpAccess.EnsureNativeLibraries(_logger);
+                return CfnetMcpAccess.Execute(name, arguments);
+            }
+            catch (Exception ex)
+            {
+                return McpPipeService.Failure("DEVICE_FAILED", ex.Message + (name == "device_write" ? " Write outcome may be unknown; read back before retrying." : ""));
+            }
+        }
     }
 
     public async Task HandleWebSocketAsync(WebSocket socket, CancellationToken cancellationToken)

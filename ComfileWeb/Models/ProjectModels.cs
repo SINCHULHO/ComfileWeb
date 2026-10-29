@@ -10,6 +10,7 @@ public sealed class ProjectSaveRequest
 {
     public string Name { get; init; } = string.Empty;
     public string? DocumentText { get; init; }
+    public bool FailIfExists { get; init; }
     public JsonElement? Document { get; init; }
 }
 

@@ -1279,7 +1279,9 @@
 
         .canvas-header {
             flex: 0 0 auto;
-            height: 18px;
+            min-height: 32px;
+            gap: 6px;
+            flex-wrap: wrap;
             display: flex;
             align-items: center;
             padding: 0 2px;
@@ -1853,23 +1855,32 @@
             background-color: var(--surface-bg);
             background-image:
                 linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-                linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+                linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+                var(--page-background-svg, none);
             background-size:
                 calc(100% / var(--grid-x)) 100%,
-                100% calc(100% / var(--grid-y));
+                100% calc(100% / var(--grid-y)),
+                100% 100%;
+            background-repeat: repeat, repeat, no-repeat;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
         }
 
         .design-surface.grid-hidden {
-            background-image: none;
+            background-image: var(--page-background-svg, none);
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
         }
 
         body.runtime-running .design-surface {
-            background-image: none;
+            background-image: var(--page-background-svg, none);
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
         }
 
         .design-surface.runtime-running {
-            background-image: none !important;
+            background-image: var(--page-background-svg, none) !important;
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
         }
 
         .design-surface.runtime-trend-page-active {
@@ -4353,3 +4364,8 @@
             text-align: center;
             white-space: nowrap;
         }
+        .canvas-header #pageSvgLoadButton { margin-left: auto; }
+        .canvas-header button { color: var(--text); background: var(--surface-bg); border: 1px solid var(--surface-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+        .canvas-header button:disabled { opacity: .45; cursor: default; }
+        body.runtime-running #pageSvgLoadButton,
+        body.runtime-running #pageSvgRemoveButton { display: none; }

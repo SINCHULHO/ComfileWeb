@@ -1355,8 +1355,8 @@ const designSurface = document.getElementById('designSurface');
                 const min = 5;
                 const isMobilePage = !!page.properties.mobile;
                 const max = propertyKey === 'Grid X'
-                    ? (isMobilePage ? 20 : 49)
-                    : (isMobilePage ? 42 : 30);
+                    ? (isMobilePage ? 40 : 98)
+                    : (isMobilePage ? 84 : 60);
                 const nextValue = Math.max(min, Math.min(max, Math.round(toNumber(value, propertyKey === 'Grid X' ? page.properties.gridDivisionsX : page.properties.gridDivisionsY))));
                 const propertyName = propertyKey === 'Grid X' ? 'gridDivisionsX' : 'gridDivisionsY';
                 if (Number(page.properties[propertyName]) === nextValue) {
@@ -2342,6 +2342,7 @@ const designSurface = document.getElementById('designSurface');
             }
 
             applyGlobalWidgetFont();
+            updatePageBackgroundSvg();
 
             const page = getCurrentPage();
             designSurface.classList.toggle('runtime-running', runtimeRunning);
@@ -8900,13 +8901,55 @@ const designSurface = document.getElementById('designSurface');
             return maxWidgetNumber + 1;
         }
 
+        // SVG는 HTML에 삽입하지 않고 격자 아래의 독립된 이미지로 표시한다.
+        function validatePageBackgroundSvg(value) {
+            if (typeof value !== 'string' || value.length > 256 * 1024) {
+                throw new Error(useKoreanLanguage ? 'SVG 파일은 256KB 이하여야 합니다.' : 'SVG must be at most 256 KB.');
+            }
+            if (!value) return;
+            const parsed = new DOMParser().parseFromString(value, 'image/svg+xml');
+            if (parsed.doctype || parsed.querySelector('parsererror') ||
+                parsed.documentElement.localName !== 'svg' ||
+                parsed.documentElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
+                throw new Error(useKoreanLanguage ? '올바른 SVG 파일을 선택하세요.' : 'Choose a valid SVG file.');
+            }
+        }
+
+        let displayedBackgroundSvg = null;
+        function updatePageBackgroundSvg() {
+            const svg = getCurrentPage()?.properties?.pageBackgroundSvg || '';
+            if (displayedBackgroundSvg !== svg) {
+                displayedBackgroundSvg = svg;
+                try {
+                    validatePageBackgroundSvg(svg);
+                    const url = encodeURIComponent(svg).replace(/'/g, '%27');
+                    designSurface.style.setProperty('--page-background-svg', svg ? `url("data:image/svg+xml,${url}")` : 'none');
+                } catch {
+                    designSurface.style.setProperty('--page-background-svg', 'none');
+                }
+            }
+            const blocked = runtimeRunning || runtimeStarting;
+            document.getElementById('pageSvgLoadButton').disabled = blocked;
+            document.getElementById('pageSvgRemoveButton').disabled = blocked || !svg;
+        }
+
+        function setPageBackgroundSvg(page, svg) {
+            if (runtimeRunning || runtimeStarting || getCurrentPage() !== page) return;
+            validatePageBackgroundSvg(svg);
+            if ((page.properties.pageBackgroundSvg || '') === svg) return;
+            pushUndoState();
+            page.properties.pageBackgroundSvg = svg;
+            updatePageBackgroundSvg();
+            notifyVisualizationDirty();
+        }
+
         function updateGridControlsFromCurrentPage() {
             const page = getCurrentPage();
             const isMobilePage = !!page?.properties?.mobile;
-            const maxGridX = isMobilePage ? 20 : 49;
-            const maxGridY = isMobilePage ? 42 : 30;
-            const gridX = Math.max(5, Math.min(maxGridX, toNumber(page?.properties?.gridDivisionsX, maxGridX)));
-            const gridY = Math.max(5, Math.min(maxGridY, toNumber(page?.properties?.gridDivisionsY, maxGridY)));
+            const maxGridX = isMobilePage ? 40 : 98;
+            const maxGridY = isMobilePage ? 84 : 60;
+            const gridX = Math.max(5, Math.min(maxGridX, toNumber(page?.properties?.gridDivisionsX, isMobilePage ? 20 : 49)));
+            const gridY = Math.max(5, Math.min(maxGridY, toNumber(page?.properties?.gridDivisionsY, isMobilePage ? 42 : 30)));
             const pageBackColor = normalizeCssColor(page?.properties?.pageBackColorHtml) || getThemeColorDefaults().pageBack;
             if (page?.properties) {
                 page.properties.gridDivisionsX = gridX;
@@ -8923,6 +8966,7 @@ const designSurface = document.getElementById('designSurface');
             designSurface.style.height = isMobilePage ? '844px' : '';
             designSurface.style.flex = isMobilePage ? '0 0 auto' : '';
             designSurface.style.backgroundColor = pageBackColor;
+            updatePageBackgroundSvg();
             if (workArea) {
                 workArea.style.backgroundColor = pageBackColor;
             }
@@ -9511,6 +9555,8 @@ const designSurface = document.getElementById('designSurface');
                 ? language.useKorean
                 : true;
             window.comfileWebUseKoreanLanguage = useKoreanLanguage;
+            document.getElementById('pageSvgLoadButton').textContent = useKoreanLanguage ? 'SVG 배경 불러오기' : 'Load SVG background';
+            document.getElementById('pageSvgRemoveButton').textContent = useKoreanLanguage ? '배경 제거' : 'Remove background';
             document.documentElement.dataset.languageMode = useKoreanLanguage ? 'ko' : 'en';
 
             if (!language || language.persist !== false) {
@@ -10464,6 +10510,24 @@ const designSurface = document.getElementById('designSurface');
         if (autoLayoutButton) {
             autoLayoutButton.addEventListener('click', () => openAutoLayoutDialog());
         }
+        const pageSvgFileInput = document.getElementById('pageSvgFileInput');
+        document.getElementById('pageSvgLoadButton').addEventListener('click', () => {
+            if (runtimeRunning || runtimeStarting) return;
+            pageSvgFileInput.value = '';
+            pageSvgFileInput.click();
+        });
+        pageSvgFileInput.addEventListener('change', async () => {
+            const file = pageSvgFileInput.files[0];
+            const page = getCurrentPage();
+            if (!file) return;
+            try {
+                if (file.size > 256 * 1024) throw new Error(useKoreanLanguage ? 'SVG 파일은 256KB 이하여야 합니다.' : 'SVG must be at most 256 KB.');
+                setPageBackgroundSvg(page, await file.text());
+            } catch (error) {
+                window.alert(error.message);
+            }
+        });
+        document.getElementById('pageSvgRemoveButton').addEventListener('click', () => setPageBackgroundSvg(getCurrentPage(), ''));
         if (pageBackColorButton) {
             pageBackColorButton.addEventListener('click', event => {
                 event.preventDefault();
@@ -10708,6 +10772,8 @@ const designSurface = document.getElementById('designSurface');
             }
         });
         document.addEventListener('keydown', handleDesignerKeyDown);
+        // 분리된 장치 연결 스크립트가 로드된 뒤 화면을 초기화한다.
+        document.addEventListener('DOMContentLoaded', () => {
         applyVisualizationTheme({ useDarkTheme: true });
         applyVisualizationLanguage({ useKorean: getStoredLanguageMode() !== 'en', persist: false });
         // 변수 시스템 설정 로드
@@ -10729,3 +10795,4 @@ const designSurface = document.getElementById('designSurface');
         loadUsbCdcPorts('');
         updateLinkWizardStepState();
         updateDeviceConnectionStatusBar();
+        }, { once: true });

@@ -17,7 +17,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="visualization.css" />
+    <link rel="stylesheet" href="visualization.css?v=20261029-svg2" />
 </head>
 <body>
     <div class="designer">
@@ -72,12 +72,12 @@
                 <span class="division-separator" aria-hidden="true"></span>
                 <label class="division-control grid-slider-control">
                     <span>X</span>
-                    <input id="gridXSlider" type="range" min="5" max="49" value="49" />
+                    <input id="gridXSlider" type="range" min="5" max="98" value="49" />
                     <span id="gridXValue" class="division-value">49</span>
                 </label>
                 <label class="division-control grid-slider-control">
                     <span>Y</span>
-                    <input id="gridYSlider" type="range" min="5" max="30" value="30" />
+                    <input id="gridYSlider" type="range" min="5" max="60" value="30" />
                     <span id="gridYValue" class="division-value">30</span>
                 </label>
             </div>
@@ -101,6 +101,9 @@
                 <div class="canvas-shell">
                     <div class="canvas-header" aria-label="현재 페이지">
                         <div id="activePageLabel" class="active-page-label">Page1</div>
+                        <button id="pageSvgLoadButton" type="button">SVG 배경 불러오기</button>
+                        <button id="pageSvgRemoveButton" type="button" disabled>배경 제거</button>
+                        <input id="pageSvgFileInput" type="file" accept=".svg,image/svg+xml" hidden />
                     </div>
                     <div id="designSurface" class="design-surface" aria-label="시각화 디자인 영역">
                         <p class="placeholder" data-i18n="placeholder">원하는 부품(버튼, 램프등)을 마우스로 끌어다 이곳에 놓으세요</p>
@@ -265,10 +268,11 @@
             </aside>
         </div>
     </div>
-    <script src="visualization.ldmonitor.js"></script>
-    <script src="visualization.js"></script>
-    <script src="visualization-device-link.js"></script>
-    <script src="visualization-addresses.js"></script>
-    <script src="comfileweb.js"></script>
+    <script src="visualization.ldmonitor.js?v=20261029-svg2"></script>
+    <script src="visualization.js?v=20261029-svg2"></script>
+    <script src="visualization-device-link.js?v=20261029-svg2"></script>
+    <script src="visualization-addresses.js?v=20261029-svg2"></script>
+    <script src="comfileweb.js?v=20261029-svg2"></script>
+    <script src="comfileweb-mcp.js?v=20261029-svg2"></script>
 </body>
 </html>

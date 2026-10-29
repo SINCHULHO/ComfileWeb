@@ -1,3 +1,4 @@
+﻿param([ValidatePattern('^ComfileWEB(?:-[A-Za-z0-9]+)?$')][string]$PublishFolderName = 'ComfileWEB')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
@@ -25,10 +26,10 @@ try {
     }
     if (-not $compiler) { throw 'Install Inno Setup 6 or 7 (ISCC.exe) before building the installer.' }
 
-    $publishDirectory = [IO.Path]::GetFullPath((Join-Path $repoRoot 'dist\ComfileWEB'))
+    $publishDirectory = [IO.Path]::GetFullPath((Join-Path $repoRoot ('dist\' + $PublishFolderName)))
     $distDirectory = [IO.Path]::GetFullPath((Join-Path $repoRoot 'dist'))
     # 이전 게시 파일이 새 설치본에 섞이지 않도록 지정된 출력 폴더만 비운다.
-    if ((Split-Path -Parent $publishDirectory) -ne $distDirectory -or (Split-Path -Leaf $publishDirectory) -ne 'ComfileWEB') {
+    if ((Split-Path -Parent $publishDirectory) -ne $distDirectory -or (Split-Path -Leaf $publishDirectory) -ne $PublishFolderName) {
         throw 'Unexpected publish directory.'
     }
     if (Test-Path -LiteralPath $publishDirectory) {
@@ -45,7 +46,8 @@ try {
         'appsettings.json', 'wwwroot\index.html', 'wwwroot\visualization.js',
         'wwwroot\visualization.css', 'wwwroot\visualization-addresses.js',
         'wwwroot\visualization-device-link.js', 'wwwroot\visualization.ldmonitor.js',
-        'wwwroot\comfileweb.js', 'ComfileTech.Cfnet.Cfheader.Native.dll', 'libusb-1.0.dll'
+        'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'Mcp\README.md',
+        'ComfileTech.Cfnet.Cfheader.Native.dll', 'libusb-1.0.dll'
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory $requiredFile))) {
             throw "Published package is incomplete: $requiredFile"
@@ -53,7 +55,10 @@ try {
     }
 
     Write-Host '[3/3] Creating installer...'
-    & $compiler "/DAppVersion=$appVersion" (Join-Path $PSScriptRoot 'ComfileWEB.iss')
+    # 아이콘 내용이 바뀌면 파일명도 바꿔 Windows의 이전 아이콘 캐시를 피한다.
+    $iconHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot 'Assets\AppIcon\ComfileWEB.ico') -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant()
+    $appIconFileName = "ComfileWEB-$iconHash.ico"
+    & $compiler "/DPublishDirectory=$publishDirectory" "/DAppVersion=$appVersion" "/DAppIconFileName=$appIconFileName" (Join-Path $PSScriptRoot 'ComfileWEB.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
     $installerPath = Join-Path $repoRoot "dist\installer\ComfileWEB-Setup-$appVersion-win-x64.exe"
     if (-not (Test-Path -LiteralPath $installerPath)) { throw 'Installer output was not created.' }

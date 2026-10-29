@@ -1117,6 +1117,12 @@
 		}
 	});
 
+	// MCP 편집 채널에서도 기존 저장 상태와 임시 복구 정보를 함께 갱신한다.
+	window.comfileMcpProject = {
+		status: () => ({ projectName: currentProjectName, dirty: documentDirty }),
+		opened(name) { currentProjectName = name; setDocumentSaved(); clearTemporaryDraft(); },
+		saved(name, unchanged) { if (unchanged) { currentProjectName = name; setDocumentSaved(); clearTemporaryDraft(); } }
+	};
 	window.addEventListener('comfileweb-document-dirty', markDocumentDirty);
 	window.addEventListener('visualization-language-changed', applyLanguageResources);
 	window.addEventListener('beforeunload', handleBeforeUnload);

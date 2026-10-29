@@ -5,6 +5,12 @@ using ComfileTech.Cfnet.Cfheader;
 using ComfileWeb.Models;
 using ComfileWeb.Services;
 
+if (args.Contains("--mcp", StringComparer.Ordinal))
+{
+    await McpStdioServer.RunAsync();
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 // 명시된 주소를 우선하며, 설치본에는 개발용 HTTPS 인증서를 요구하지 않는다.
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
@@ -16,12 +22,38 @@ if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
 builder.Services.AddSingleton<ProjectStorageService>();
 builder.Services.AddSingleton<UsbCdcService>();
 builder.Services.AddSingleton<VisualizationRuntimeService>();
+builder.Services.AddSingleton<McpEditorBridge>();
+builder.Services.AddHostedService<McpPipeService>();
 
 var app = builder.Build();
 
 app.UseWebSockets();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        // 앱 업데이트 후 이전 스크립트와 스타일이 섞이지 않도록 매번 재검증한다.
+        var extension = Path.GetExtension(context.File.Name);
+        if (extension is ".html" or ".css" or ".js")
+            context.Context.Response.Headers.CacheControl = "no-cache";
+    }
+});
+app.Map("/mcp/editor", async (HttpContext context, McpEditorBridge bridge) =>
+{
+    // 로컬 브라우저의 동일 출처 연결만 편집 채널로 허용한다.
+    var remote = context.Connection.RemoteIpAddress;
+    var expectedOrigin = $"{context.Request.Scheme}://{context.Request.Host}";
+    if (remote is null || !System.Net.IPAddress.IsLoopback(remote)
+        || !string.Equals(context.Request.Headers.Origin, expectedOrigin, StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = 403;
+        return;
+    }
+    if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = 400; return; }
+    using var socket = await context.WebSockets.AcceptWebSocketAsync();
+    await bridge.HandleAsync(socket, context.RequestAborted);
+});
 
 // About 화면도 빌드된 실행 파일의 버전을 사용한다.
 app.MapGet("/api/version", (HttpContext context) =>
@@ -37,7 +69,7 @@ app.MapGet("/api/version", (HttpContext context) =>
 var projectApi = app.MapGroup("/api/project");
 var usbApi = app.MapGroup("/api/usb-cdc");
 var cfnetApi = app.MapGroup("/api/cfnet");
-var cfnetSync = new object();
+var cfnetSync = CfnetMcpAccess.SyncRoot;
 
 projectApi.MapGet("/settings", (ProjectStorageService storage) =>
     Results.Ok(new
@@ -125,8 +157,15 @@ projectApi.MapPost("/save", async (ProjectSaveRequest request, ProjectStorageSer
         return Results.BadRequest(new { detail = "Project document JSON is required." });
     }
 
-    ProjectSaveResult result = await storage.SaveAsync(request, cancellationToken);
-    return Results.Ok(result);
+    try
+    {
+        ProjectSaveResult result = await storage.SaveAsync(request, cancellationToken);
+        return Results.Ok(result);
+    }
+    catch (IOException ex) when (request.FailIfExists)
+    {
+        return Results.Conflict(new { detail = ex.Message });
+    }
 });
 
 usbApi.MapGet("/ports", (UsbCdcService usbCdc) =>
@@ -214,7 +253,7 @@ cfnetApi.MapGet("/status", (int? address, ILoggerFactory loggerFactory) =>
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
     {
-        EnsureCfnetNativeLibraries(logger);
+        CfnetMcpAccess.EnsureNativeLibraries(logger);
         try
         {
             var cfheader0 = GetCfheader(address);
@@ -241,7 +280,7 @@ cfnetApi.MapPost("/connect", (CfnetAddressRequest? request, ILoggerFactory logge
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
     {
-        EnsureCfnetNativeLibraries(logger);
+        CfnetMcpAccess.EnsureNativeLibraries(logger);
         try
         {
             var cfheader0 = GetCfheader(request?.Address);
@@ -269,7 +308,7 @@ cfnetApi.MapPost("/scan-modules", (CfnetAddressRequest? request, ILoggerFactory 
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
     {
-        EnsureCfnetNativeLibraries(logger);
+        CfnetMcpAccess.EnsureNativeLibraries(logger);
         try
         {
             var cfheader0 = GetCfheader(request?.Address);
@@ -328,7 +367,7 @@ cfnetApi.MapPost("/disconnect", (CfnetAddressRequest? request, ILoggerFactory lo
     var logger = loggerFactory.CreateLogger("CfnetApi");
     lock (cfnetSync)
     {
-        EnsureCfnetNativeLibraries(logger);
+        CfnetMcpAccess.EnsureNativeLibraries(logger);
         try
         {
             var cfheader0 = GetCfheader(request?.Address);
@@ -383,32 +422,6 @@ static Cfheader GetCfheader(int? requestedAddress)
     }
 
     return Cfheader.Instances[address];
-}
-
-static void EnsureCfnetNativeLibraries(ILogger logger)
-{
-    try
-    {
-        var nativeDirectory = Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native");
-        if (!Directory.Exists(nativeDirectory))
-        {
-            return;
-        }
-
-        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        if (!path.Split(';', StringSplitOptions.RemoveEmptyEntries)
-                 .Any(entry => string.Equals(entry.Trim(), nativeDirectory, StringComparison.OrdinalIgnoreCase)))
-        {
-            Environment.SetEnvironmentVariable("PATH", nativeDirectory + ";" + path);
-        }
-
-        NativeLibrary.Load(Path.Combine(nativeDirectory, "libusb-1.0.dll"));
-        NativeLibrary.Load(Path.Combine(nativeDirectory, "ComfileTech.Cfnet.Cfheader.Native.dll"));
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Cfnet native library preload failed.");
-    }
 }
 
 sealed class CfnetAddressRequest
