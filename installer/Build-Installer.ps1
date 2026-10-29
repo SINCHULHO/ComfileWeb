@@ -28,12 +28,15 @@ try {
 
     $publishDirectory = [IO.Path]::GetFullPath((Join-Path $repoRoot ('dist\' + $PublishFolderName)))
     $distDirectory = [IO.Path]::GetFullPath((Join-Path $repoRoot 'dist'))
-    # 이전 게시 파일이 새 설치본에 섞이지 않도록 지정된 출력 폴더만 비운다.
+    # 실행 중인 앱이나 MCP가 DLL을 사용해도 기존 배포 폴더는 삭제하지 않는다.
+    # 매번 빈 폴더에 게시하여 이전 파일이 설치본에 섞이지 않도록 한다.
+    if (Test-Path -LiteralPath $publishDirectory) {
+        $PublishFolderName = 'ComfileWEB-' + $buildNumber + [Guid]::NewGuid().ToString('N').Substring(0, 12)
+        $publishDirectory = [IO.Path]::GetFullPath((Join-Path $distDirectory $PublishFolderName))
+        Write-Host "Existing build preserved. Publishing to: $publishDirectory"
+    }
     if ((Split-Path -Parent $publishDirectory) -ne $distDirectory -or (Split-Path -Leaf $publishDirectory) -ne $PublishFolderName) {
         throw 'Unexpected publish directory.'
-    }
-    if (Test-Path -LiteralPath $publishDirectory) {
-        Remove-Item -LiteralPath $publishDirectory -Recurse -Force
     }
 
     Write-Host '[1/3] Publishing ComfileWEB with the .NET runtime...'
@@ -46,7 +49,7 @@ try {
         'appsettings.json', 'wwwroot\index.html', 'wwwroot\visualization.js',
         'wwwroot\visualization.css', 'wwwroot\visualization-addresses.js',
         'wwwroot\visualization-device-link.js', 'wwwroot\visualization.ldmonitor.js',
-        'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'Mcp\README.md',
+        'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'wwwroot\comfileweb-update.js', 'Mcp\README.md',
         'ComfileTech.Cfnet.Cfheader.Native.dll', 'libusb-1.0.dll'
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory $requiredFile))) {
@@ -62,6 +65,12 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
     $installerPath = Join-Path $repoRoot "dist\installer\ComfileWEB-Setup-$appVersion-win-x64.exe"
     if (-not (Test-Path -LiteralPath $installerPath)) { throw 'Installer output was not created.' }
+    # 성공한 빌드 경로를 기록하고 바로가기도 같은 배포본으로 갱신한다.
+    & (Join-Path $PSScriptRoot 'Update-DesktopShortcut.ps1') -PublishFolderName $PublishFolderName
+    [IO.File]::WriteAllText((Join-Path $distDirectory 'latest-publish.txt'), $PublishFolderName)
+    # 정리 실패가 이미 완성된 설치 파일을 빌드 실패로 바꾸지는 않는다.
+    try { & (Join-Path $PSScriptRoot 'Cleanup-Builds.ps1') -KeepLatest 3 }
+    catch { Write-Warning "Old build cleanup skipped: $($_.Exception.Message)" }
     Write-Host "SUCCESS: $installerPath" -ForegroundColor Green
 }
 catch {

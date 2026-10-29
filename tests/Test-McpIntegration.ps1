@@ -50,7 +50,7 @@ try {
     Send-Rpc 'initialize' @{ protocolVersion = '2025-11-25'; capabilities = @{}; clientInfo = @{ name = 'integration'; version = '1' } }
     Assert ((Read-Rpc).result.protocolVersion -eq '2025-11-25') 'Initialize failed.'
     Send-Rpc 'tools/list' @{}
-    Assert ((Read-Rpc).result.tools.Count -eq 13) 'Tool catalog differs.'
+    Assert ((Read-Rpc).result.tools.Count -eq 14) 'Tool catalog differs.'
     $invalid = Call-Tool 'device_write' @{ headerAddress = 0; address = 'DO.0.0'; value = 1 }
     Assert ($invalid.error.code -eq -32602) 'Unconfirmed physical write was accepted.'
     $list = (Call-Tool 'list_editors' @{}).result.content[0].text | ConvertFrom-Json
@@ -77,7 +77,7 @@ try {
     $conflict = $false
     try { Invoke-RestMethod "$base/api/project/save" -Method Post -ContentType 'application/json' -Body $payload | Out-Null } catch { $conflict = [int]$_.Exception.Response.StatusCode -eq 409 }
     Assert $conflict 'Existing project was overwritten.'
-    Write-Host 'PASS: initialization, 13 tools, write guard, named pipe, origin guard, editor WebSocket round trip, save conflict.'
+    Write-Host 'PASS: initialization, 14 tools, write guard, named pipe, origin guard, editor WebSocket round trip, save conflict.'
 } finally {
     if ($socket) { $socket.Dispose() }
     if ($rpc -and -not $rpc.HasExited) { $rpc.Kill() }

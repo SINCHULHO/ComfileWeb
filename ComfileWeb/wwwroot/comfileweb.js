@@ -473,6 +473,10 @@
 			return;
 		}
 
+        if (new TextEncoder().encode(text).length > 16 * 1024 * 1024) {
+            window.alert(window.comfileWebUseKoreanLanguage !== false ? '프로젝트 용량이 16MB를 넘습니다. 배경 이미지나 페이지를 줄여 주세요.' : 'Project exceeds 16 MiB. Reduce background images or pages.');
+            return false;
+        }
 		let documentValue;
 		try {
 			documentValue = JSON.parse(text);
@@ -485,7 +489,7 @@
 			const response = await fetch('/api/project/save', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: projectName, documentText: text, document: documentValue })
+				body: JSON.stringify({ name: projectName, documentText: text })
 			});
 
 			if (!response.ok) {
@@ -496,9 +500,10 @@
 
 			const result = await response.json();
 			currentProjectName = result.name || projectName;
-			clearTemporaryDraft();
-			setDocumentSaved();
-			return true;
+            if (getDocumentText() !== text) { markDocumentDirty(); return false; }
+            clearTemporaryDraft();
+            setDocumentSaved();
+            return true;
 		} catch (error) {
 			window.alert(getDialogText('saveError') + ' ' + (error && error.message ? error.message : error));
 		}
@@ -1120,6 +1125,11 @@
 	// MCP 편집 채널에서도 기존 저장 상태와 임시 복구 정보를 함께 갱신한다.
 	window.comfileMcpProject = {
 		status: () => ({ projectName: currentProjectName, dirty: documentDirty }),
+        async saveForUpdate() {
+            if (typeof runtimeRunning !== 'undefined' && (runtimeRunning || runtimeStarting)) return false;
+            if (!documentDirty && currentProjectName) return true;
+            return currentProjectName ? await saveProjectWithName(currentProjectName) === true : await saveProjectAs() === true;
+        },
 		opened(name) { currentProjectName = name; setDocumentSaved(); clearTemporaryDraft(); },
 		saved(name, unchanged) { if (unchanged) { currentProjectName = name; setDocumentSaved(); clearTemporaryDraft(); } }
 	};

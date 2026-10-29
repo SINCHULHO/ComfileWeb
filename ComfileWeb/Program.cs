@@ -11,6 +11,20 @@ if (args.Contains("--mcp", StringComparer.Ordinal))
     return;
 }
 
+// 이전 서버가 정상 종료된 뒤 새 버전을 시작하여 포트 충돌을 막는다.
+var waitIndex = Array.IndexOf(args, "--wait-for-process");
+if (waitIndex >= 0)
+{
+    if (waitIndex + 1 >= args.Length || !int.TryParse(args[waitIndex + 1], out var oldPid)) return;
+    try
+    {
+        using var oldProcess = Process.GetProcessById(oldPid);
+        await oldProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+    }
+    catch (ArgumentException) { }
+    args = args.Where((_, index) => index != waitIndex && index != waitIndex + 1).ToArray();
+}
+
 // 테스트와 백그라운드 실행에서만 브라우저 자동 열기를 명시적으로 끈다.
 var openBrowser = !args.Contains("--no-browser", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -20,8 +34,15 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")) ? AppContext.BaseDirectory : null
 });
 var browserUrl = BrowserStartup.GetBrowserUrl(builder.Configuration["urls"]);
-if (openBrowser && await BrowserStartup.IsExistingInstanceAsync(browserUrl))
+var existingVersion = openBrowser ? await BrowserStartup.GetExistingVersionAsync(browserUrl) : null;
+if (existingVersion is not null)
 {
+    if (System.Version.TryParse(existingVersion, out var existing) && existing < System.Version.Parse(AppUpdateService.CurrentVersion))
+    {
+        AppUpdateService.Queue(browserUrl);
+        if (!await BrowserStartup.SupportsUpdateAsync(browserUrl)) BrowserStartup.ShowLegacyUpdateNotice(existingVersion, AppUpdateService.CurrentVersion);
+        Console.WriteLine($"Update available: {existingVersion} -> {AppUpdateService.CurrentVersion}. Save your work and select Save and update in the browser.");
+    }
     BrowserStartup.Open(browserUrl);
     return;
 }
@@ -36,6 +57,7 @@ builder.Services.AddSingleton<ProjectStorageService>();
 builder.Services.AddSingleton<UsbCdcService>();
 builder.Services.AddSingleton<VisualizationRuntimeService>();
 builder.Services.AddSingleton<McpEditorBridge>();
+builder.Services.AddSingleton<AppUpdateService>();
 builder.Services.AddHostedService<McpPipeService>();
 
 var app = builder.Build();
@@ -77,6 +99,41 @@ app.MapGet("/api/version", (HttpContext context) =>
         .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
         .Single().InformationalVersion.Split('+')[0];
     return Results.Ok(new { version });
+});
+
+// 재시작 요청은 로컬 화면과 이번 실행에만 유효한 토큰으로 제한한다.
+app.MapGet("/api/app/update", (HttpContext context, AppUpdateService updates) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (context.Connection.RemoteIpAddress is not { } ip || !System.Net.IPAddress.IsLoopback(ip)) return Results.StatusCode(403);
+    var pending = updates.Read(browserUrl);
+    return Results.Ok(new { currentVersion = AppUpdateService.CurrentVersion, availableVersion = pending?.Version, token = updates.Token });
+});
+app.MapPost("/api/app/update", async (HttpContext context, AppUpdateService updates, McpEditorBridge bridge, VisualizationRuntimeService runtime) =>
+{
+    if (context.Connection.RemoteIpAddress is not { } ip || !System.Net.IPAddress.IsLoopback(ip)
+        || context.Request.Headers.Origin != $"{context.Request.Scheme}://{context.Request.Host}"
+        || context.Request.Headers["X-Comfile-Update-Token"] != updates.Token) return Results.StatusCode(403);
+    if (!await updates.Gate.WaitAsync(0)) return Results.Conflict(new { detail = "Update already in progress." });
+    var restartScheduled = false;
+    try
+    {
+        var pending = updates.Read(browserUrl);
+        if (pending is null) return Results.Conflict(new { detail = "No newer build is available." });
+        if (!runtime.BeginUpdate()) return Results.Conflict(new { detail = "Stop runtime before updating." });
+        if (!await bridge.LockForUpdateAsync(context.RequestAborted))
+            return Results.Conflict(new { detail = "Save changes and stop runtime in every open editor tab before updating." });
+        if (runtime.IsRunning) return Results.Conflict(new { detail = "Runtime started. Stop it before updating." });
+        updates.Start(pending);
+        restartScheduled = true;
+        _ = Task.Run(async () => { await Task.Delay(1000); bridge.DisconnectForUpdate(); app.Lifetime.StopApplication(); });
+        return Results.Ok(new { restarting = true, version = pending.Version });
+    }
+    finally
+    {
+        if (!restartScheduled) { runtime.CancelUpdate(); await bridge.UnlockAfterUpdateAsync(); }
+        updates.Gate.Release();
+    }
 });
 
 var projectApi = app.MapGroup("/api/project");
@@ -179,6 +236,8 @@ projectApi.MapPost("/save", async (ProjectSaveRequest request, ProjectStorageSer
     {
         return Results.Conflict(new { detail = ex.Message });
     }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { detail = ex.Message }); }
+    catch (JsonException ex) { return Results.BadRequest(new { detail = ex.Message }); }
 });
 
 usbApi.MapGet("/ports", (UsbCdcService usbCdc) =>

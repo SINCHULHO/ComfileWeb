@@ -17,7 +17,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="visualization.css?v=20261029-svg2" />
+    <link rel="stylesheet" href="visualization.css?v=1934" />
 </head>
 <body>
     <div class="designer">
@@ -103,6 +103,8 @@
                         <div id="activePageLabel" class="active-page-label">Page1</div>
                         <button id="pageSvgLoadButton" type="button">SVG 배경 불러오기</button>
                         <button id="pageSvgRemoveButton" type="button" disabled>배경 제거</button>
+                        <span id="pageSvgStatus" role="status" aria-live="polite"></span>
+                        <button id="pageSvgRetryButton" type="button" hidden>다시 불러오기</button>
                         <input id="pageSvgFileInput" type="file" accept=".svg,image/svg+xml" hidden />
                     </div>
                     <div id="designSurface" class="design-surface" aria-label="시각화 디자인 영역">
@@ -268,11 +270,12 @@
             </aside>
         </div>
     </div>
-    <script src="visualization.ldmonitor.js?v=20261029-svg2"></script>
-    <script src="visualization.js?v=20261029-svg2"></script>
-    <script src="visualization-device-link.js?v=20261029-svg2"></script>
-    <script src="visualization-addresses.js?v=20261029-svg2"></script>
-    <script src="comfileweb.js?v=20261029-svg2"></script>
-    <script src="comfileweb-mcp.js?v=20261029-svg2"></script>
+    <script src="visualization.ldmonitor.js?v=1934"></script>
+    <script src="visualization.js?v=1934"></script>
+    <script src="visualization-device-link.js?v=1934"></script>
+    <script src="visualization-addresses.js?v=1934"></script>
+    <script src="comfileweb.js?v=1934"></script>
+    <script src="comfileweb-mcp.js?v=1934"></script>
+    <script src="comfileweb-update.js?v=1934"></script>
 </body>
 </html>

@@ -63,3 +63,31 @@ test('save completion cannot mark a different document as saved', async () => {
     const saved = await f.call('save_project', { expectedRevision: r.revision, name: 'saved-copy' });
     assert.equal(saved.newerUnsavedChanges, true); assert.equal(f.state.projectName, 'opened-during-save'); assert.equal(f.state.dirty, true);
 });
+
+test('large SVG projects return a compact summary and paginated pages', async () => {
+    const f = fixture();
+    f.state.doc.pages = Array.from({ length: 20 }, (_, i) => ({ name: 'Page' + i, properties: { gridDivisionsX: 98, gridDivisionsY: 60, pageBackgroundSvg: '<svg>' + ' '.repeat(250000) + '</svg>' }, widgets: Array.from({length: 25}, (_, j) => ({id: 'w' + i + '-' + j, kind: 'Text', properties: {Text: 'Widget ' + j}})) }));
+    const summary = await f.call('get_document');
+    assert.equal(summary.summaryOnly, true);
+    assert.ok(summary.documentBytes > 4 * 1024 * 1024);
+    assert.ok(JSON.stringify(summary).length < 10000);
+    const page = await f.call('get_page', {pageName: 'Page0', offset: 0, limit: 20});
+    assert.equal(page.success, true); assert.equal(page.page.widgets.length, 20); assert.equal(page.nextOffset, 20);
+    assert.equal(page.revision, summary.revision);
+    const tail = await f.call('get_page', {pageName:'Page0', offset:20, includeBackground:false});
+    assert.equal(tail.page.widgets.length, 5); assert.equal(tail.nextOffset, null);
+    assert.equal(tail.page.properties.pageBackgroundSvg, undefined);
+});
+
+test('document byte limit rejects edits atomically', async () => {
+    const f = fixture(); f.state.doc.metadata = 'x'.repeat(16 * 1024 * 1024);
+    const result = await f.edit([add()]);
+    assert.equal(result.code, 'DOCUMENT_TOO_LARGE');
+    assert.equal(f.state.undo.length, 0); assert.equal(f.state.doc.pages[0].widgets.length, 0);
+});
+
+test('oversized page response returns a recoverable error', async () => {
+    const f = fixture(); f.state.doc.pages[0].properties.pageBackgroundSvg = 'x'.repeat(600000);
+    assert.equal((await f.call('get_page', {pageName:'Main'})).code, 'RESPONSE_TOO_LARGE');
+    assert.equal((await f.call('get_page', {pageName:'Main',includeBackground:false})).success, true);
+});

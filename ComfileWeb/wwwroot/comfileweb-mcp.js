@@ -2,6 +2,9 @@
 (function (root) {
     'use strict';
     const kinds = ['Button', 'Lamp', 'Toggle', 'Number', 'Text', 'Slider', 'ProgressBar', 'Gauge', 'Tank'];
+    const byteLength = value => new TextEncoder().encode(JSON.stringify(value)).length;
+    const maximumDocumentBytes = 16 * 1024 * 1024;
+    const maximumResponseBytes = 512 * 1024;
     const clone = value => JSON.parse(JSON.stringify(value));
     const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
     function object(value) { if (!value || typeof value !== 'object' || Array.isArray(value)) fail('INVALID_ARGUMENT', 'Expected an object.'); }
@@ -25,7 +28,14 @@
             const project = host.project();
             const next = JSON.stringify([document, project.projectName]);
             if (next !== fingerprint) { fingerprint = next; revision = host.uuid(); }
-            return { success: true, revision, document: clone(document), ...project, runtimeRunning: host.running() };
+            const result = { success: true, revision, document: clone(document), ...project, runtimeRunning: host.running() };
+            if (byteLength(result) > maximumResponseBytes) {
+                result.document = { version: document.version, pages: document.pages.map(p => ({ name: p.name, widgetCount: p.widgets.length, backgroundBytes: new TextEncoder().encode(p.properties.pageBackgroundSvg || '').length })) };
+                result.summaryOnly = true;
+                result.documentBytes = byteLength(document);
+                result.message = 'Large document: use get_page with pageName, offset and limit.';
+            }
+            return result;
         }
         function requireRevision(args) {
             snapshot();
@@ -52,6 +62,7 @@
             widget.properties.X = String(widget.cellX); widget.properties.Y = String(widget.cellY);
         }
         function validate(document) {
+            if (byteLength(document) > maximumDocumentBytes) fail('DOCUMENT_TOO_LARGE', 'Project exceeds 16 MiB.');
             if (!document.pages.length || document.pages.length > 50) fail('PAGE_LIMIT', 'Use 1..50 pages.');
             const names = new Set(), ids = new Set();
             for (const page of document.pages) {
@@ -78,7 +89,21 @@
         }
         return async function dispatch(name, args = {}) {
             try {
+                if (name === 'get_update_state') return { success: true, ...host.project(), runtimeRunning: host.running() };
                 if (name === 'get_document') return snapshot();
+                if (name === 'get_page') {
+                    const state = snapshot();
+                    const page = host.document().pages.find(p => p.name === args.pageName);
+                    if (!page) fail('PAGE_NOT_FOUND', String(args.pageName));
+                    const offset = args.offset ?? 0, limit = args.limit ?? 20;
+                    integer(offset, 0, 500, 'offset'); integer(limit, 1, 100, 'limit');
+                    const properties = clone(page.properties);
+                    if (args.includeBackground === false) delete properties.pageBackgroundSvg;
+                    const result = { success: true, revision: state.revision, page: { name: page.name, properties, widgets: clone(page.widgets.slice(offset, offset + limit)) }, totalWidgets: page.widgets.length,
+                        nextOffset: offset + limit < page.widgets.length ? offset + limit : null };
+                    if (byteLength(result) > maximumResponseBytes) fail('RESPONSE_TOO_LARGE', 'Reduce limit or set includeBackground=false.');
+                    return result;
+                }
                 if (name === 'get_widget_catalog') return { success: true, kinds: kinds.map(kind => ({ kind, defaults: host.create(kind) })),
                     coordinates: 'Zero-based cells', limits: { desktop: [98, 60], mobile: [40, 84] },
                     addresses: ['DI.0..7.0..15', 'DO.0..7.0..15', 'ADC.0..3.0..3', 'DAC.0..3.0..1'] };
@@ -146,7 +171,7 @@
                 }
                 validate(candidate);
                 if (!args.dryRun) host.commit(candidate);
-                return { ...snapshot(), dryRun: !!args.dryRun, createdWidgetIds: created, ...(args.dryRun ? { proposedDocument: candidate } : {}) };
+                return { ...snapshot(), dryRun: !!args.dryRun, createdWidgetIds: created, ...(args.dryRun ? (byteLength(candidate) <= maximumResponseBytes / 2 ? { proposedDocument: candidate } : { proposedSummary: candidate.pages.map(p => ({ name: p.name, widgetCount: p.widgets.length })) }) : {}) };
             } catch (error) { return { success: false, code: error.code || 'EDITOR_FAILED', message: error.message }; }
         };
     }
@@ -163,7 +188,7 @@
         uuid: () => crypto.randomUUID(),
         document: () => JSON.parse(exportVisualizationDocumentText()),
         project: () => window.comfileMcpProject.status(),
-        running: () => runtimeRunning || runtimeStarting,
+        running: () => runtimeRunning || runtimeStarting || !!window.comfileUpdateLocked,
         validateSvg: value => validatePageBackgroundSvg(value),
         isColor: value => typeof value === 'string' && CSS.supports('color', value),
         create(kind) {
@@ -204,7 +229,10 @@
             queue = queue.then(async () => {
                 const message = JSON.parse(event.data);
                 if (message.editorId) { window.comfileMcpEditorId = message.editorId; return; }
-                const result = await dispatch(message.name, message.arguments);
+                let result;
+                if (message.name === 'lock_for_update') result = window.comfileUpdateUi?.lock(message.arguments?.version) || { success: false };
+                else if (message.name === 'unlock_after_update') { window.comfileUpdateUi?.unlock(); result = { success: true }; }
+                else result = await dispatch(message.name, message.arguments);
                 if (connection.readyState === WebSocket.OPEN) connection.send(JSON.stringify({ id: message.id, result }));
             }).catch(error => console.warn('MCP editor:', error));
         };

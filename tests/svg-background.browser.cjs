@@ -20,23 +20,24 @@ const server = require('node:http').createServer((req, res) => {
         await page.waitForFunction(() => typeof setPageBackgroundSvg === 'function');
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" fill="#204a70"/><text x="10" y="50">SVG</text></svg>';
         await page.locator('#pageSvgFileInput').setInputFiles({ name: 'background.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
-        await page.waitForFunction(() => !!getCurrentPage().properties.pageBackgroundSvg);
+        await page.waitForFunction(() => document.getElementById('pageSvgStatus').dataset.state === 'ready');
         const result = await page.evaluate(async (svg) => {
             const check = (condition, message) => { if (!condition) throw new Error(message); };
+            const loaded = async () => { const image = new Image(); image.src = 'data:image/svg+xml,' + encodeURIComponent(getCurrentPage().properties.pageBackgroundSvg); await image.decode(); await new Promise(resolve => setTimeout(resolve, 50)); };
             const bg = () => getComputedStyle(designSurface).backgroundImage;
             check(bg().includes('data:image/svg+xml'), 'SVG missing');
             check(bg().includes('linear-gradient'), 'Grid missing');
             const image = new Image(); image.src = 'data:image/svg+xml,' + encodeURIComponent(svg); await image.decode();
             check(JSON.parse(exportVisualizationDocumentText()).pages[0].properties.pageBackgroundSvg === svg, 'Export lost SVG');
             undoEdit(); check(!getCurrentPage().properties.pageBackgroundSvg, 'Undo failed');
-            redoEdit(); check(getCurrentPage().properties.pageBackgroundSvg === svg, 'Redo failed');
+            redoEdit(); await loaded(); check(getCurrentPage().properties.pageBackgroundSvg === svg, 'Redo failed');
             designSurface.classList.add('grid-hidden'); check(bg().includes('data:image/svg+xml') && !bg().includes('linear-gradient'), 'Hidden grid erased SVG');
             designSurface.classList.remove('grid-hidden');
             designSurface.classList.add('runtime-running'); check(bg().includes('data:image/svg+xml') && !bg().includes('linear-gradient'), 'Runtime erased SVG');
             designSurface.classList.remove('runtime-running');
             const saved = getCurrentPage().properties;
             getCurrentPage().properties = { ...saved, pageBackgroundSvg: '' }; updatePageBackgroundSvg(); check(!bg().includes('data:image/svg+xml'), 'Previous page background leaked');
-            getCurrentPage().properties = saved; updatePageBackgroundSvg();
+            getCurrentPage().properties = saved; updatePageBackgroundSvg(); await loaded();
             for (const invalid of ['<svg>', '<html/>', '<svg xmlns="wrong"/>', 'x'.repeat(262145), 42]) {
                 let failed = false; try { validatePageBackgroundSvg(invalid); } catch { failed = true; }
                 check(failed, 'Invalid SVG accepted');
@@ -55,7 +56,7 @@ const server = require('node:http').createServer((req, res) => {
             setPageBackgroundSvg(getCurrentPage(), svg);
             const savedText = exportVisualizationDocumentText();
             setPageBackgroundSvg(getCurrentPage(), '');
-            importVisualizationDocumentText(savedText);
+            importVisualizationDocumentText(savedText); await loaded();
             check(getCurrentPage().properties.pageBackgroundSvg === svg && bg().includes('data:image/svg+xml'), 'Import lost SVG');
             getCurrentPage().widgets.push(createWidget('Button', 5, 5), createWidget('Lamp', 12, 5));
             renderWidgets();
@@ -65,6 +66,26 @@ const server = require('node:http').createServer((req, res) => {
             applyVisualizationLanguage({ useKorean: true, persist: false });
             return 'SVG upload, decode, export, undo/redo, grid/runtime layers, page change, validation, MCP and language passed';
         }, svg);
+        await page.evaluate(() => {
+            getCurrentPage().properties.pageBackgroundSvg = '<svg>';
+            updatePageBackgroundSvg();
+        });
+        assert.equal(await page.locator('#pageSvgStatus').getAttribute('data-state'), 'error');
+        assert.equal(await page.locator('#pageSvgRetryButton').isVisible(), true);
+        await page.evaluate(svg => { getCurrentPage().properties.pageBackgroundSvg = svg; }, svg);
+        await page.locator('#pageSvgRetryButton').click();
+        await page.waitForFunction(() => document.getElementById('pageSvgStatus').dataset.state === 'ready');
+        await page.evaluate(() => {
+            const before = getCurrentPage().properties.pageBackgroundSvg;
+            let rejected = false;
+            try { validatePageBackgroundSvg('<svg xmlns="http://www.w3.org/2000/svg">' + '한'.repeat(90000) + '</svg>'); } catch { rejected = true; }
+            if (!rejected) throw new Error('UTF-8 SVG byte limit not enforced');
+            window.comfileMcpProject.saved('BrowserTest', true);
+            if (!window.comfileUpdateUi.lock().success || !document.querySelector('.designer').inert) throw new Error('Update lock failed');
+            window.comfileUpdateUi.unlock();
+            if (document.querySelector('.designer').inert) throw new Error('Update unlock failed');
+            document.dispatchEvent(new Event('unused'));
+        });
         await page.screenshot({ path: 'dist/svg-background-preview.png' });
         await page.locator('#pageSvgRemoveButton').click();
         assert.equal(await page.evaluate(() => getCurrentPage().properties.pageBackgroundSvg), '');

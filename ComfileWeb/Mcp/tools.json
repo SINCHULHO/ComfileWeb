@@ -31,7 +31,7 @@
   },
   {
     "name": "get_document",
-    "description": "Read current project, all pages and document revision. Always read before editing.",
+    "description": "Read project and revision before editing. Large documents return summaryOnly with page names; use get_page for paginated contents. Maximum project size is 16 MiB.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -41,6 +41,44 @@
       },
       "required": [
         "editorId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_page",
+    "description": "Read one page with paginated widgets and optional SVG background. Use the revision with edits. Reduce limit if the response is too large.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "editorId": {
+          "type": "string"
+        },
+        "pageName": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeBackground": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "editorId",
+        "pageName"
       ],
       "additionalProperties": false
     },

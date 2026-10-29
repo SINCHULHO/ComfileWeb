@@ -38,10 +38,16 @@ public sealed class VisualizationRuntimeService
         _logger = logger;
     }
 
+    private bool _updatePending;
+    public bool BeginUpdate() { lock (_sync) { if (_running) return false; _updatePending = true; return true; } }
+    public void CancelUpdate() { lock (_sync) _updatePending = false; }
+    public bool IsRunning { get { lock (_sync) return _running; } }
+
     public System.Text.Json.Nodes.JsonObject ExecuteMcpDevice(string name, System.Text.Json.Nodes.JsonObject arguments)
     {
         lock (_sync)
         {
+            if (_updatePending) return McpPipeService.Failure("UPDATE_PENDING", "Application update in progress.");
             if (_running && name is "device_disconnect" or "device_write" or "device_connect")
                 return McpPipeService.Failure("RUNTIME_ACTIVE", "Stop visualization runtime in the browser before changing device state through MCP.");
             try
@@ -148,6 +154,13 @@ public sealed class VisualizationRuntimeService
                 var runtimeState = new { running = false, error = (string?)null };
                 lock (_sync)
                 {
+                    if (_updatePending)
+                    {
+                        runtimeState = new { running = false, error = (string?)"Application update in progress." };
+                        snapshot = new Dictionary<string, int>();
+                    }
+                    else
+                    {
                     _values.Clear();
                     _pendingWrites.Clear();
                     _addressByEntryKey.Clear();
@@ -249,6 +262,7 @@ public sealed class VisualizationRuntimeService
                         runtimeState = new { running = true, error = (string?)null };
                         snapshot = new Dictionary<string, int>(_values, StringComparer.OrdinalIgnoreCase);
                         _logger.LogInformation("CUBLOC runtime started. Entries={EntryCount}, Polling={PollingInterval}ms", _entries.Count, _pollingIntervalMs);
+                    }
                     }
                 }
                 await SendCompletionAsync(socket, invocationId, runtimeState, cancellationToken);

@@ -16,7 +16,9 @@ internal static class BrowserStartup
         return uri.Uri.AbsoluteUri;
     }
 
-    internal static async Task<bool> IsExistingInstanceAsync(string url)
+    internal static async Task<bool> IsExistingInstanceAsync(string url) => await GetExistingVersionAsync(url) is not null;
+
+    internal static async Task<string?> GetExistingVersionAsync(string url)
     {
         // 다른 프로그램이 같은 포트를 사용한다면 ComfileWEB으로 오인하지 않는다.
         try
@@ -25,16 +27,39 @@ internal static class BrowserStartup
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
             using var version = JsonDocument.Parse(await client.GetStringAsync(new Uri(new Uri(url), "api/version")));
             if (!version.RootElement.TryGetProperty("version", out var value) || value.ValueKind != JsonValueKind.String)
-                return false;
+                return null;
             var html = await client.GetStringAsync(url);
             return html.Contains("window.comfileWebEditorMode = true;", StringComparison.Ordinal)
-                && html.Contains("id=\"designSurface\"", StringComparison.Ordinal);
+                && html.Contains("id=\"designSurface\"", StringComparison.Ordinal) ? value.GetString() : null;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            return false;
+            return null;
         }
     }
+
+    internal static async Task<bool> SupportsUpdateAsync(string url)
+    {
+        try
+        {
+            using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(10) };
+            using var response = await client.GetAsync(new Uri(new Uri(url), "api/app/update"));
+            if (!response.IsSuccessStatusCode) return false;
+            using var data = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return data.RootElement.TryGetProperty("currentVersion", out _);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return false; }
+    }
+
+    internal static void ShowLegacyUpdateNotice(string existing, string next)
+    {
+        var message = $"현재 {existing} 버전이 실행 중입니다. 새 버전은 {next}입니다.\n\n이전 버전에는 자동 전환 기능이 없습니다. 작업을 저장하고 실행 중인 ComfileWEB을 종료한 뒤 새 버전을 다시 실행하세요.";
+        Console.WriteLine(message);
+        if (OperatingSystem.IsWindows()) MessageBoxW(IntPtr.Zero, message, "ComfileWEB 업데이트 안내", 0x40);
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int MessageBoxW(IntPtr window, string text, string caption, uint type);
 
     internal static void Open(string url)
     {

@@ -1,6 +1,15 @@
 ﻿param([ValidatePattern('^ComfileWEB(?:-[A-Za-z0-9]+)?$')][string]$PublishFolderName = 'ComfileWEB')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
+# 경로를 지정하지 않으면 마지막으로 성공한 빌드를 사용한다.
+if (-not $PSBoundParameters.ContainsKey('PublishFolderName')) {
+    $latestFile = Join-Path $repoRoot 'dist\latest-publish.txt'
+    if (Test-Path -LiteralPath $latestFile) {
+        $latestFolder = [IO.File]::ReadAllText($latestFile).Trim()
+        if ($latestFolder -notmatch '^ComfileWEB(?:-[A-Za-z0-9]+)?$') { throw 'Invalid latest publish folder.' }
+        $PublishFolderName = $latestFolder
+    }
+}
 $publishDirectory = Join-Path $repoRoot ('dist\' + $PublishFolderName)
 $executable = Join-Path $publishDirectory 'ComfileWeb.exe'
 if (-not (Test-Path -LiteralPath $executable)) {

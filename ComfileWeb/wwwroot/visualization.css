@@ -4369,3 +4369,11 @@
         .canvas-header button:disabled { opacity: .45; cursor: default; }
         body.runtime-running #pageSvgLoadButton,
         body.runtime-running #pageSvgRemoveButton { display: none; }
+
+        #pageSvgStatus { font-size: 12px; color: var(--text); }
+        #pageSvgStatus[data-state="error"] { color: #e89565; }
+        body.runtime-running #pageSvgStatus, body.runtime-running #pageSvgRetryButton { display: none; }
+
+        .app-update-banner { position: fixed; z-index: 100000; bottom: 16px; left: 16px; right: 16px; padding: 14px 18px; background: #183c59; color: #fff; border: 1px solid #71b8e0; border-radius: 8px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 18px #0008; }
+        .app-update-banner[hidden] { display: none; }
+        .app-update-banner button { margin-left: auto; flex-shrink: 0; padding: 8px 14px; cursor: pointer; }

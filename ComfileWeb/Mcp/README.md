@@ -27,7 +27,7 @@ ComfileWEB 실행 파일에 로컬 AI 도구용 stdio MCP 서버가 포함됩니
 
 ## 화면 편집
 
-`list_editors`, `list_projects`, `get_document`, `get_widget_catalog`, `apply_changes`, `edit_history`, `open_project`, `save_project`를 제공합니다.
+`list_editors`, `list_projects`, `get_document`, `get_page`, `get_widget_catalog`, `apply_changes`, `edit_history`, `open_project`, `save_project`를 제공합니다.
 
 먼저 `get_document`와 `get_widget_catalog`를 읽습니다. 편집 요청에는 `editorId`와 최신 `expectedRevision`이 필요합니다. 사람이 화면을 바꾸면 이전 revision 요청은 거절됩니다. 좌표는 0부터 시작하는 격자 칸입니다. 지원 위젯은 Button, Lamp, Toggle, Number, Text, Slider, ProgressBar, Gauge, Tank입니다.
 
@@ -52,3 +52,13 @@ ComfileWEB 실행 파일에 로컬 AI 도구용 stdio MCP 서버가 포함됩니
 ## 개발 검증
 
 `node --test tests/mcp-editor.test.cjs`로 편집의 원자성, revision 충돌, 저장 경쟁, 범위 검사 등을 검증합니다. 실제 장치 출력은 자동 테스트에서 변경하지 않습니다.
+
+## 큰 프로젝트와 안전한 업데이트
+
+프로젝트는 UTF-8 JSON 기준 최대 16 MiB, SVG 배경은 페이지별 최대 256 KiB입니다. 큰 프로젝트의 `get_document`는 `summaryOnly: true`와 페이지 목록을 반환합니다. `get_page`에 `pageName`, `offset`, `limit`(기본 20)을 전달해 위젯을 나눠 읽으세요. 배경이 필요 없으면 `includeBackground: false`로 요청합니다. 응답이 크면 `RESPONSE_TOO_LARGE`가 반환되므로 `limit`를 줄이세요. 수정 응답도 큰 문서는 요약으로 반환합니다.
+
+프로젝트 저장은 임시 파일을 완성한 뒤 교체하고, 이전 내용을 같은 경로의 `.cweb.bak`에 보존합니다. 복구하려면 앱을 멈춘 상태에서 백업을 별도 `.cweb` 파일명으로 복사해 여세요.
+
+새 실행 파일이 이전 서버를 발견하면 버전을 비교하고 업데이트를 등록합니다. 브라우저의 **저장 후 업데이트**는 모든 로컬 편집 탭이 저장되고 실행이 중지된 경우에만 재시작합니다. 기존 탭은 새 서버가 준비되면 저장된 프로젝트를 다시 엽니다. 1934 이전 서버에는 이 기능이 없으므로 처음 한 번은 작업 저장 후 이전 앱을 종료해야 합니다. 개발 테스트는 `--no-browser`로 자동 브라우저 열기를 끌 수 있습니다.
+
+빌드는 실행 중인 배포 폴더를 삭제하지 않습니다. 빌드 성공 후 최신 3개와 실행 중인 폴더, 기본 MCP 경로 `dist/ComfileWEB`, 마지막 성공 빌드를 보존하고 나머지 오래된 배포본을 정리합니다. `installer/Cleanup-Builds.ps1 -WhatIf`로 삭제 후보를 미리 확인할 수 있습니다.

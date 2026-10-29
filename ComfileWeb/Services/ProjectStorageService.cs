@@ -12,6 +12,8 @@ public sealed class ProjectStorageService
 {
     private const string ProjectExtension = ".cweb";
     private readonly object _sync = new();
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+    public const int MaximumDocumentBytes = 16 * 1024 * 1024;
     private string _projectsDirectory;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -71,16 +73,30 @@ public sealed class ProjectStorageService
         string fullPath = Path.Combine(ProjectsDirectory, fileName);
 
         string json = BuildJsonText(request);
-        if (request.FailIfExists)
+        if (Encoding.UTF8.GetByteCount(json) > MaximumDocumentBytes)
+            throw new InvalidOperationException("Project exceeds the 16 MiB document limit.");
+        var temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        await _saveLock.WaitAsync(cancellationToken);
+        try
         {
-            // 생성 시점에 존재 여부를 검사하여 동시 저장으로 기존 파일을 덮지 않는다.
-            await using var stream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true);
-            await using var writer = new StreamWriter(stream, new UTF8Encoding(false));
-            await writer.WriteAsync(json.AsMemory(), cancellationToken);
+            // 같은 디스크에 완성된 임시 파일을 만든 뒤 원자적으로 교체한다.
+            await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+            {
+                var bytes = Encoding.UTF8.GetBytes(json);
+                await stream.WriteAsync(bytes, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!request.FailIfExists && File.Exists(fullPath))
+                File.Replace(temporary, fullPath, fullPath + ".bak");
+            else
+                File.Move(temporary, fullPath, overwrite: false);
         }
-        else
+        finally
         {
-            await File.WriteAllTextAsync(fullPath, json, new UTF8Encoding(false), cancellationToken);
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            finally { _saveLock.Release(); }
         }
 
         DateTimeOffset savedAt = File.GetLastWriteTime(fullPath);

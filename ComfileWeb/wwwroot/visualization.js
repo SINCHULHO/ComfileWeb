@@ -8903,7 +8903,7 @@ const designSurface = document.getElementById('designSurface');
 
         // SVG는 HTML에 삽입하지 않고 격자 아래의 독립된 이미지로 표시한다.
         function validatePageBackgroundSvg(value) {
-            if (typeof value !== 'string' || value.length > 256 * 1024) {
+            if (typeof value !== 'string' || new TextEncoder().encode(value).length > 256 * 1024) {
                 throw new Error(useKoreanLanguage ? 'SVG 파일은 256KB 이하여야 합니다.' : 'SVG must be at most 256 KB.');
             }
             if (!value) return;
@@ -8916,21 +8916,58 @@ const designSurface = document.getElementById('designSurface');
         }
 
         let displayedBackgroundSvg = null;
-        function updatePageBackgroundSvg() {
+        let backgroundLoadRevision = 0;
+        let backgroundLoadState = 'empty';
+        let backgroundLoadTimer;
+        function renderBackgroundStatus() {
+            const messages = useKoreanLanguage
+                ? { empty: '', loading: '배경 불러오는 중…', ready: '배경 표시됨', error: '배경을 표시할 수 없습니다. SVG 파일을 확인하세요.' }
+                : { empty: '', loading: 'Loading background…', ready: 'Background loaded', error: 'Unable to display background. Check the SVG file.' };
+            const status = document.getElementById('pageSvgStatus');
+            status.textContent = messages[backgroundLoadState];
+            status.dataset.state = backgroundLoadState;
+            const retry = document.getElementById('pageSvgRetryButton');
+            retry.textContent = useKoreanLanguage ? '다시 불러오기' : 'Retry background';
+            retry.hidden = backgroundLoadState !== 'error';
+            retry.disabled = runtimeRunning || runtimeStarting;
+        }
+        function updatePageBackgroundSvg(force = false) {
             const svg = getCurrentPage()?.properties?.pageBackgroundSvg || '';
-            if (displayedBackgroundSvg !== svg) {
+            if (force || displayedBackgroundSvg !== svg) {
                 displayedBackgroundSvg = svg;
+                const revision = ++backgroundLoadRevision;
+                clearTimeout(backgroundLoadTimer);
+                designSurface.style.setProperty('--page-background-svg', 'none');
+                backgroundLoadState = svg ? 'loading' : 'empty';
                 try {
                     validatePageBackgroundSvg(svg);
-                    const url = encodeURIComponent(svg).replace(/'/g, '%27');
-                    designSurface.style.setProperty('--page-background-svg', svg ? `url("data:image/svg+xml,${url}")` : 'none');
+                    if (svg) {
+                        const url = 'data:image/svg+xml,' + encodeURIComponent(svg).replace(/'/g, '%27');
+                        const probe = new Image();
+                        const failed = () => {
+                            if (revision !== backgroundLoadRevision) return;
+                            clearTimeout(backgroundLoadTimer);
+                            designSurface.style.setProperty('--page-background-svg', 'none');
+                            backgroundLoadState = 'error'; renderBackgroundStatus();
+                        };
+                        probe.onload = () => {
+                            if (revision !== backgroundLoadRevision) return;
+                            clearTimeout(backgroundLoadTimer);
+                            designSurface.style.setProperty('--page-background-svg', `url("${url}")`);
+                            backgroundLoadState = 'ready'; renderBackgroundStatus();
+                        };
+                        probe.onerror = failed;
+                        backgroundLoadTimer = setTimeout(failed, 8000);
+                        probe.src = url;
+                    }
                 } catch {
-                    designSurface.style.setProperty('--page-background-svg', 'none');
+                    backgroundLoadState = 'error';
                 }
             }
             const blocked = runtimeRunning || runtimeStarting;
             document.getElementById('pageSvgLoadButton').disabled = blocked;
             document.getElementById('pageSvgRemoveButton').disabled = blocked || !svg;
+            renderBackgroundStatus();
         }
 
         function setPageBackgroundSvg(page, svg) {
@@ -9555,6 +9592,7 @@ const designSurface = document.getElementById('designSurface');
                 ? language.useKorean
                 : true;
             window.comfileWebUseKoreanLanguage = useKoreanLanguage;
+            renderBackgroundStatus();
             document.getElementById('pageSvgLoadButton').textContent = useKoreanLanguage ? 'SVG 배경 불러오기' : 'Load SVG background';
             document.getElementById('pageSvgRemoveButton').textContent = useKoreanLanguage ? '배경 제거' : 'Remove background';
             document.documentElement.dataset.languageMode = useKoreanLanguage ? 'ko' : 'en';
@@ -10510,6 +10548,7 @@ const designSurface = document.getElementById('designSurface');
         if (autoLayoutButton) {
             autoLayoutButton.addEventListener('click', () => openAutoLayoutDialog());
         }
+        document.getElementById('pageSvgRetryButton').addEventListener('click', () => updatePageBackgroundSvg(true));
         const pageSvgFileInput = document.getElementById('pageSvgFileInput');
         document.getElementById('pageSvgLoadButton').addEventListener('click', () => {
             if (runtimeRunning || runtimeStarting) return;

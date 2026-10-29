@@ -15,6 +15,8 @@ public sealed class McpEditorBridge
         public ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> Pending { get; } = new();
     }
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
+    private readonly object _updateSync = new();
+    private bool _updateLocked;
 
     public JsonObject List() => new() { ["success"] = true,
         ["editors"] = new JsonArray(_sessions.Keys.Select(id => (JsonNode)new JsonObject { ["editorId"] = id }).ToArray()) };
@@ -23,7 +25,7 @@ public sealed class McpEditorBridge
     {
         string editorId = Guid.NewGuid().ToString("N");
         var session = new Session(socket);
-        _sessions[editorId] = session;
+        lock (_updateSync) { if (_updateLocked) return; _sessions[editorId] = session; }
         try
         {
             await SendAsync(session, new JsonObject { ["editorId"] = editorId }, cancellation);
@@ -73,6 +75,32 @@ public sealed class McpEditorBridge
             return McpPipeService.Failure("EDITOR_TIMEOUT", "Outcome unknown. Read the document before retrying. " + ex.Message);
         }
         finally { session.Pending.TryRemove(id, out _); }
+    }
+
+    public async Task<bool> LockForUpdateAsync(CancellationToken cancellation)
+    {
+        string[] ids;
+        lock (_updateSync) { _updateLocked = true; ids = _sessions.Keys.ToArray(); }
+        if (ids.Length == 0) return false;
+        foreach (var id in ids)
+        {
+            var result = await CallAsync("lock_for_update", new JsonObject { ["editorId"] = id, ["version"] = AppUpdateService.CurrentVersion }, cancellation);
+            if (result["success"]?.GetValue<bool>() != true) return false;
+        }
+        // 확인 도중 새 탭이 연결됐으면 다시 확인하도록 한다.
+        return ids.ToHashSet().SetEquals(_sessions.Keys);
+    }
+
+    public void DisconnectForUpdate()
+    {
+        foreach (var session in _sessions.Values) session.Socket.Abort();
+    }
+
+    public async Task UnlockAfterUpdateAsync()
+    {
+        lock (_updateSync) _updateLocked = false;
+        foreach (var id in _sessions.Keys)
+            try { await CallAsync("unlock_after_update", new JsonObject { ["editorId"] = id }, CancellationToken.None); } catch { }
     }
 
     private static async Task SendAsync(Session session, JsonObject message, CancellationToken cancellation)
