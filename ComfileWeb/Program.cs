@@ -129,9 +129,10 @@ app.MapPost("/api/app/update", async (HttpContext context, AppUpdateService upda
     {
         var pending = updates.Read(browserUrl);
         if (pending is null) return Results.Conflict(new { detail = "No newer build is available." });
-        if (!runtime.BeginUpdate()) return Results.Conflict(new { detail = "Stop runtime before updating." });
-        if (!await bridge.LockForUpdateAsync(context.RequestAborted))
-            return Results.Conflict(new { detail = "Save changes and stop runtime in every open editor tab before updating." });
+        if (!runtime.BeginUpdate()) return Results.Conflict(new { code = "RUNTIME_ACTIVE", detail = "Stop runtime before updating." });
+        var discardUnsaved = context.Request.Headers["X-Comfile-Discard-Unsaved"] == "true";
+        var blockedEditor = await bridge.LockForUpdateAsync(context.RequestAborted, discardUnsaved);
+        if (blockedEditor is not null) return Results.Conflict(blockedEditor);
         if (runtime.IsRunning) return Results.Conflict(new { detail = "Runtime started. Stop it before updating." });
         updates.Start(pending);
         restartScheduled = true;

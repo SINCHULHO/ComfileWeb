@@ -28,12 +28,15 @@ function Read-Message {
     return ([Text.Encoding]::UTF8.GetString($buffer, 0, $received.Count) | ConvertFrom-Json)
 }
 function Reply($message, $success) {
-    $bytes = [Text.Encoding]::UTF8.GetBytes((@{id=$message.id;result=@{success=$success}} | ConvertTo-Json -Compress))
+    $result = @{success=$success}
+    if (-not $success) { $result.code='DIRTY_EDITOR'; $result.projectName='Unsaved test project' }
+    $bytes = [Text.Encoding]::UTF8.GetBytes((@{id=$message.id;result=$result} | ConvertTo-Json -Compress))
     $null = Await ($socket.SendAsync([ArraySegment[byte]]::new($bytes), 'Text', $true, [Threading.CancellationToken]::None))
 }
-function Post-Update($token) {
+function Post-Update($token, $discardUnsaved = $false) {
     $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Post, "$base/api/app/update")
     $request.Headers.Add('Origin', $base); $request.Headers.Add('X-Comfile-Update-Token', $token)
+    $request.Headers.Add('X-Comfile-Discard-Unsaved', $discardUnsaved.ToString().ToLowerInvariant())
     return $client.SendAsync($request)
 }
 try {
@@ -54,9 +57,12 @@ try {
     $dirtyRequest = Post-Update $state.token
     $message = Read-Message; Assert ($message.name -eq 'lock_for_update') 'Missing editor guard.'; Reply $message $false
     $message = Read-Message; Assert ($message.name -eq 'unlock_after_update') 'Missing unlock after refusal.'; Reply $message $true
-    Assert ([int](Await $dirtyRequest).StatusCode -eq 409) 'Dirty editor allowed restart.'
-    $cleanRequest = Post-Update $state.token
-    $message = Read-Message; Reply $message $true
+    $dirtyResponse = Await $dirtyRequest
+    Assert ([int]$dirtyResponse.StatusCode -eq 409) 'Dirty editor allowed restart.'
+    $failure = (Await ($dirtyResponse.Content.ReadAsStringAsync())) | ConvertFrom-Json
+    Assert ($failure.code -eq 'DIRTY_EDITOR' -and $failure.projectName -eq 'Unsaved test project' -and $failure.editorId) 'Blocking editor detail missing.'
+    $cleanRequest = Post-Update $state.token $true
+    $message = Read-Message; Assert ($message.arguments.discardUnsaved -eq $true) 'Discard intent not forwarded to editor.'; Reply $message $true
     Assert ([int](Await $cleanRequest).StatusCode -eq 200) 'Clean update failed.'
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt 35) {

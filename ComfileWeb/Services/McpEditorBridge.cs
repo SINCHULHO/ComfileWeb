@@ -77,18 +77,24 @@ public sealed class McpEditorBridge
         finally { session.Pending.TryRemove(id, out _); }
     }
 
-    public async Task<bool> LockForUpdateAsync(CancellationToken cancellation)
+    public async Task<JsonObject?> LockForUpdateAsync(CancellationToken cancellation, bool discardUnsaved = false)
     {
         string[] ids;
         lock (_updateSync) { _updateLocked = true; ids = _sessions.Keys.ToArray(); }
-        if (ids.Length == 0) return false;
+        if (ids.Length == 0) return McpPipeService.Failure("NO_EDITORS", "No local editor is connected. Reopen the local page.");
         foreach (var id in ids)
         {
-            var result = await CallAsync("lock_for_update", new JsonObject { ["editorId"] = id, ["version"] = AppUpdateService.CurrentVersion }, cancellation);
-            if (result["success"]?.GetValue<bool>() != true) return false;
+            var result = await CallAsync("lock_for_update", new JsonObject { ["editorId"] = id, ["version"] = AppUpdateService.CurrentVersion, ["discardUnsaved"] = discardUnsaved }, cancellation);
+            if (result["success"]?.GetValue<bool>() != true)
+            {
+                if (result["code"] is null) result["code"] = "EDITOR_BLOCKED";
+                result["editorId"] = id;
+                return result;
+            }
         }
         // 확인 도중 새 탭이 연결됐으면 다시 확인하도록 한다.
-        return ids.ToHashSet().SetEquals(_sessions.Keys);
+        return ids.ToHashSet().SetEquals(_sessions.Keys) ? null
+            : McpPipeService.Failure("EDITORS_CHANGED", "The editor connections changed. Retry the update.");
     }
 
     public void DisconnectForUpdate()

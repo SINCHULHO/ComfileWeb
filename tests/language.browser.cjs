@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const server = require('node:http').createServer((req, res) => {
+    if (req.url === '/api/app/update') { res.setHeader('Content-Type', 'application/json'); return res.end('{"currentVersion":"0.9.1936","availableVersion":"0.9.1937","token":"test"}'); }
     if (req.url.startsWith('/api/project/list')) { res.setHeader('Content-Type', 'application/json'); return res.end('[]'); }
     if (req.url.startsWith('/api/project/settings')) { res.setHeader('Content-Type', 'application/json'); return res.end('{"projectsDirectory":"D:\\\\Projects"}'); }
     if (req.url === '/api/ui-language.js') { res.setHeader('Content-Type', 'application/javascript'); return res.end("window.comfileWebSystemLanguage = 'en';"); }
@@ -20,6 +21,10 @@ const server = require('node:http').createServer((req, res) => {
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
         assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+        assert.equal(await page.evaluate(() => window.comfileMcpProject.status().dirty), false);
+        await page.reload();
+        await page.waitForTimeout(50);
+        assert.equal(await page.evaluate(() => window.comfileMcpProject.status().dirty), false, 'Reloading an untouched page must not make it dirty');
         async function audit(label) {
             const korean = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(e => !['SCRIPT','STYLE'].includes(e.tagName)).flatMap(e => {
                 const text = [...e.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('');
@@ -33,6 +38,8 @@ const server = require('node:http').createServer((req, res) => {
         await page.reload();
         assert.equal(await page.locator('html').getAttribute('lang'), 'ko');
         await page.locator('#appLanguageSelect').selectOption('en');
+        await page.getByRole('button', { name: 'Update without saving', exact: true }).waitFor({ state: 'visible' });
+        assert.equal(await page.getByRole('button', { name: 'Save and update', exact: true }).count(), 1);
         await audit('Switch to English');
         await page.locator('#aiConnectionButton').click();
         await audit('AI dialog');
@@ -67,6 +74,14 @@ const server = require('node:http').createServer((req, res) => {
         }
         await page.reload();
         assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+        await page.evaluate(() => { window.comfileMcpProject.opened('Saved test'); });
+        await page.reload();
+        await page.waitForTimeout(50);
+        assert.equal(await page.evaluate(() => window.comfileMcpProject.status().dirty), false, 'Saved page must remain saved after reload');
+        await page.evaluate(() => { notifyVisualizationDirty(); });
+        await page.reload();
+        await page.waitForTimeout(50);
+        assert.equal(await page.evaluate(() => window.comfileMcpProject.status().dirty), true, 'Unsaved edits must remain dirty after reload');
         await page.screenshot({ path: path.join(__dirname, '../dist/english-ui.png') });
         const koreanPage = await browser.newPage({ locale: 'en-US' });
         await koreanPage.route('**/api/ui-language.js', route => route.fulfill({ contentType: 'application/javascript', body: "window.comfileWebSystemLanguage = 'ko';" }));

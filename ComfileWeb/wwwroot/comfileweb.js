@@ -244,6 +244,8 @@
 			sessionStorage.setItem(temporaryDraftStorageKey, JSON.stringify({
 				projectName: currentProjectName,
 				documentText: text,
+				dirty: documentDirty,
+				savedOnce: documentSavedOnce,
 				savedAt: new Date().toISOString()
 			}));
 			return true;
@@ -280,6 +282,8 @@
 	}
 
 	function restoreTemporaryDraftIfAvailable() {
+		// 업데이트 복원과 일반 새로고침 복원이 서로 덮어쓰지 않게 한다.
+		try { if (sessionStorage.getItem('comfileweb-update-project')) return; } catch { }
 		const draft = loadTemporaryDraft();
 		if (!draft) {
 			return;
@@ -287,11 +291,13 @@
 
 		setDocumentText(draft.documentText);
 		currentProjectName = draft.projectName || currentProjectName;
-		documentSavedOnce = false;
-		setDocumentDirty(true);
+		// 구버전 복구본은 안전하게 미저장으로 취급한다.
+		documentSavedOnce = draft.savedOnce === true;
+		setDocumentDirty(draft.dirty !== false);
 	}
 
 	function handleBeforeUnload() {
+		if (window.comfileUpdateLocked) { clearTemporaryDraft(); return; }
 		saveTemporaryDraft(true);
 	}
 

@@ -230,7 +230,10 @@
                 const message = JSON.parse(event.data);
                 if (message.editorId) { window.comfileMcpEditorId = message.editorId; return; }
                 let result;
-                if (message.name === 'lock_for_update') result = window.comfileUpdateUi?.lock(message.arguments?.version) || { success: false };
+                if (message.name === 'lock_for_update') {
+                    try { result = window.comfileUpdateUi?.lock(message.arguments?.version, message.arguments?.discardUnsaved === true) || { success: false, code: 'EDITOR_BLOCKED' }; }
+                    catch { result = { success: false, code: 'EDITOR_BLOCKED' }; }
+                }
                 else if (message.name === 'unlock_after_update') { window.comfileUpdateUi?.unlock(); result = { success: true }; }
                 else result = await dispatch(message.name, message.arguments);
                 if (connection.readyState === WebSocket.OPEN) connection.send(JSON.stringify({ id: message.id, result }));
