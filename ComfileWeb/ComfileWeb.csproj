@@ -3,6 +3,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <ApplicationIcon>..\Assets\AppIcon\ComfileWEB.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>

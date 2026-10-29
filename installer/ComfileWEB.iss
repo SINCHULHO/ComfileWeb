@@ -16,6 +16,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#RepoRoot}\dist\installer
 OutputBaseFilename=ComfileWEB-Setup-{#AppVersion}-win-x64
+SetupIconFile={#RepoRoot}\Assets\AppIcon\ComfileWEB.ico
 UninstallDisplayIcon={app}\ComfileWeb.exe
 Compression=lzma2/fast
 SolidCompression=yes
