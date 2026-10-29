@@ -67,7 +67,6 @@ const designSurface = document.getElementById('designSurface');
         const canvasShell = document.querySelector('.canvas-shell');
         const settingsGeneralTab = document.getElementById('settingsGeneralTab');
         const settingsLinkTab = document.getElementById('settingsLinkTab');
-        const settingsSourceSyncTab = document.getElementById('settingsSourceSyncTab');
         const settingsScreenTab = document.getElementById('settingsScreenTab');
         const settingsCloseButton = document.getElementById('settingsCloseButton');
         const sourceSyncUnsupportedMessage = document.getElementById('sourceSyncUnsupportedMessage');
@@ -247,7 +246,7 @@ const designSurface = document.getElementById('designSurface');
                 syncNow: '지금 동기화',
                 connectOrChangeSourceFile: '소스 파일 연결/변경',
                 autoSyncSourceFile: '파일 변경 시 자동 동기화',
-                sourceSyncUnsupported: 'CUBLOC2 장치를 선택하면 소스 파일 동기화를 사용할 수 있습니다.',
+                sourceSyncUnsupported: '현재 지원 장치에서는 소스 파일 동기화를 사용할 수 없습니다.',
                 sourceSyncHelp: 'CUBLOC2 Studio 프로젝트 파일에서 Alias, Comment, Ladder 정보를 가져와 주소 테이블과 LD 모니터링에 사용합니다.',
                 useVariableSystem: '변수 시스템 사용',
                 useTrendGraphPage: '트랜드 그래프 페이지 사용',
@@ -329,7 +328,7 @@ const designSurface = document.getElementById('designSurface');
                 syncNow: 'Sync Now',
                 connectOrChangeSourceFile: 'Connect/Change Source File',
                 autoSyncSourceFile: 'Auto sync when file changes',
-                sourceSyncUnsupported: 'Select CUBLOC2 as the target device to use source file synchronization.',
+                sourceSyncUnsupported: 'Source file synchronization is unavailable for currently supported devices.',
                 sourceSyncHelp: 'Imports Alias, Comment, and Ladder information from a CUBLOC2 Studio project file for the address table and LD monitoring.',
                 useVariableSystem: 'Use Variable System',
                 useTrendGraphPage: 'Use Trend Graph Page',
@@ -761,6 +760,11 @@ const designSurface = document.getElementById('designSurface');
         function normalizeDeviceConnection(value) {
             const source = value && typeof value === 'object' ? value : {};
             const defaults = createDefaultDeviceConnection();
+            // 지원 목록에서 제거된 장치는 기존 프로젝트를 열어도 다시 연결하지 않는다.
+            const requestedDevice = String(source.device ?? defaults.device).trim();
+            if (requestedDevice && !Array.from(linkModelSelect?.options || []).some(option => option.value === requestedDevice)) {
+                return defaults;
+            }
             const baudRate = Number(source.baudRate ?? defaults.baudRate);
             const ethernetPort = Number(source.ethernetPort ?? defaults.ethernetPort);
             const cfheaderAddress = Number(source.cfheaderAddress);
@@ -802,12 +806,12 @@ const designSurface = document.getElementById('designSurface');
                 };
             }
 
-            if (connection.transport === 'Ethernet' || !connection.portName) {
+            if (!device || connection.transport === 'Ethernet' || !connection.portName) {
                 return null;
             }
 
             return {
-                device: connection.device || 'CUBLOC2',
+                device: connection.device,
                 cfheaderAddress: connection.cfheaderAddress,
                 portName: connection.portName,
                 baudRate: connection.baudRate || 115200
@@ -9706,6 +9710,7 @@ const designSurface = document.getElementById('designSurface');
                 sourceSyncUnsupportedMessage.style.display = isCubloc2 ? 'none' : '';
             }
             if (sourceSyncContent) {
+                sourceSyncContent.style.display = isCubloc2 ? '' : 'none';
                 sourceSyncContent.classList.toggle('is-disabled', !isCubloc2);
             }
             if (cublocSourceFileName) {
@@ -9771,7 +9776,7 @@ const designSurface = document.getElementById('designSurface');
 
         function activateSettingsTab(tabName) {
             const requestedTab = String(tabName || 'general').trim().toLowerCase();
-            const nextTab = requestedTab === 'link' || requestedTab === 'source' || requestedTab === 'screen' ? requestedTab : 'general';
+            const nextTab = requestedTab === 'link' || requestedTab === 'screen' ? requestedTab : 'general';
             document.querySelectorAll('.app-settings-tab').forEach(button => {
                 const isActive = button.dataset.settingsTab === nextTab;
                 button.classList.toggle('active', isActive);
@@ -9781,9 +9786,6 @@ const designSurface = document.getElementById('designSurface');
             document.querySelectorAll('.app-settings-tab-panel').forEach(panel => {
                 panel.classList.toggle('active', panel.dataset.settingsPanel === nextTab);
             });
-            if (nextTab === 'source') {
-                updateSourceSyncSettingsUi();
-            }
         }
 
         async function applyProjectStorageSettings() {
@@ -10567,9 +10569,6 @@ const designSurface = document.getElementById('designSurface');
         }
         if (settingsLinkTab) {
             settingsLinkTab.addEventListener('click', () => activateSettingsTab('link'));
-        }
-        if (settingsSourceSyncTab) {
-            settingsSourceSyncTab.addEventListener('click', () => activateSettingsTab('source'));
         }
         if (settingsScreenTab) {
             settingsScreenTab.addEventListener('click', () => activateSettingsTab('screen'));

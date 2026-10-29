@@ -6,10 +6,13 @@ using ComfileWeb.Models;
 using ComfileWeb.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-// 외부 네트워크에서 접속 가능하도록 모든 인터페이스에 바인드
-// 개발용 HTTPS 포트(launchSettings.json의 7261)도 함께 바인드하여
-// Visual Studio가 기다리는 HTTPS 엔드포인트가 열리도록 함.
-builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://localhost:7261");
+// 명시된 주소를 우선하며, 설치본에는 개발용 HTTPS 인증서를 요구하지 않는다.
+if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
+{
+    builder.WebHost.UseUrls(builder.Environment.IsDevelopment()
+        ? ["http://0.0.0.0:5000", "https://localhost:7261"]
+        : ["http://0.0.0.0:5000"]);
+}
 builder.Services.AddSingleton<ProjectStorageService>();
 builder.Services.AddSingleton<UsbCdcService>();
 builder.Services.AddSingleton<VisualizationRuntimeService>();
@@ -19,6 +22,17 @@ var app = builder.Build();
 app.UseWebSockets();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+// About 화면도 빌드된 실행 파일의 버전을 사용한다.
+app.MapGet("/api/version", (HttpContext context) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    string version = typeof(Program).Assembly
+        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+        .Single().InformationalVersion.Split('+')[0];
+    return Results.Ok(new { version });
+});
 
 var projectApi = app.MapGroup("/api/project");
 var usbApi = app.MapGroup("/api/usb-cdc");

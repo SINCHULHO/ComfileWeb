@@ -176,7 +176,15 @@
 
 		const version = document.createElement('div');
 		version.className = 'about-dialog-version';
-		version.textContent = 'Version 0.80';
+		version.textContent = 'Version …';
+		// 서버의 실제 빌드 버전을 표시해 설치본과 About의 번호를 일치시킨다.
+		fetch('/api/version', { cache: 'no-store' })
+			.then(response => {
+				if (!response.ok) throw new Error('Version request failed.');
+				return response.json();
+			})
+			.then(info => { version.textContent = `Version ${info.version}`; })
+			.catch(() => { version.textContent = 'Version —'; });
 
 		const meta = document.createElement('div');
 		meta.className = 'about-dialog-meta';

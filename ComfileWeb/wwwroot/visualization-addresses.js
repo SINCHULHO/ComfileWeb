@@ -277,7 +277,7 @@ if (Array.isArray(window.visualizationDocumentModel?.addressMetadata)) {
 }
 
 function getCurrentAddressTableProvider() {
-    const device = String(linkModelSelect?.value || documentModel.deviceConnection?.device || 'CUBLOC2').trim() || 'CUBLOC2';
+    const device = String(linkModelSelect?.value || '').trim();
     return addressTableProviders[device] || null;
 }
 
