@@ -1,4 +1,7 @@
 #define AppName "ComfileWEB"
+#ifndef InstallerOutput
+  #error InstallerOutput is required. Run _Build-Installer.cmd.
+#endif
 #ifndef AppVersion
   #error AppVersion is required. Run _Build-Installer.cmd.
 #endif
@@ -14,13 +17,17 @@
 AppId={{D065A4D1-6FC3-4896-AC78-B916D85CED73}
 AppName={#AppName}
 AppVersion={#AppVersion}
+AppPublisher=COMFILE Technology, Inc.
+SignTool=ComfileAzure
+SignedUninstaller=yes
+SignToolRetryCount=0
 DefaultDirName={localappdata}\Programs\ComfileWEB
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-OutputDir={#RepoRoot}\dist\installer
+OutputDir={#InstallerOutput}
 OutputBaseFilename=ComfileWEB-Setup-{#AppVersion}-win-x64
 SetupIconFile={#RepoRoot}\Assets\AppIcon\ComfileWEB.ico
 UninstallDisplayIcon={app}\{#AppIconFileName}
