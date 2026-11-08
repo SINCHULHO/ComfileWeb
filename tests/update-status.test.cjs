@@ -18,8 +18,46 @@ function setup() {
             : {ok:true,json:async()=>({currentVersion:'0.9.1936',availableVersion:'0.9.1937',token:'test'})}
     };
     vm.runInNewContext(source, context);
-    return {context, window, state, designer, events, label:elements[1],button:elements[2],discardButton:elements[3]};
+    return {context, window, state, designer, events, banner:elements[0],label:elements[1],button:elements[2],discardButton:elements[3]};
 }
+
+test('download notice supports language, later dismissal, and local update priority', async () => {
+    const s=setup();
+    let local = false;
+    s.context.fetch=async url=>({ok:true,json:async()=>url.includes('download-update')
+        ? {currentVersion:'0.9.1940',latestVersion:'0.10.1'}
+        : {currentVersion:'0.9.1940',availableVersion:local?'0.10.2':null}});
+    await s.events.DOMContentLoaded();
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.match(s.label.textContent,/Latest: 0.10.1/);
+    assert.equal(s.button.textContent,'Go to download');
+    s.window.comfileWebUseKoreanLanguage=true;
+    s.events['visualization-language-changed']();
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(s.button.textContent,'다운로드 하러 가기');
+    let opened;
+    s.window.open=(...args)=>opened=args;
+    await s.button.click();
+    assert.match(opened[0],/lang=ko&product=comfileweb$/);
+    await s.events.focus();
+    assert.equal(s.banner.hidden,true);
+    local=true;
+    await s.events.focus();
+    assert.equal(s.banner.hidden,false);
+    assert.equal(s.button.textContent,'저장 후 업데이트');
+});
+
+test('Later hides the download notice across polling without opening a page', async () => {
+    const s=setup();
+    s.context.fetch=async url=>({ok:true,json:async()=>url.includes('download-update')
+        ? {currentVersion:'0.9.1940',latestVersion:'0.10.1'} : {currentVersion:'0.9.1940'}});
+    await s.events.DOMContentLoaded();
+    await new Promise(resolve=>setImmediate(resolve));
+    await s.discardButton.click();
+    await s.events.focus();
+    assert.equal(s.banner.hidden,true);
+    assert.equal(s.designer.inert,false);
+});
 test('dirty tab reports identity and remains editable; runtime and storage have separate reasons', () => {
     const s=setup(); s.state.dirty=true;
     assert.equal(s.window.comfileUpdateUi.lock('old').code,'DIRTY_EDITOR');

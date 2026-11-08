@@ -58,6 +58,7 @@ builder.Services.AddSingleton<UsbCdcService>();
 builder.Services.AddSingleton<VisualizationRuntimeService>();
 builder.Services.AddSingleton<McpEditorBridge>();
 builder.Services.AddSingleton<AppUpdateService>();
+builder.Services.AddSingleton<DownloadUpdateService>();
 builder.Services.AddSingleton<CodexSetupService>();
 builder.Services.AddHostedService<McpPipeService>();
 
@@ -111,6 +112,13 @@ app.MapGet("/api/version", (HttpContext context) =>
 });
 
 // 재시작 요청은 로컬 화면과 이번 실행에만 유효한 토큰으로 제한한다.
+app.MapGet("/api/app/download-update", async (HttpContext context, DownloadUpdateService updates) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (context.Connection.RemoteIpAddress is not { } ip || !System.Net.IPAddress.IsLoopback(ip)) return Results.StatusCode(403);
+    return Results.Ok(new { currentVersion = AppUpdateService.CurrentVersion, latestVersion = await updates.CheckAsync() });
+});
+
 app.MapGet("/api/app/update", (HttpContext context, AppUpdateService updates) =>
 {
     context.Response.Headers.CacheControl = "no-store";

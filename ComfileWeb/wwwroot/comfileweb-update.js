@@ -11,6 +11,22 @@
     banner.append(label, button, discardButton); document.body.append(banner);
     const korean = () => window.comfileWebUseKoreanLanguage !== false;
     let info, checking = false, restartTimer, restarting = false, updateBlocked = false;
+    let downloadInfo, downloadMode = false, downloadDismissed = false;
+    function showDownloadNotice() {
+        if (!downloadInfo?.latestVersion || downloadDismissed || info?.availableVersion || updateBlocked || window.comfileUpdateLocked || restarting) return;
+        downloadMode = true;
+        message(`새 버전이 있습니다. 현재: ${downloadInfo.currentVersion} · 최신: ${downloadInfo.latestVersion}`, `A new version is available. Current: ${downloadInfo.currentVersion} · Latest: ${downloadInfo.latestVersion}`);
+        button.textContent = korean() ? '다운로드 하러 가기' : 'Go to download';
+        discardButton.textContent = korean() ? '나중에' : 'Later';
+    }
+    async function checkDownload() {
+        try {
+            const response = await fetch('/api/app/download-update', { cache: 'no-store' });
+            if (!response.ok) return;
+            downloadInfo = await response.json();
+            showDownloadNotice();
+        } catch { /* Optional notification; offline startup remains usable. */ }
+    }
     let lockVersion, lockTime, lastMessage;
     function message(ko, en) { lastMessage = [ko, en]; banner.hidden = false; label.textContent = korean() ? ko : en; }
     function unlock() {
@@ -68,10 +84,12 @@
             if (!response.ok) return;
             info = await response.json();
             if (info.availableVersion && !updateBlocked) {
+                downloadMode = false;
                 message(`실행 버전 ${info.currentVersion} · 새 버전 ${info.availableVersion} 준비됨`, `Running ${info.currentVersion} · New version ${info.availableVersion} ready`);
                 button.textContent = korean() ? '저장 후 업데이트' : 'Save and update';
                 discardButton.textContent = korean() ? '저장하지 않고 업데이트' : 'Update without saving';
             }
+            else showDownloadNotice();
         } catch { /* 다음 확인 주기에 다시 시도한다. */ }
         finally { checking = false; }
     }
@@ -118,8 +136,17 @@
             }
         } finally { if (!window.comfileUpdateLocked) { button.disabled = false; discardButton.disabled = false; } }
     }
-    button.addEventListener('click', () => requestUpdate(false));
-    discardButton.addEventListener('click', () => requestUpdate(true));
+    button.addEventListener('click', () => {
+        if (!downloadMode) return requestUpdate(false);
+        window.open('https://comfilewiki.co.kr/downloads/?tab=software&lang=' + (korean() ? 'ko' : 'en') + '&product=comfileweb', '_blank', 'noopener,noreferrer');
+        downloadDismissed = true;
+        banner.hidden = true;
+    });
+    discardButton.addEventListener('click', () => {
+        if (!downloadMode) return requestUpdate(true);
+        downloadDismissed = true;
+        banner.hidden = true;
+    });
     async function restore() {
         const name = sessionStorage.getItem(restoreKey);
         if (name) {
@@ -134,11 +161,13 @@
             } catch { message('저장된 프로젝트를 다시 여세요: ' + name, 'Reopen saved project: ' + name); }
         }
         await check();
+        void checkDownload();
     }
     window.addEventListener('visualization-language-changed', () => {
         if (lastMessage) label.textContent = lastMessage[korean() ? 0 : 1];
         button.textContent = korean() ? '저장 후 업데이트' : 'Save and update';
         discardButton.textContent = korean() ? '저장하지 않고 업데이트' : 'Update without saving';
+        showDownloadNotice();
         check();
     });
     window.addEventListener('pageshow', check);
