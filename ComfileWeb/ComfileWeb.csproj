@@ -35,4 +35,5 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../Reporting/Reporting.vbproj" /></ItemGroup>
 </Project>

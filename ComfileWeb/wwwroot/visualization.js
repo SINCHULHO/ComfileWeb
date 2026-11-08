@@ -18,7 +18,7 @@ const designSurface = document.getElementById('designSurface');
         const gridXValue = document.getElementById('gridXValue');
         const gridYValue = document.getElementById('gridYValue');
         const gridVisibleCheckbox = document.getElementById('gridVisibleCheckbox');
-        const toolbarDarkThemeCheckbox = document.getElementById('toolbarDarkThemeCheckbox');
+        const headerThemeButton = document.getElementById('headerThemeButton');
         const alignTopButton = document.getElementById('alignTopButton');
         const alignBottomButton = document.getElementById('alignBottomButton');
         const alignLeftButton = document.getElementById('alignLeftButton');
@@ -8744,6 +8744,20 @@ const designSurface = document.getElementById('designSurface');
                 .replaceAll("'", '&#39;');
         }
 
+        function updateHeaderThemeButton() {
+            if (!headerThemeButton) return;
+            const dark = document.documentElement.dataset.theme !== 'light';
+            const korean = document.documentElement.dataset.languageMode === 'ko';
+            const label = dark
+                ? (korean ? '라이트 테마로 전환' : 'Switch to light theme')
+                : (korean ? '다크 테마로 전환' : 'Switch to dark theme');
+            headerThemeButton.title = label;
+            headerThemeButton.setAttribute('aria-label', label);
+            headerThemeButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + (dark
+                ? '<circle cx="10" cy="10" r="3.5"/><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.5 1.5M14.5 14.5L16 16M4 16l1.5-1.5M14.5 5.5L16 4"/>'
+                : '<path d="M16.9 12.6A7.3 7.3 0 0 1 7.4 3.1a7.3 7.3 0 1 0 9.5 9.5Z"/>') + '</svg>';
+        }
+
         function applyVisualizationTheme(theme) {
             const useDarkTheme = theme && typeof theme.useDarkTheme === 'boolean'
                 ? theme.useDarkTheme
@@ -8756,9 +8770,7 @@ const designSurface = document.getElementById('designSurface');
             if (themeModeSelect) {
                 themeModeSelect.value = nextThemeMode;
             }
-            if (toolbarDarkThemeCheckbox) {
-                toolbarDarkThemeCheckbox.checked = useDarkTheme;
-            }
+            updateHeaderThemeButton();
             updateGridControlsFromCurrentPage();
             renderWidgets();
         }
@@ -9637,7 +9649,7 @@ const designSurface = document.getElementById('designSurface');
             const translatedAttributes = [
                 ['#fileMenuButton', ['title', 'aria-label'], '파일 메뉴', 'File menu'],
                 ['.division-control-grid:has(#gridVisibleCheckbox)', ['title'], '격자 표시', 'Show grid'],
-                ['.division-control-grid:has(#toolbarDarkThemeCheckbox)', ['title'], '다크 테마', 'Dark theme'],
+
                 ['.canvas-header', ['aria-label'], '현재 페이지', 'Current page'],
                 ['#designSurface', ['aria-label'], '시각화 디자인 영역', 'Visualization design area'],
                 ['#clearAllVariablesButton', ['title'], '모두 삭제', 'Delete all'],
@@ -10644,11 +10656,13 @@ const designSurface = document.getElementById('designSurface');
                 notifyVisualizationDirty();
             });
         }
-        if (toolbarDarkThemeCheckbox) {
-            toolbarDarkThemeCheckbox.addEventListener('change', () => {
-                applyVisualizationTheme({ useDarkTheme: !!toolbarDarkThemeCheckbox.checked });
+        if (headerThemeButton) {
+            headerThemeButton.addEventListener('click', () => {
+                applyVisualizationTheme({ useDarkTheme: currentThemeMode === 'light' });
                 notifyVisualizationDirty();
             });
+            window.addEventListener('visualization-language-changed', updateHeaderThemeButton);
+            updateHeaderThemeButton();
         }
         if (languageModeSelect) {
             languageModeSelect.addEventListener('change', () => {

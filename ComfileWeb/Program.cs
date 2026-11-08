@@ -46,6 +46,10 @@ if (existingVersion is not null)
     BrowserStartup.Open(browserUrl);
     return;
 }
+ComfileWeb.Reporting.ReportCrashJournal.StartSession();
+AppDomain.CurrentDomain.UnhandledException += (_, e) => {
+    if (e.IsTerminating && e.ExceptionObject is Exception error) ComfileWeb.Reporting.ReportCrashJournal.RecordFatal(error, "AppDomain terminating");
+};
 // 명시된 주소를 우선하며, 설치본에는 개발용 HTTPS 인증서를 요구하지 않는다.
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
 {
@@ -64,6 +68,13 @@ builder.Services.AddHostedService<McpPipeService>();
 
 var app = builder.Build();
 
+UserReportApi.Map(app);
+app.Use(async (context, next) => {
+    var path = context.Request.Path.Value;
+    if (path is "/api/project/load" or "/api/project/save" or "/api/usb-cdc/connect" or "/api/usb-cdc/disconnect" or "/api/cfnet/connect" or "/api/cfnet/disconnect")
+        ComfileWeb.Reporting.ReportCrashJournal.RecordAction("Operation: " + path);
+    await next(context);
+});
 app.UseWebSockets();
 app.UseDefaultFiles();
 // 최초 화면 언어는 서버 PC의 Windows 표시 언어를 사용한다.
@@ -497,7 +508,14 @@ if (openBrowser)
     app.Lifetime.ApplicationStarted.Register(() => BrowserStartup.Open(browserUrl));
 }
 
-app.Run();
+try {
+    app.Run();
+    ComfileWeb.Reporting.ReportCrashJournal.EndSession(false);
+} catch (Exception error) {
+    ComfileWeb.Reporting.ReportCrashJournal.RecordFatal(error, "Web server terminating");
+    ComfileWeb.Reporting.ReportCrashJournal.EndSession(true);
+    throw;
+}
 
 static Cfheader GetCfheader(int? requestedAddress)
 {

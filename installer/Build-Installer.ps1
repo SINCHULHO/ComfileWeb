@@ -63,11 +63,11 @@ try {
 
     Write-Host '[2/3] Checking published files...'
     foreach ($requiredFile in @(
-        'ComfileWeb.exe', 'ComfileWeb.dll', 'ComfileWeb.runtimeconfig.json', 'coreclr.dll',
+        'ComfileWeb.exe', 'ComfileWeb.dll', 'Reporting.dll', 'ComfileWeb.runtimeconfig.json', 'coreclr.dll',
         'appsettings.json', 'wwwroot\index.html', 'wwwroot\visualization.js',
         'wwwroot\visualization.css', 'wwwroot\visualization-addresses.js',
         'wwwroot\visualization-device-link.js', 'wwwroot\visualization.ldmonitor.js',
-        'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'wwwroot\comfileweb-update.js', 'wwwroot\comfileweb-ai.js', 'Mcp\README.md',
+        'wwwroot\comfileweb-reports.js', 'wwwroot\comfileweb-reports.css', 'wwwroot\comfileweb.js', 'wwwroot\comfileweb-mcp.js', 'wwwroot\comfileweb-update.js', 'wwwroot\comfileweb-ai.js', 'Mcp\README.md',
         'ComfileTech.Cfnet.Cfheader.Native.dll', 'libusb-1.0.dll'
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory $requiredFile))) {
@@ -76,7 +76,7 @@ try {
     }
 
     # 회사 패키지 저작자와 프로젝트 출력으로 확인한 파일만 서명한다.
-    $ownedNames = @('ComfileWeb.exe', 'ComfileWeb.dll', 'ComfileTech.Cfnet.Cfheader.dll', 'ComfileTech.Cfnet.Cfheader.Native.dll')
+    $ownedNames = @('ComfileWeb.exe', 'ComfileWeb.dll', 'Reporting.dll', 'ComfileTech.Cfnet.Cfheader.dll', 'ComfileTech.Cfnet.Cfheader.Native.dll')
     $payloadFiles = @(Get-ChildItem -LiteralPath $publishDirectory -Recurse -File)
     $thirdPartyHashes = @{}
     foreach ($file in $payloadFiles | Where-Object { $_.Extension -in @('.exe','.dll') -and $_.Name -notin $ownedNames }) {

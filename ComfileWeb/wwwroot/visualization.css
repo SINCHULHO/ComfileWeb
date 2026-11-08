@@ -4393,3 +4393,8 @@
 .app-language-control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .app-language-control select { background: var(--panel-bg, #26394b); color: inherit; border: 1px solid #64748b; padding: 4px; border-radius: 4px; }
 html:not([data-language-mode]) .designer { visibility: hidden; }
+
+/* Application theme control: always the last item in the logo header. */
+.logo-bar .header-theme-button { order:4; flex:0 0 auto; width:28px; height:26px; display:inline-flex; align-items:center; justify-content:center; padding:0; color:var(--text); background:transparent; border:1px solid var(--button-border); border-radius:4px; cursor:pointer; }
+.logo-bar .header-theme-button:hover { background:var(--button-hover-bg); border-color:var(--button-hover-border); }
+.logo-bar .header-theme-button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }

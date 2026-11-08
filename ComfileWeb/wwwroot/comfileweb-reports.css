@@ -1,0 +1,23 @@
+.report-dialog { width:min(760px,90vw); max-height:90vh; overflow:auto; box-sizing:border-box; background:var(--surface-bg); color:var(--text); border:1px solid var(--surface-border); border-radius:8px; padding:24px; }
+.report-dialog::backdrop { background:#0009; }
+.report-dialog h2 { margin-top:0; font-size:20px; }
+.report-dialog textarea { display:block; width:100%; box-sizing:border-box; min-height:210px; resize:vertical; background:var(--surface-bg); color:var(--text); border:1px solid var(--surface-border); padding:10px; margin-top:10px; scrollbar-color:#777 var(--surface-bg); }
+.report-dialog button,.report-dialog select { color:var(--text); background:var(--surface-bg); border:1px solid var(--surface-border); padding:8px 12px; border-radius:3px; cursor:pointer; }
+.report-dialog button:disabled { opacity:.5; cursor:default; }
+.report-options,.report-pending { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.report-hint { white-space:pre-line; font-size:13px; line-height:1.6; }
+.report-images { display:flex; gap:10px; margin-top:12px; }
+.report-images>div { width:30%; display:flex; flex-direction:column; gap:4px; }
+.report-images img { width:100%; height:130px; object-fit:contain; }
+.report-status { min-height:35px; font-size:13px; white-space:pre-line; }
+.report-dialog footer { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+.report-dialog footer button { min-width:132px; min-height:40px; }
+.report-dialog [data-action=send] { border:2px solid #00979d; }
+.report-dialog [hidden] { display:none!important; }
+/* Keep the product logo first and feedback in the right-side header actions. */
+.logo-bar .report-feedback-button { order:1; margin-left:auto; flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 8px; border:1px solid var(--button-border); border-radius:4px; background:transparent; color:var(--text); font:inherit; font-size:12px; cursor:pointer; white-space:nowrap; }
+.logo-bar .report-feedback-button:hover { background:var(--button-hover-bg); border-color:var(--button-hover-border); }
+.logo-bar .report-feedback-button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.logo-bar:has(.report-feedback-button) .logo-settings-button { margin-left:0; }
+
+.logo-bar .toolbar-logo { order:-1; }
